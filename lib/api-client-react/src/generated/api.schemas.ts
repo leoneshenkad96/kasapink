@@ -9,6 +9,18 @@ export interface HealthStatus {
   status: string;
 }
 
+export type LegacyHealthStatusStatus = typeof LegacyHealthStatusStatus[keyof typeof LegacyHealthStatusStatus];
+
+
+export const LegacyHealthStatusStatus = {
+  OK: 'OK',
+} as const;
+
+export interface LegacyHealthStatus {
+  status: LegacyHealthStatusStatus;
+  timestamp: string;
+}
+
 export interface Error {
   error: string;
 }
@@ -213,6 +225,11 @@ export interface ErpState {
 }
 
 export type GetFinanceReportParams = {
+startDate: string;
+endDate: string;
+};
+
+export type LegacyGetFinanceReportParams = {
 startDate: string;
 endDate: string;
 };

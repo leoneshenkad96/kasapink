@@ -28,6 +28,8 @@ import type {
   Ingredient,
   IngredientInput,
   IngredientUpdate,
+  LegacyGetFinanceReportParams,
+  LegacyHealthStatus,
   Product,
   ProductInput,
   ProductUpdate,
@@ -1012,4 +1014,872 @@ export const useRecordStockCount = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRecordStockCountMutationOptions(options));
     }
+
+export const getLegacyHealthCheckUrl = () => {
+
+
+
+
+  return `/api/health`
+}
+
+/**
+ * @summary Compatibility health check path
+ */
+export const legacyHealthCheck = async ( options?: Parameters<typeof customFetch>[1]): Promise<LegacyHealthStatus> => {
+
+  return customFetch<LegacyHealthStatus>(getLegacyHealthCheckUrl(),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getLegacyHealthCheckQueryKey = () => {
+    return [
+    `/api/health`
+    ] as const;
+    }
+
+
+export const getLegacyHealthCheckQueryOptions = <TData = Awaited<ReturnType<typeof legacyHealthCheck>>, TError = ErrorType<unknown>>( options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof legacyHealthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getLegacyHealthCheckQueryKey();
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof legacyHealthCheck>>> = ({ signal }) => legacyHealthCheck({ signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof legacyHealthCheck>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type LegacyHealthCheckQueryResult = NonNullable<Awaited<ReturnType<typeof legacyHealthCheck>>>
+export type LegacyHealthCheckQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Compatibility health check path
+ */
+
+export function useLegacyHealthCheck<TData = Awaited<ReturnType<typeof legacyHealthCheck>>, TError = ErrorType<unknown>>(
+  options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof legacyHealthCheck>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getLegacyHealthCheckQueryOptions(options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getLegacyCreateIngredientUrl = () => {
+
+
+
+
+  return `/api/ingredients`
+}
+
+/**
+ * @summary Compatibility path to add an ingredient
+ */
+export const legacyCreateIngredient = async (ingredientInput: IngredientInput, options?: Parameters<typeof customFetch>[1]): Promise<Ingredient> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Ingredient>(getLegacyCreateIngredientUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(ingredientInput)
+  }
+);}
+
+
+
+
+
+export const getLegacyCreateIngredientMutationKey = () => ['legacyCreateIngredient'] as const;
+
+export const getLegacyCreateIngredientMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyCreateIngredient>>, TError,LegacyCreateIngredientMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyCreateIngredient>>, TError,LegacyCreateIngredientMutationVariables, TContext> => {
+
+const mutationKey = getLegacyCreateIngredientMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyCreateIngredient>>, LegacyCreateIngredientMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  legacyCreateIngredient(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyCreateIngredientMutationResult = NonNullable<Awaited<ReturnType<typeof legacyCreateIngredient>>>
+    export type LegacyCreateIngredientMutationBody = BodyType<IngredientInput>
+    export type LegacyCreateIngredientMutationError = ErrorType<unknown>
+    export type LegacyCreateIngredientMutationVariables = {data: BodyType<IngredientInput>}
+
+    /**
+ * @summary Compatibility path to add an ingredient
+ */
+export const useLegacyCreateIngredient = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyCreateIngredient>>, TError,LegacyCreateIngredientMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyCreateIngredient>>,
+        TError,
+        LegacyCreateIngredientMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyCreateIngredientMutationOptions(options));
+    }
+
+export const getLegacyUpdateIngredientUrl = (ingredientId: number,) => {
+
+
+
+
+  return `/api/ingredients/${ingredientId}`
+}
+
+/**
+ * @summary Compatibility path to update an ingredient
+ */
+export const legacyUpdateIngredient = async (ingredientId: number,
+    ingredientUpdate: IngredientUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Ingredient> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Ingredient>(getLegacyUpdateIngredientUrl(ingredientId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(ingredientUpdate)
+  }
+);}
+
+
+
+
+
+export const getLegacyUpdateIngredientMutationKey = () => ['legacyUpdateIngredient'] as const;
+
+export const getLegacyUpdateIngredientMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyUpdateIngredient>>, TError,LegacyUpdateIngredientMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyUpdateIngredient>>, TError,LegacyUpdateIngredientMutationVariables, TContext> => {
+
+const mutationKey = getLegacyUpdateIngredientMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyUpdateIngredient>>, LegacyUpdateIngredientMutationVariables> = (props) => {
+          const {ingredientId,data} = props ?? {};
+
+          return  legacyUpdateIngredient(ingredientId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyUpdateIngredientMutationResult = NonNullable<Awaited<ReturnType<typeof legacyUpdateIngredient>>>
+    export type LegacyUpdateIngredientMutationBody = BodyType<IngredientUpdate>
+    export type LegacyUpdateIngredientMutationError = ErrorType<unknown>
+    export type LegacyUpdateIngredientMutationVariables = {ingredientId: number;data: BodyType<IngredientUpdate>}
+
+    /**
+ * @summary Compatibility path to update an ingredient
+ */
+export const useLegacyUpdateIngredient = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyUpdateIngredient>>, TError,LegacyUpdateIngredientMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyUpdateIngredient>>,
+        TError,
+        LegacyUpdateIngredientMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyUpdateIngredientMutationOptions(options));
+    }
+
+export const getLegacyCreateProductUrl = () => {
+
+
+
+
+  return `/api/products`
+}
+
+/**
+ * @summary Compatibility path to add a product
+ */
+export const legacyCreateProduct = async (productInput: ProductInput, options?: Parameters<typeof customFetch>[1]): Promise<Product> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Product>(getLegacyCreateProductUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(productInput)
+  }
+);}
+
+
+
+
+
+export const getLegacyCreateProductMutationKey = () => ['legacyCreateProduct'] as const;
+
+export const getLegacyCreateProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyCreateProduct>>, TError,LegacyCreateProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyCreateProduct>>, TError,LegacyCreateProductMutationVariables, TContext> => {
+
+const mutationKey = getLegacyCreateProductMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyCreateProduct>>, LegacyCreateProductMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  legacyCreateProduct(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyCreateProductMutationResult = NonNullable<Awaited<ReturnType<typeof legacyCreateProduct>>>
+    export type LegacyCreateProductMutationBody = BodyType<ProductInput>
+    export type LegacyCreateProductMutationError = ErrorType<unknown>
+    export type LegacyCreateProductMutationVariables = {data: BodyType<ProductInput>}
+
+    /**
+ * @summary Compatibility path to add a product
+ */
+export const useLegacyCreateProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyCreateProduct>>, TError,LegacyCreateProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyCreateProduct>>,
+        TError,
+        LegacyCreateProductMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyCreateProductMutationOptions(options));
+    }
+
+export const getLegacyUpdateProductUrl = (productId: number,) => {
+
+
+
+
+  return `/api/products/${productId}`
+}
+
+/**
+ * @summary Compatibility path to update a product
+ */
+export const legacyUpdateProduct = async (productId: number,
+    productUpdate: ProductUpdate, options?: Parameters<typeof customFetch>[1]): Promise<Product> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Product>(getLegacyUpdateProductUrl(productId),
+  {
+    ...options,
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(productUpdate)
+  }
+);}
+
+
+
+
+
+export const getLegacyUpdateProductMutationKey = () => ['legacyUpdateProduct'] as const;
+
+export const getLegacyUpdateProductMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyUpdateProduct>>, TError,LegacyUpdateProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyUpdateProduct>>, TError,LegacyUpdateProductMutationVariables, TContext> => {
+
+const mutationKey = getLegacyUpdateProductMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyUpdateProduct>>, LegacyUpdateProductMutationVariables> = (props) => {
+          const {productId,data} = props ?? {};
+
+          return  legacyUpdateProduct(productId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyUpdateProductMutationResult = NonNullable<Awaited<ReturnType<typeof legacyUpdateProduct>>>
+    export type LegacyUpdateProductMutationBody = BodyType<ProductUpdate>
+    export type LegacyUpdateProductMutationError = ErrorType<unknown>
+    export type LegacyUpdateProductMutationVariables = {productId: number;data: BodyType<ProductUpdate>}
+
+    /**
+ * @summary Compatibility path to update a product
+ */
+export const useLegacyUpdateProduct = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyUpdateProduct>>, TError,LegacyUpdateProductMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyUpdateProduct>>,
+        TError,
+        LegacyUpdateProductMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyUpdateProductMutationOptions(options));
+    }
+
+export const getLegacySaveProductRecipeUrl = (productId: number,) => {
+
+
+
+
+  return `/api/products/${productId}/recipe`
+}
+
+/**
+ * @summary Compatibility path to replace a product recipe
+ */
+export const legacySaveProductRecipe = async (productId: number,
+    recipeInput: RecipeInput, options?: Parameters<typeof customFetch>[1]): Promise<RecipeItem[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<RecipeItem[]>(getLegacySaveProductRecipeUrl(productId),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(recipeInput)
+  }
+);}
+
+
+
+
+
+export const getLegacySaveProductRecipeMutationKey = () => ['legacySaveProductRecipe'] as const;
+
+export const getLegacySaveProductRecipeMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacySaveProductRecipe>>, TError,LegacySaveProductRecipeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacySaveProductRecipe>>, TError,LegacySaveProductRecipeMutationVariables, TContext> => {
+
+const mutationKey = getLegacySaveProductRecipeMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacySaveProductRecipe>>, LegacySaveProductRecipeMutationVariables> = (props) => {
+          const {productId,data} = props ?? {};
+
+          return  legacySaveProductRecipe(productId,data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacySaveProductRecipeMutationResult = NonNullable<Awaited<ReturnType<typeof legacySaveProductRecipe>>>
+    export type LegacySaveProductRecipeMutationBody = BodyType<RecipeInput>
+    export type LegacySaveProductRecipeMutationError = ErrorType<unknown>
+    export type LegacySaveProductRecipeMutationVariables = {productId: number;data: BodyType<RecipeInput>}
+
+    /**
+ * @summary Compatibility path to replace a product recipe
+ */
+export const useLegacySaveProductRecipe = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacySaveProductRecipe>>, TError,LegacySaveProductRecipeMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacySaveProductRecipe>>,
+        TError,
+        LegacySaveProductRecipeMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacySaveProductRecipeMutationOptions(options));
+    }
+
+export const getLegacyRecordPurchaseUrl = () => {
+
+
+
+
+  return `/api/purchases`
+}
+
+/**
+ * @summary Compatibility path to record a purchase
+ */
+export const legacyRecordPurchase = async (purchaseInput: PurchaseInput, options?: Parameters<typeof customFetch>[1]): Promise<Purchase> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Purchase>(getLegacyRecordPurchaseUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(purchaseInput)
+  }
+);}
+
+
+
+
+
+export const getLegacyRecordPurchaseMutationKey = () => ['legacyRecordPurchase'] as const;
+
+export const getLegacyRecordPurchaseMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyRecordPurchase>>, TError,LegacyRecordPurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyRecordPurchase>>, TError,LegacyRecordPurchaseMutationVariables, TContext> => {
+
+const mutationKey = getLegacyRecordPurchaseMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyRecordPurchase>>, LegacyRecordPurchaseMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  legacyRecordPurchase(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyRecordPurchaseMutationResult = NonNullable<Awaited<ReturnType<typeof legacyRecordPurchase>>>
+    export type LegacyRecordPurchaseMutationBody = BodyType<PurchaseInput>
+    export type LegacyRecordPurchaseMutationError = ErrorType<unknown>
+    export type LegacyRecordPurchaseMutationVariables = {data: BodyType<PurchaseInput>}
+
+    /**
+ * @summary Compatibility path to record a purchase
+ */
+export const useLegacyRecordPurchase = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyRecordPurchase>>, TError,LegacyRecordPurchaseMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyRecordPurchase>>,
+        TError,
+        LegacyRecordPurchaseMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyRecordPurchaseMutationOptions(options));
+    }
+
+export const getLegacyRecordSaleUrl = () => {
+
+
+
+
+  return `/api/sales`
+}
+
+/**
+ * @summary Compatibility path to record a sale
+ */
+export const legacyRecordSale = async (saleInput: SaleInput, options?: Parameters<typeof customFetch>[1]): Promise<Sale> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Sale>(getLegacyRecordSaleUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(saleInput)
+  }
+);}
+
+
+
+
+
+export const getLegacyRecordSaleMutationKey = () => ['legacyRecordSale'] as const;
+
+export const getLegacyRecordSaleMutationOptions = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyRecordSale>>, TError,LegacyRecordSaleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyRecordSale>>, TError,LegacyRecordSaleMutationVariables, TContext> => {
+
+const mutationKey = getLegacyRecordSaleMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyRecordSale>>, LegacyRecordSaleMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  legacyRecordSale(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyRecordSaleMutationResult = NonNullable<Awaited<ReturnType<typeof legacyRecordSale>>>
+    export type LegacyRecordSaleMutationBody = BodyType<SaleInput>
+    export type LegacyRecordSaleMutationError = ErrorType<Error>
+    export type LegacyRecordSaleMutationVariables = {data: BodyType<SaleInput>}
+
+    /**
+ * @summary Compatibility path to record a sale
+ */
+export const useLegacyRecordSale = <TError = ErrorType<Error>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyRecordSale>>, TError,LegacyRecordSaleMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyRecordSale>>,
+        TError,
+        LegacyRecordSaleMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyRecordSaleMutationOptions(options));
+    }
+
+export const getLegacyRecordStockCountUrl = () => {
+
+
+
+
+  return `/api/stock-counts`
+}
+
+/**
+ * @summary Compatibility path to record a stock count
+ */
+export const legacyRecordStockCount = async (stockCountInput: StockCountInput, options?: Parameters<typeof customFetch>[1]): Promise<Ingredient[]> => {
+
+    const getHeaders = (h?: NonNullable<RequestInit['headers']>): Record<string, string | readonly string[]> => {
+    if (!h) return {};
+    if (h instanceof Headers) return Object.fromEntries(h.entries());
+    if (Symbol.iterator in h) {
+      return Object.fromEntries(
+        Array.from(h as Iterable<Iterable<string>>, (entry) => Array.from(entry) as [string, string]),
+      );
+    }
+    const headers: Record<string, string | readonly string[]> = {};
+    for (const [name, value] of Object.entries<string | readonly string[] | undefined>(h)) {
+      if (value !== undefined) headers[name] = value;
+    }
+    return headers;
+  };
+return customFetch<Ingredient[]>(getLegacyRecordStockCountUrl(),
+  {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...getHeaders(options?.headers) },
+    body: JSON.stringify(stockCountInput)
+  }
+);}
+
+
+
+
+
+export const getLegacyRecordStockCountMutationKey = () => ['legacyRecordStockCount'] as const;
+
+export const getLegacyRecordStockCountMutationOptions = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyRecordStockCount>>, TError,LegacyRecordStockCountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+): UseMutationOptions<Awaited<ReturnType<typeof legacyRecordStockCount>>, TError,LegacyRecordStockCountMutationVariables, TContext> => {
+
+const mutationKey = getLegacyRecordStockCountMutationKey();
+const {mutation: mutationOptions, request: requestOptions} = options ?
+      options.mutation && 'mutationKey' in options.mutation && options.mutation.mutationKey ?
+      options
+      : {...options, mutation: {...options.mutation, mutationKey}}
+      : {mutation: { mutationKey, }, request: undefined};
+
+
+
+
+      const mutationFn: MutationFunction<Awaited<ReturnType<typeof legacyRecordStockCount>>, LegacyRecordStockCountMutationVariables> = (props) => {
+          const {data} = props ?? {};
+
+          return  legacyRecordStockCount(data,requestOptions)
+        }
+
+
+
+
+
+
+  return  { mutationFn, ...mutationOptions }}
+
+    export type LegacyRecordStockCountMutationResult = NonNullable<Awaited<ReturnType<typeof legacyRecordStockCount>>>
+    export type LegacyRecordStockCountMutationBody = BodyType<StockCountInput>
+    export type LegacyRecordStockCountMutationError = ErrorType<unknown>
+    export type LegacyRecordStockCountMutationVariables = {data: BodyType<StockCountInput>}
+
+    /**
+ * @summary Compatibility path to record a stock count
+ */
+export const useLegacyRecordStockCount = <TError = ErrorType<unknown>,
+    TContext = unknown>(options?: { mutation?:UseMutationOptions<Awaited<ReturnType<typeof legacyRecordStockCount>>, TError,LegacyRecordStockCountMutationVariables, TContext>, request?: SecondParameter<typeof customFetch>}
+ ): UseMutationResult<
+        Awaited<ReturnType<typeof legacyRecordStockCount>>,
+        TError,
+        LegacyRecordStockCountMutationVariables,
+        TContext
+      > => {
+      return useMutation(getLegacyRecordStockCountMutationOptions(options));
+    }
+
+export const getLegacyGetFinanceReportUrl = (params: LegacyGetFinanceReportParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/finance/report?${stringifiedParams}` : `/api/finance/report`
+}
+
+/**
+ * @summary Compatibility path to get a finance report
+ */
+export const legacyGetFinanceReport = async (params: LegacyGetFinanceReportParams, options?: Parameters<typeof customFetch>[1]): Promise<FinanceReport> => {
+
+  return customFetch<FinanceReport>(getLegacyGetFinanceReportUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getLegacyGetFinanceReportQueryKey = (params?: LegacyGetFinanceReportParams,) => {
+    return [
+    `/api/finance/report`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getLegacyGetFinanceReportQueryOptions = <TData = Awaited<ReturnType<typeof legacyGetFinanceReport>>, TError = ErrorType<unknown>>(params: LegacyGetFinanceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof legacyGetFinanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getLegacyGetFinanceReportQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof legacyGetFinanceReport>>> = ({ signal }) => legacyGetFinanceReport(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof legacyGetFinanceReport>>, TError, TData> & { queryKey: QueryKey }
+}
+
+export type LegacyGetFinanceReportQueryResult = NonNullable<Awaited<ReturnType<typeof legacyGetFinanceReport>>>
+export type LegacyGetFinanceReportQueryError = ErrorType<unknown>
+
+
+/**
+ * @summary Compatibility path to get a finance report
+ */
+
+export function useLegacyGetFinanceReport<TData = Awaited<ReturnType<typeof legacyGetFinanceReport>>, TError = ErrorType<unknown>>(
+ params: LegacyGetFinanceReportParams, options?: { query?:UseQueryOptions<Awaited<ReturnType<typeof legacyGetFinanceReport>>, TError, TData>, request?: SecondParameter<typeof customFetch>}
+
+ ):  UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+
+  const queryOptions = getLegacyGetFinanceReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions) as  UseQueryResult<TData, TError> & { queryKey: QueryKey };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 

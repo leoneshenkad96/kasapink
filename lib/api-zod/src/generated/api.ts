@@ -353,3 +353,282 @@ export const RecordStockCountResponseItem = zod.object({
 export const RecordStockCountResponse = zod.array(RecordStockCountResponseItem)
 
 
+/**
+ * @summary Compatibility health check path
+ */
+export const LegacyHealthCheckResponse = zod.object({
+  "status": zod.enum(['OK']),
+  "timestamp": zod.coerce.date()
+})
+
+
+/**
+ * @summary Compatibility path to add an ingredient
+ */
+export const legacyCreateIngredientBodyNameMax = 120;
+
+
+export const legacyCreateIngredientBodyUnitMax = 30;
+
+export const legacyCreateIngredientBodyStockMin = 0;
+
+export const legacyCreateIngredientBodyMinStockMin = 0;
+
+export const legacyCreateIngredientBodyOpeningUnitCostMin = 0;
+
+
+
+export const LegacyCreateIngredientBody = zod.object({
+  "name": zod.string().min(1).max(legacyCreateIngredientBodyNameMax),
+  "category": zod.string().min(1),
+  "unit": zod.string().min(1).max(legacyCreateIngredientBodyUnitMax),
+  "stock": zod.number().min(legacyCreateIngredientBodyStockMin),
+  "minStock": zod.number().min(legacyCreateIngredientBodyMinStockMin),
+  "openingUnitCost": zod.number().min(legacyCreateIngredientBodyOpeningUnitCostMin)
+})
+
+export const LegacyCreateIngredientResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "unit": zod.string(),
+  "stock": zod.number(),
+  "minStock": zod.number(),
+  "lastPrice": zod.number(),
+  "averageCost": zod.number()
+})
+
+
+/**
+ * @summary Compatibility path to update an ingredient
+ */
+export const LegacyUpdateIngredientParams = zod.object({
+  "ingredientId": zod.coerce.number().int()
+})
+
+export const legacyUpdateIngredientBodyNameMax = 120;
+
+
+export const legacyUpdateIngredientBodyUnitMax = 30;
+
+export const legacyUpdateIngredientBodyMinStockMin = 0;
+
+
+
+export const LegacyUpdateIngredientBody = zod.object({
+  "name": zod.string().min(1).max(legacyUpdateIngredientBodyNameMax).optional(),
+  "category": zod.string().min(1).optional(),
+  "unit": zod.string().min(1).max(legacyUpdateIngredientBodyUnitMax).optional(),
+  "minStock": zod.number().min(legacyUpdateIngredientBodyMinStockMin).optional()
+})
+
+export const LegacyUpdateIngredientResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "unit": zod.string(),
+  "stock": zod.number(),
+  "minStock": zod.number(),
+  "lastPrice": zod.number(),
+  "averageCost": zod.number()
+})
+
+
+/**
+ * @summary Compatibility path to add a product
+ */
+export const legacyCreateProductBodyNameMax = 120;
+
+export const legacyCreateProductBodySellingPriceMin = 0;
+
+
+
+export const LegacyCreateProductBody = zod.object({
+  "name": zod.string().min(1).max(legacyCreateProductBodyNameMax),
+  "sellingPrice": zod.number().min(legacyCreateProductBodySellingPriceMin)
+})
+
+export const LegacyCreateProductResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "sellingPrice": zod.number()
+})
+
+
+/**
+ * @summary Compatibility path to update a product
+ */
+export const LegacyUpdateProductParams = zod.object({
+  "productId": zod.coerce.number().int()
+})
+
+export const legacyUpdateProductBodyNameMax = 120;
+
+export const legacyUpdateProductBodySellingPriceMin = 0;
+
+
+
+export const LegacyUpdateProductBody = zod.object({
+  "name": zod.string().min(1).max(legacyUpdateProductBodyNameMax).optional(),
+  "sellingPrice": zod.number().min(legacyUpdateProductBodySellingPriceMin).optional()
+})
+
+export const LegacyUpdateProductResponse = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "sellingPrice": zod.number()
+})
+
+
+/**
+ * @summary Compatibility path to replace a product recipe
+ */
+export const LegacySaveProductRecipeParams = zod.object({
+  "productId": zod.coerce.number().int()
+})
+
+export const legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
+
+
+
+export const LegacySaveProductRecipeBody = zod.object({
+  "items": zod.array(zod.object({
+  "ingredientId": zod.number().int(),
+  "qtyRequired": zod.number().gt(legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
+}))
+})
+
+export const LegacySaveProductRecipeResponseItem = zod.object({
+  "productId": zod.number().int(),
+  "ingredientId": zod.number().int(),
+  "ingredientName": zod.string(),
+  "unit": zod.string(),
+  "qtyRequired": zod.number()
+})
+export const LegacySaveProductRecipeResponse = zod.array(LegacySaveProductRecipeResponseItem)
+
+
+/**
+ * @summary Compatibility path to record a purchase
+ */
+export const legacyRecordPurchaseBodySupplierTypeMax = 120;
+
+export const legacyRecordPurchaseBodyItemsItemQuantityExclusiveMin = 0;
+
+export const legacyRecordPurchaseBodyItemsItemTotalCostMin = 0;
+
+
+
+
+export const LegacyRecordPurchaseBody = zod.object({
+  "date": zod.coerce.date(),
+  "supplierType": zod.string().min(1).max(legacyRecordPurchaseBodySupplierTypeMax),
+  "items": zod.array(zod.object({
+  "ingredientId": zod.number().int(),
+  "quantity": zod.number().gt(legacyRecordPurchaseBodyItemsItemQuantityExclusiveMin),
+  "totalCost": zod.number().min(legacyRecordPurchaseBodyItemsItemTotalCostMin)
+})).min(1)
+})
+
+export const LegacyRecordPurchaseResponse = zod.object({
+  "id": zod.number().int(),
+  "date": zod.coerce.date(),
+  "supplierType": zod.string(),
+  "totalCost": zod.number(),
+  "items": zod.array(zod.object({
+  "ingredientId": zod.number().int(),
+  "ingredientName": zod.string(),
+  "unit": zod.string(),
+  "quantity": zod.number(),
+  "totalCost": zod.number(),
+  "unitCost": zod.number()
+}))
+})
+
+
+/**
+ * @summary Compatibility path to record a sale
+ */
+
+
+
+
+export const LegacyRecordSaleBody = zod.object({
+  "date": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "productId": zod.number().int(),
+  "quantity": zod.number().int().min(1)
+})).min(1)
+})
+
+export const LegacyRecordSaleResponse = zod.object({
+  "id": zod.number().int(),
+  "date": zod.coerce.date(),
+  "totalRevenue": zod.number(),
+  "totalCostOfGoodsSold": zod.number(),
+  "grossProfit": zod.number(),
+  "items": zod.array(zod.object({
+  "productId": zod.number().int(),
+  "productName": zod.string(),
+  "quantity": zod.number().int(),
+  "unitPrice": zod.number(),
+  "revenue": zod.number(),
+  "costOfGoodsSold": zod.number()
+}))
+})
+
+
+/**
+ * @summary Compatibility path to record a stock count
+ */
+export const legacyRecordStockCountBodyItemsItemCountedStockMin = 0;
+
+
+
+
+export const LegacyRecordStockCountBody = zod.object({
+  "date": zod.coerce.date(),
+  "items": zod.array(zod.object({
+  "ingredientId": zod.number().int(),
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemCountedStockMin)
+})).min(1)
+})
+
+export const LegacyRecordStockCountResponseItem = zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "unit": zod.string(),
+  "stock": zod.number(),
+  "minStock": zod.number(),
+  "lastPrice": zod.number(),
+  "averageCost": zod.number()
+})
+export const LegacyRecordStockCountResponse = zod.array(LegacyRecordStockCountResponseItem)
+
+
+/**
+ * @summary Compatibility path to get a finance report
+ */
+export const LegacyGetFinanceReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date()
+})
+
+export const LegacyGetFinanceReportResponse = zod.object({
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "revenue": zod.number(),
+  "costOfGoodsSold": zod.number(),
+  "purchases": zod.number(),
+  "grossProfit": zod.number(),
+  "days": zod.array(zod.object({
+  "date": zod.coerce.date(),
+  "revenue": zod.number(),
+  "costOfGoodsSold": zod.number(),
+  "purchases": zod.number(),
+  "grossProfit": zod.number()
+}))
+})
+
+

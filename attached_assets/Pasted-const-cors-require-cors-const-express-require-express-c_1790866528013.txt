@@ -1,0 +1,359 @@
+const cors = require('cors');
+const express = require('express');
+const sqlite3 = require('sqlite3').verbose();
+
+const app = express();
+app.use(express.json());
+app.use(cors());
+
+// Inisialisasi Database SQLite Lokal ('erpmak.db')
+const db = new sqlite3.Database('./erpmak.db', (err) => {
+  if (err) console.error('Gagal membuka database', err.message);
+  else console.log('Terhubung ke database SQLite lokal ERP Emak.');
+});
+
+// Buat Tabel Database Otomatis jika belum ada
+db.serialize(() => {
+  db.run(`CREATE TABLE IF NOT EXISTS ingredients (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    unit TEXT NOT NULL,
+    stock REAL DEFAULT 0,
+    min_stock REAL DEFAULT 0,
+    last_price REAL DEFAULT 0
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS products (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    selling_price REAL NOT NULL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS recipes (
+    product_id INTEGER,
+    ingredient_id INTEGER,
+    qty_required REAL,
+    PRIMARY KEY (product_id, ingredient_id)
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    supplier_type TEXT,
+    total_cost REAL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS purchase_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    purchase_id INTEGER,
+    ingredient_id INTEGER,
+    quantity REAL,
+    total_cost REAL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS sales (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    total_revenue REAL
+  )`);
+
+  db.run(`CREATE TABLE IF NOT EXISTS sale_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    sale_id INTEGER,
+    product_id INTEGER,
+    quantity INTEGER
+  )`);
+});
+
+// 1. Health Check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// 2. Get ERP State (Dashboard & Master Data)
+app.get('/api/erp/state', (req, res) => {
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  db.all('SELECT * FROM ingredients', [], (err, ingredients) => {
+    if (err) return res.status(500).json({ error: err.message });
+
+    db.all('SELECT * FROM products', [], (err, products) => {
+      if (err) return res.status(500).json({ error: err.message });
+
+      db.all(
+          `
+        SELECT r.product_id as productId, r.ingredient_id as ingredientId, r.qty_required as qtyRequired, i.name as ingredientName 
+        FROM recipes r JOIN ingredients i ON r.ingredient_id = i.id
+      `,
+          [],
+          (err, recipes) => {
+            if (err) return res.status(500).json({ error: err.message });
+
+            db.all(
+                'SELECT * FROM purchases ORDER BY date DESC LIMIT 10',
+                [],
+                (err, purchases) => {
+                  if (err) return res.status(500).json({ error: err.message });
+
+                  db.all(
+                      'SELECT * FROM sales ORDER BY date DESC LIMIT 10',
+                      [],
+                      (err, sales) => {
+                        if (err)
+                          return res.status(500).json({ error: err.message });
+
+                        db.get(
+                            'SELECT SUM(total_revenue) as rev FROM sales WHERE'
+                                + ' date = ?',
+                            [todayStr],
+                            (err, rowRev) => {
+                              db.get(
+                                  'SELECT SUM(total_cost) as cost FROM'
+                                      + ' purchases WHERE date = ?',
+                                  [todayStr],
+                                  (err, rowCost) => {
+                                    const todayRev = rowRev?.rev || 0;
+                                    const todayCost = rowCost?.cost || 0;
+                                    const lowStockCount = ingredients.filter(
+                                        (i) => i.stock <= i.min_stock,
+                                    ).length;
+
+                                    res.json({
+                                      ingredients: ingredients.map((i) => ({
+                                        ...i,
+                                        minStock: i.min_stock,
+                                        lastPrice: i.last_price,
+                                      })),
+                                      products: products.map((p) => ({
+                                        ...p,
+                                        sellingPrice: p.selling_price,
+                                      })),
+                                      recipes,
+                                      recentPurchases: purchases.map((p) => ({
+                                        ...p,
+                                        supplierType: p.supplier_type,
+                                        totalCost: p.total_cost,
+                                        items: [],
+                                      })),
+                                      recentSales: sales.map((s) => ({
+                                        ...s,
+                                        totalRevenue: s.total_revenue,
+                                        items: [],
+                                      })),
+                                      today: {
+                                        date: todayStr,
+                                        revenue: todayRev,
+                                        costOfGoodsSold: 0,
+                                        purchases: todayCost,
+                                        grossProfit: todayRev - todayCost,
+                                      },
+                                      lowStockCount,
+                                    });
+                                  },
+                              );
+                            },
+                        );
+                      },
+                  );
+                },
+            );
+          },
+      );
+    });
+  });
+});
+
+// 3. Tambah & Update Bahan Baku
+app.post('/api/ingredients', (req, res) => {
+  const { name, category, unit, stock, minStock, openingUnitCost } = req.body;
+  db.run(
+      'INSERT INTO ingredients (name, category, unit, stock, min_stock,'
+      + ' last_price) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, category, unit, stock || 0, minStock || 0, openingUnitCost || 0],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({
+          id: this.lastID,
+          name,
+          category,
+          unit,
+          stock,
+          minStock,
+          lastPrice: openingUnitCost || 0,
+        });
+      },
+  );
+});
+
+app.put('/api/ingredients/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, category, unit, minStock } = req.body;
+  db.run(
+      'UPDATE ingredients SET name = ?, category = ?, unit = ?, min_stock = ?'
+      + ' WHERE id = ?',
+      [name, category, unit, minStock, id],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+      },
+  );
+});
+
+// 4. Tambah Produk & Simpan Resep (Bill of Materials)
+app.post('/api/products', (req, res) => {
+  const { name, sellingPrice } = req.body;
+  db.run(
+      'INSERT INTO products (name, selling_price) VALUES (?, ?)',
+      [name, sellingPrice],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ id: this.lastID, name, sellingPrice });
+      },
+  );
+});
+
+app.put('/api/products/:id', (req, res) => {
+  const { id } = req.params;
+  const { name, sellingPrice } = req.body;
+  db.run(
+      'UPDATE products SET name = ?, selling_price = ? WHERE id = ?',
+      [name, sellingPrice, id],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        res.json({ success: true });
+      },
+  );
+});
+
+app.post('/api/products/:id/recipe', (req, res) => {
+  const { id } = req.params;
+  const { items } = req.body; // array of { ingredientId, qtyRequired }
+  db.run('DELETE FROM recipes WHERE product_id = ?', [id], (err) => {
+    if (err) return res.status(500).json({ error: err.message });
+    const stmt = db.prepare(
+        'INSERT INTO recipes (product_id, ingredient_id, qty_required) VALUES'
+        + ' (?, ?, ?)',
+    );
+    items.forEach((item) => {
+      stmt.run(id, item.ingredientId, item.qtyRequired);
+    });
+    stmt.finalize();
+    res.json({ success: true });
+  });
+});
+
+// 5. Catat Belanja (Otomatis Tambah Stok & Harga Rata-rata)
+app.post('/api/purchases', (req, res) => {
+  const { date, supplierType, items } = req.body;
+  const totalCost = items.reduce((acc, item) => acc + item.totalCost, 0);
+
+  db.run(
+      'INSERT INTO purchases (date, supplier_type, total_cost) VALUES (?, ?, ?)',
+      [date, supplierType, totalCost],
+      function (err) {
+        if (err) return res.status(500).json({ error: err.message });
+        const purchaseId = this.lastID;
+
+        items.forEach((item) => {
+          db.run(
+              'INSERT INTO purchase_items (purchase_id, ingredient_id,'
+              + ' quantity, total_cost) VALUES (?, ?, ?, ?)',
+              [purchaseId, item.ingredientId, item.quantity, item.totalCost],
+          );
+          const unitPrice =
+            item.quantity > 0 ? item.totalCost / item.quantity : 0;
+          db.run(
+              'UPDATE ingredients SET stock = stock + ?, last_price = ? WHERE'
+              + ' id = ?',
+              [item.quantity, unitPrice, item.ingredientId],
+          );
+        });
+
+        res.json({ id: purchaseId, date, supplierType, totalCost });
+      },
+  );
+});
+
+// 6. Catat Penjualan (Otomatis Potong Stok Berdasarkan Resep)
+app.post('/api/sales', (req, res) => {
+  const { date, items } = req.body;
+
+  db.all('SELECT id, selling_price FROM products', [], (err, prods) => {
+    const priceMap = {};
+    prods.forEach((p) => (priceMap[p.id] = p.selling_price));
+
+    let totalRevenue = 0;
+    items.forEach((item) => {
+      totalRevenue += (priceMap[item.productId] || 0) * item.quantity;
+    });
+
+    db.run(
+        'INSERT INTO sales (date, total_revenue) VALUES (?, ?)',
+        [date, totalRevenue],
+        function (err) {
+          if (err) return res.status(500).json({ error: err.message });
+          const saleId = this.lastID;
+
+          items.forEach((item) => {
+            db.run(
+                'INSERT INTO sale_items (sale_id, product_id, quantity) VALUES'
+                + ' (?, ?, ?)',
+                [saleId, item.productId, item.quantity],
+            );
+
+            // Kurangi stok bahan mentah berdasarkan resep produk
+            db.all(
+                'SELECT ingredient_id, qty_required FROM recipes WHERE'
+                + ' product_id = ?',
+                [item.productId],
+                (err, recipeItems) => {
+                  recipeItems.forEach((ri) => {
+                    const totalDeduct = ri.qty_required * item.quantity;
+                    db.run(
+                        'UPDATE ingredients SET stock = stock - ? WHERE id = ?',
+                        [totalDeduct, ri.ingredient_id],
+                    );
+                  });
+                },
+            );
+          });
+
+          res.json({ id: saleId, date, totalRevenue });
+        },
+    );
+  });
+});
+
+// 7. Stok Opname (Hitung Fisik)
+app.post('/api/stock-counts', (req, res) => {
+  const { date, items } = req.body;
+  items.forEach((item) => {
+    db.run('UPDATE ingredients SET stock = ? WHERE id = ?', [
+      item.countedStock,
+      item.ingredientId,
+    ]);
+  });
+  res.json({ success: true });
+});
+
+// 8. Laporan Keuangan
+app.get('/api/finance/report', (req, res) => {
+  const { startDate, endDate } = req.query;
+  res.json({
+    startDate,
+    endDate,
+    revenue: 0,
+    costOfGoodsSold: 0,
+    purchases: 0,
+    grossProfit: 0,
+    days: [],
+  });
+});
+
+const PORT = process.env.PORT || 4000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(
+      `Server ERP Lokal Emak berjalan dan siap diakses di port ${PORT}`,
+  );
+});

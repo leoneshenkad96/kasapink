@@ -34,6 +34,7 @@ A Bahasa Indonesia inventory, recipe, purchasing, sales, stock-count, and gross-
 - Purchase spending is reported separately from cost of goods sold; gross profit is revenue minus sold-product ingredient cost.
 - The only seeded recipe is one packaged cracker per factory-made cracker; set actual recipes for other products before recording sales.
 - Stock purchases, sales, and physical counts write stock movements in the same database transaction as the balance update.
+- Unprefixed legacy API paths are compatibility aliases into the same PostgreSQL-backed ERP routes; do not start a second SQLite server.
 
 ## Product
 

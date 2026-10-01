@@ -228,6 +228,208 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Ingredient"
+  /health:
+    get:
+      operationId: legacyHealthCheck
+      tags: [health]
+      summary: Compatibility health check path
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LegacyHealthStatus"
+  /ingredients:
+    post:
+      operationId: legacyCreateIngredient
+      tags: [erp]
+      summary: Compatibility path to add an ingredient
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngredientInput"
+      responses:
+        "201":
+          description: Ingredient created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+  /ingredients/{ingredientId}:
+    put:
+      operationId: legacyUpdateIngredient
+      tags: [erp]
+      summary: Compatibility path to update an ingredient
+      parameters:
+        - in: path
+          name: ingredientId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngredientUpdate"
+      responses:
+        "200":
+          description: Updated ingredient
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+  /products:
+    post:
+      operationId: legacyCreateProduct
+      tags: [erp]
+      summary: Compatibility path to add a product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /products/{productId}:
+    put:
+      operationId: legacyUpdateProduct
+      tags: [erp]
+      summary: Compatibility path to update a product
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /products/{productId}/recipe:
+    post:
+      operationId: legacySaveProductRecipe
+      tags: [erp]
+      summary: Compatibility path to replace a product recipe
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipeInput"
+      responses:
+        "200":
+          description: Saved recipe items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecipeItem"
+  /purchases:
+    post:
+      operationId: legacyRecordPurchase
+      tags: [erp]
+      summary: Compatibility path to record a purchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseInput"
+      responses:
+        "201":
+          description: Purchase recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+  /sales:
+    post:
+      operationId: legacyRecordSale
+      tags: [erp]
+      summary: Compatibility path to record a sale
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleInput"
+      responses:
+        "201":
+          description: Sale recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+        "409":
+          description: Recipe is missing or stock is insufficient
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /stock-counts:
+    post:
+      operationId: legacyRecordStockCount
+      tags: [erp]
+      summary: Compatibility path to record a stock count
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockCountInput"
+      responses:
+        "200":
+          description: Updated inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ingredient"
+  /finance/report:
+    get:
+      operationId: legacyGetFinanceReport
+      tags: [erp]
+      summary: Compatibility path to get a finance report
+      parameters:
+        - in: query
+          name: startDate
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Finance totals grouped by date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceReport"
 components:
   schemas:
     HealthStatus:
@@ -237,6 +439,12 @@ components:
           type: string
       required:
         - status
+    LegacyHealthStatus:
+      type: object
+      properties:
+        status: { type: string, enum: [OK] }
+        timestamp: { type: string, format: date-time }
+      required: [status, timestamp]
     Error:
       type: object
       properties:
