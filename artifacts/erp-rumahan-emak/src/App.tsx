@@ -51,7 +51,7 @@ function Shell({ children, connected }: { children: React.ReactNode; connected: 
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <Link href="/" className="brand-lockup" onClick={() => setMobileNav(false)}>
         <span className="brand-mark"><CookingPot size={21} /></span>
-        <span><strong>Rumahan Emak</strong><small>CATATAN USAHA</small></span>
+        <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
       </Link>
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">

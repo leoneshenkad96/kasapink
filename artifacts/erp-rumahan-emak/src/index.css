@@ -293,7 +293,7 @@
   }
 }
 
-/* Rumahan Emak — warm ledger, forest ink, and market-stall saffron */
+/* Kasapink — warm ledger, forest ink, and market-stall saffron */
 .app-shell { min-height: 100dvh; display: flex; background: hsl(var(--background)); color: hsl(var(--foreground)); }
 .sidebar { width: 246px; background: hsl(var(--sidebar)); color: hsl(var(--sidebar-foreground)); display: flex; flex-direction: column; padding: 28px 16px 20px; position: fixed; inset: 0 auto 0 0; z-index: 30; }
 .brand-lockup { display: flex; align-items: center; gap: 12px; padding: 0 12px 32px; text-decoration: none; color: inherit; }

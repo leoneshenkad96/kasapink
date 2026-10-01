@@ -1,4 +1,4 @@
-# ERP Rumahan Emak
+# Kasapink
 
 A Bahasa Indonesia inventory, recipe, purchasing, sales, stock-count, and gross-profit app for a small family food business.
 

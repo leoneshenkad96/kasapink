@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "ERP Rumahan Emak"
+title = "Kasapink"
 description = "A practical Indonesian small-business ERP for managing ingredients, recipes, purchases, sales, stock counts, and profit with recipe-based inventory consumption."
 version = "1.0.0"
 id = "artifacts/erp-rumahan-emak"
