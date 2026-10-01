@@ -3,13 +3,15 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: API for ERP Rumahan Emak
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: erp
+    description: Inventory, recipe, purchase, sales, and finance operations
 paths:
   /healthz:
     get:
@@ -24,6 +26,208 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /erp/state:
+    get:
+      operationId: getErpState
+      tags: [erp]
+      summary: Get the current ERP workspace data
+      responses:
+        "200":
+          description: Current ingredients, products, recipes, recent transactions, and daily totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErpState"
+  /erp/finance:
+    get:
+      operationId: getFinanceReport
+      tags: [erp]
+      summary: Get finance totals for a date range
+      parameters:
+        - in: query
+          name: startDate
+          required: true
+          schema: { type: string, format: date }
+        - in: query
+          name: endDate
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: Revenue, cost of goods sold, purchases, and gross profit grouped by date
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FinanceReport"
+  /erp/ingredients:
+    post:
+      operationId: createIngredient
+      tags: [erp]
+      summary: Add an ingredient or stock item
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngredientInput"
+      responses:
+        "201":
+          description: Ingredient created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+  /erp/ingredients/{ingredientId}:
+    patch:
+      operationId: updateIngredient
+      tags: [erp]
+      summary: Update ingredient details and minimum stock
+      parameters:
+        - in: path
+          name: ingredientId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/IngredientUpdate"
+      responses:
+        "200":
+          description: Updated ingredient
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Ingredient"
+  /erp/products:
+    post:
+      operationId: createProduct
+      tags: [erp]
+      summary: Add a sale product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductInput"
+      responses:
+        "201":
+          description: Product created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /erp/products/{productId}:
+    patch:
+      operationId: updateProduct
+      tags: [erp]
+      summary: Update a product name or selling price
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProductUpdate"
+      responses:
+        "200":
+          description: Updated product
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Product"
+  /erp/products/{productId}/recipe:
+    put:
+      operationId: saveProductRecipe
+      tags: [erp]
+      summary: Replace a product recipe
+      parameters:
+        - in: path
+          name: productId
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RecipeInput"
+      responses:
+        "200":
+          description: Saved recipe items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RecipeItem"
+  /erp/purchases:
+    post:
+      operationId: recordPurchase
+      tags: [erp]
+      summary: Record a purchase and add stock atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PurchaseInput"
+      responses:
+        "201":
+          description: Saved purchase and detail lines
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Purchase"
+  /erp/sales:
+    post:
+      operationId: recordSale
+      tags: [erp]
+      summary: Record a sale, consume recipe stock, and calculate cost of goods sold atomically
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SaleInput"
+      responses:
+        "201":
+          description: Saved sale and calculated line totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sale"
+        "409":
+          description: A recipe is missing or there is not enough stock
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+  /erp/stock-counts:
+    post:
+      operationId: recordStockCount
+      tags: [erp]
+      summary: Record a physical stock count and audit adjustments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StockCountInput"
+      responses:
+        "200":
+          description: Updated inventory
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Ingredient"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +237,219 @@ components:
           type: string
       required:
         - status
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+    Ingredient:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        category: { type: string }
+        unit: { type: string }
+        stock: { type: number }
+        minStock: { type: number }
+        lastPrice: { type: number }
+        averageCost: { type: number }
+      required: [id, name, category, unit, stock, minStock, lastPrice, averageCost]
+    IngredientInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1 }
+        unit: { type: string, minLength: 1, maxLength: 30 }
+        stock: { type: number, minimum: 0 }
+        minStock: { type: number, minimum: 0 }
+        openingUnitCost: { type: number, minimum: 0 }
+      required: [name, category, unit, stock, minStock, openingUnitCost]
+    IngredientUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        category: { type: string, minLength: 1 }
+        unit: { type: string, minLength: 1, maxLength: 30 }
+        minStock: { type: number, minimum: 0 }
+    Product:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        sellingPrice: { type: number }
+      required: [id, name, sellingPrice]
+    ProductInput:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        sellingPrice: { type: number, minimum: 0 }
+      required: [name, sellingPrice]
+    ProductUpdate:
+      type: object
+      properties:
+        name: { type: string, minLength: 1, maxLength: 120 }
+        sellingPrice: { type: number, minimum: 0 }
+    RecipeItem:
+      type: object
+      properties:
+        productId: { type: integer }
+        ingredientId: { type: integer }
+        ingredientName: { type: string }
+        unit: { type: string }
+        qtyRequired: { type: number }
+      required: [productId, ingredientId, ingredientName, unit, qtyRequired]
+    RecipeLineInput:
+      type: object
+      properties:
+        ingredientId: { type: integer }
+        qtyRequired: { type: number, exclusiveMinimum: 0 }
+      required: [ingredientId, qtyRequired]
+    RecipeInput:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecipeLineInput"
+      required: [items]
+    PurchaseLineInput:
+      type: object
+      properties:
+        ingredientId: { type: integer }
+        quantity: { type: number, exclusiveMinimum: 0 }
+        totalCost: { type: number, minimum: 0 }
+      required: [ingredientId, quantity, totalCost]
+    PurchaseInput:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        supplierType: { type: string, minLength: 1, maxLength: 120 }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/PurchaseLineInput"
+      required: [date, supplierType, items]
+    PurchaseLine:
+      type: object
+      properties:
+        ingredientId: { type: integer }
+        ingredientName: { type: string }
+        unit: { type: string }
+        quantity: { type: number }
+        totalCost: { type: number }
+        unitCost: { type: number }
+      required: [ingredientId, ingredientName, unit, quantity, totalCost, unitCost]
+    Purchase:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        supplierType: { type: string }
+        totalCost: { type: number }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/PurchaseLine"
+      required: [id, date, supplierType, totalCost, items]
+    SaleLineInput:
+      type: object
+      properties:
+        productId: { type: integer }
+        quantity: { type: integer, minimum: 1 }
+      required: [productId, quantity]
+    SaleInput:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/SaleLineInput"
+      required: [date, items]
+    SaleLine:
+      type: object
+      properties:
+        productId: { type: integer }
+        productName: { type: string }
+        quantity: { type: integer }
+        unitPrice: { type: number }
+        revenue: { type: number }
+        costOfGoodsSold: { type: number }
+      required: [productId, productName, quantity, unitPrice, revenue, costOfGoodsSold]
+    Sale:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        totalRevenue: { type: number }
+        totalCostOfGoodsSold: { type: number }
+        grossProfit: { type: number }
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/SaleLine"
+      required: [id, date, totalRevenue, totalCostOfGoodsSold, grossProfit, items]
+    StockCountLineInput:
+      type: object
+      properties:
+        ingredientId: { type: integer }
+        countedStock: { type: number, minimum: 0 }
+      required: [ingredientId, countedStock]
+    StockCountInput:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/StockCountLineInput"
+      required: [date, items]
+    DailyFinance:
+      type: object
+      properties:
+        date: { type: string, format: date }
+        revenue: { type: number }
+        costOfGoodsSold: { type: number }
+        purchases: { type: number }
+        grossProfit: { type: number }
+      required: [date, revenue, costOfGoodsSold, purchases, grossProfit]
+    FinanceReport:
+      type: object
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        revenue: { type: number }
+        costOfGoodsSold: { type: number }
+        purchases: { type: number }
+        grossProfit: { type: number }
+        days:
+          type: array
+          items:
+            $ref: "#/components/schemas/DailyFinance"
+      required: [startDate, endDate, revenue, costOfGoodsSold, purchases, grossProfit, days]
+    ErpState:
+      type: object
+      properties:
+        ingredients:
+          type: array
+          items: { $ref: "#/components/schemas/Ingredient" }
+        products:
+          type: array
+          items: { $ref: "#/components/schemas/Product" }
+        recipes:
+          type: array
+          items: { $ref: "#/components/schemas/RecipeItem" }
+        recentPurchases:
+          type: array
+          items: { $ref: "#/components/schemas/Purchase" }
+        recentSales:
+          type: array
+          items: { $ref: "#/components/schemas/Sale" }
+        today:
+          $ref: "#/components/schemas/DailyFinance"
+        lowStockCount: { type: integer }
+      required: [ingredients, products, recipes, recentPurchases, recentSales, today, lowStockCount]
 

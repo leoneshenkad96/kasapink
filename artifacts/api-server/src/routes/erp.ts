@@ -1,0 +1,885 @@
+import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import {
+  CreateIngredientBody,
+  CreateIngredientResponse,
+  CreateProductBody,
+  CreateProductResponse,
+  GetErpStateResponse,
+  GetFinanceReportQueryParams,
+  GetFinanceReportResponse,
+  RecordPurchaseBody,
+  RecordPurchaseResponse,
+  RecordSaleBody,
+  RecordSaleResponse,
+  RecordStockCountBody,
+  RecordStockCountResponse,
+  SaveProductRecipeBody,
+  SaveProductRecipeParams,
+  SaveProductRecipeResponse,
+  UpdateIngredientBody,
+  UpdateIngredientParams,
+  UpdateIngredientResponse,
+  UpdateProductBody,
+  UpdateProductParams,
+  UpdateProductResponse,
+} from "@workspace/api-zod";
+import {
+  db,
+  ingredientsTable,
+  productsTable,
+  purchaseDetailsTable,
+  purchasesTable,
+  recipeItemsTable,
+  salesDetailsTable,
+  salesTable,
+  stockMovementsTable,
+} from "@workspace/db";
+import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
+
+const router: IRouter = Router();
+
+class HttpError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+    this.name = "HttpError";
+  }
+}
+
+function safe(handler: (req: Request, res: Response) => Promise<void>): RequestHandler {
+  return (req, res, next) => {
+    void handler(req, res).catch((error: unknown) => {
+      if (error instanceof HttpError) {
+        res.status(error.status).json({ error: error.message });
+        return;
+      }
+      req.log.error({ err: error }, "ERP request failed");
+      res.status(500).json({ error: "Terjadi kesalahan saat memproses data." });
+    });
+  };
+}
+
+function invalid(res: Response, message: string): void {
+  res.status(400).json({ error: message });
+}
+
+function number(value: string | number | null | undefined): number {
+  const result = Number(value ?? 0);
+  return Number.isFinite(result) ? result : 0;
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function dateKey(value: Date | string): string {
+  return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+}
+
+function asIngredient(row: typeof ingredientsTable.$inferSelect) {
+  return {
+    id: row.id,
+    name: row.name,
+    category: row.category,
+    unit: row.unit,
+    stock: number(row.stock),
+    minStock: number(row.minStock),
+    lastPrice: number(row.lastPrice),
+    averageCost: number(row.averageCost),
+  };
+}
+
+function asProduct(row: typeof productsTable.$inferSelect) {
+  return {
+    id: row.id,
+    name: row.name,
+    sellingPrice: number(row.sellingPrice),
+  };
+}
+
+const seedIngredients = [
+  ["Beras Liwet", "Bahan Mentah", "kg", 10, 2, 15000],
+  ["Ayam", "Bahan Mentah", "kg", 5, 1, 38000],
+  ["Jamur", "Bahan Mentah", "kg", 3, 0.5, 25000],
+  ["Cabai", "Bahan Mentah", "kg", 1, 0.2, 40000],
+  ["Bumbu Dapur", "Bahan Mentah", "gram", 500, 100, 50],
+  ["Kulit Pangsit", "Bahan Mentah", "pak", 5, 2, 8000],
+  ["Bengkuang", "Bahan Mentah", "kg", 2, 0.5, 12000],
+  ["Wortel", "Bahan Mentah", "kg", 2, 0.5, 10000],
+  ["Tepung Sagu", "Bahan Mentah", "gram", 1000, 200, 20],
+  ["Daun Pisang", "Kemasan", "pack", 10, 2, 5000],
+  ["Thinwall", "Kemasan", "pcs", 50, 10, 1000],
+  ["Sendok Plastik", "Kemasan", "pcs", 100, 20, 200],
+  ["Plastik Tomat", "Kemasan", "kg", 2, 0.5, 25000],
+  ["Kerupuk Matang (Pabrik)", "Barang Jadi", "pcs", 100, 20, 1500],
+] as const;
+
+const seedProducts = [
+  ["Nasi Bakar", 12000],
+  ["Sate Jamur", 10000],
+  ["Pangsit Goreng", 6000],
+  ["Kerupuk Bungkus", 2500],
+] as const;
+
+async function ensureSeedData(): Promise<void> {
+  await db
+    .insert(ingredientsTable)
+    .values(
+      seedIngredients.map(([name, category, unit, stock, minStock, price]) => ({
+        name,
+        category,
+        unit,
+        stock: String(stock),
+        minStock: String(minStock),
+        lastPrice: String(price),
+        averageCost: String(price),
+      })),
+    )
+    .onConflictDoNothing();
+
+  await db
+    .insert(productsTable)
+    .values(seedProducts.map(([name, sellingPrice]) => ({ name, sellingPrice: String(sellingPrice) })))
+    .onConflictDoNothing();
+
+  const kerupuk = await db
+    .select({ productId: productsTable.id })
+    .from(productsTable)
+    .where(eq(productsTable.name, "Kerupuk Bungkus"));
+  const matang = await db
+    .select({ ingredientId: ingredientsTable.id })
+    .from(ingredientsTable)
+    .where(eq(ingredientsTable.name, "Kerupuk Matang (Pabrik)"));
+
+  if (kerupuk[0] && matang[0]) {
+    await db
+      .insert(recipeItemsTable)
+      .values({
+        productId: kerupuk[0].productId,
+        ingredientId: matang[0].ingredientId,
+        qtyRequired: "1",
+      })
+      .onConflictDoNothing();
+  }
+}
+
+function jakartaToday(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+  return `${value("year")}-${value("month")}-${value("day")}`;
+}
+
+function dateRange(startDate: string, endDate: string): string[] {
+  if (startDate > endDate) {
+    throw new HttpError("Tanggal awal harus sebelum atau sama dengan tanggal akhir.", 400);
+  }
+  const start = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  if (end.getTime() - start.getTime() > 366 * 24 * 60 * 60 * 1000) {
+    throw new HttpError("Rentang laporan maksimal satu tahun.", 400);
+  }
+
+  const dates: string[] = [];
+  for (const cursor = start; cursor <= end; cursor.setUTCDate(cursor.getUTCDate() + 1)) {
+    dates.push(cursor.toISOString().slice(0, 10));
+  }
+  return dates;
+}
+
+async function financeReport(startDate: string, endDate: string) {
+  const dates = dateRange(startDate, endDate);
+  const [sales, purchases] = await Promise.all([
+    db
+      .select({
+        date: salesTable.date,
+        revenue: salesTable.totalRevenue,
+        cogs: salesTable.totalCostOfGoodsSold,
+      })
+      .from(salesTable)
+      .where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))),
+    db
+      .select({ date: purchasesTable.date, total: purchasesTable.totalCost })
+      .from(purchasesTable)
+      .where(and(gte(purchasesTable.date, startDate), lte(purchasesTable.date, endDate))),
+  ]);
+
+  const byDate = new Map(
+    dates.map((date) => [date, { date, revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }]),
+  );
+  for (const row of sales) {
+    const day = byDate.get(row.date);
+    if (day) {
+      day.revenue += number(row.revenue);
+      day.costOfGoodsSold += number(row.cogs);
+    }
+  }
+  for (const row of purchases) {
+    const day = byDate.get(row.date);
+    if (day) day.purchases += number(row.total);
+  }
+  const days = [...byDate.values()].map((day) => ({
+    ...day,
+    revenue: roundMoney(day.revenue),
+    costOfGoodsSold: roundMoney(day.costOfGoodsSold),
+    purchases: roundMoney(day.purchases),
+    grossProfit: roundMoney(day.revenue - day.costOfGoodsSold),
+  }));
+
+  return {
+    startDate,
+    endDate,
+    revenue: roundMoney(days.reduce((sum, day) => sum + day.revenue, 0)),
+    costOfGoodsSold: roundMoney(days.reduce((sum, day) => sum + day.costOfGoodsSold, 0)),
+    purchases: roundMoney(days.reduce((sum, day) => sum + day.purchases, 0)),
+    grossProfit: roundMoney(days.reduce((sum, day) => sum + day.grossProfit, 0)),
+    days,
+  };
+}
+
+router.get(
+  "/erp/state",
+  safe(async (_req, res) => {
+    await ensureSeedData();
+    const [ingredientRows, productRows, recipeRows, purchaseHeaders, saleHeaders] = await Promise.all([
+      db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)),
+      db.select().from(productsTable).orderBy(asc(productsTable.name)),
+      db
+        .select({
+          productId: recipeItemsTable.productId,
+          ingredientId: recipeItemsTable.ingredientId,
+          ingredientName: ingredientsTable.name,
+          unit: ingredientsTable.unit,
+          qtyRequired: recipeItemsTable.qtyRequired,
+        })
+        .from(recipeItemsTable)
+        .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
+        .orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name)),
+      db
+        .select()
+        .from(purchasesTable)
+        .orderBy(desc(purchasesTable.date), desc(purchasesTable.id))
+        .limit(6),
+      db
+        .select()
+        .from(salesTable)
+        .orderBy(desc(salesTable.date), desc(salesTable.id))
+        .limit(6),
+    ]);
+
+    const purchaseIds = purchaseHeaders.map((row) => row.id);
+    const saleIds = saleHeaders.map((row) => row.id);
+    const purchaseLines = purchaseIds.length
+      ? await db
+          .select({
+            purchaseId: purchaseDetailsTable.purchaseId,
+            ingredientId: purchaseDetailsTable.ingredientId,
+            ingredientName: ingredientsTable.name,
+            unit: ingredientsTable.unit,
+            quantity: purchaseDetailsTable.quantity,
+            totalCost: purchaseDetailsTable.totalCost,
+            unitCost: purchaseDetailsTable.unitCost,
+          })
+          .from(purchaseDetailsTable)
+          .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
+          .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds))
+      : [];
+    const saleLines = saleIds.length
+      ? await db
+          .select()
+          .from(salesDetailsTable)
+          .where(inArray(salesDetailsTable.salesId, saleIds))
+      : [];
+
+    const recentPurchases = purchaseHeaders.map((purchase) => ({
+      id: purchase.id,
+      date: purchase.date,
+      supplierType: purchase.supplierType,
+      totalCost: number(purchase.totalCost),
+      items: purchaseLines
+        .filter((line) => line.purchaseId === purchase.id)
+        .map((line) => ({
+          ingredientId: line.ingredientId,
+          ingredientName: line.ingredientName,
+          unit: line.unit,
+          quantity: number(line.quantity),
+          totalCost: number(line.totalCost),
+          unitCost: number(line.unitCost),
+        })),
+    }));
+    const recentSales = saleHeaders.map((sale) => {
+      const totalRevenue = number(sale.totalRevenue);
+      const totalCostOfGoodsSold = number(sale.totalCostOfGoodsSold);
+      return {
+        id: sale.id,
+        date: sale.date,
+        totalRevenue,
+        totalCostOfGoodsSold,
+        grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
+        items: saleLines
+          .filter((line) => line.salesId === sale.id)
+          .map((line) => ({
+            productId: line.productId,
+            productName: line.productName,
+            quantity: line.quantity,
+            unitPrice: number(line.unitPrice),
+            revenue: number(line.revenue),
+            costOfGoodsSold: number(line.costOfGoodsSold),
+          })),
+      };
+    });
+
+    const today = await financeReport(jakartaToday(), jakartaToday());
+    const data = {
+      ingredients: ingredientRows.map(asIngredient),
+      products: productRows.map(asProduct),
+      recipes: recipeRows.map((row) => ({
+        productId: row.productId,
+        ingredientId: row.ingredientId,
+        ingredientName: row.ingredientName,
+        unit: row.unit,
+        qtyRequired: number(row.qtyRequired),
+      })),
+      recentPurchases,
+      recentSales,
+      today: today.days[0],
+      lowStockCount: ingredientRows.filter((row) => number(row.stock) <= number(row.minStock)).length,
+    };
+    const validated = GetErpStateResponse.parse(data);
+    res.json({
+      ...validated,
+      recentPurchases: validated.recentPurchases.map((purchase) => ({
+        ...purchase,
+        date: dateKey(purchase.date),
+      })),
+      recentSales: validated.recentSales.map((sale) => ({
+        ...sale,
+        date: dateKey(sale.date),
+      })),
+      today: { ...validated.today, date: dateKey(validated.today.date) },
+    });
+  }),
+);
+
+router.get(
+  "/erp/finance",
+  safe(async (req, res) => {
+    const parsed = GetFinanceReportQueryParams.safeParse({
+      startDate: new Date(String(req.query.startDate ?? "")),
+      endDate: new Date(String(req.query.endDate ?? "")),
+    });
+    if (!parsed.success) {
+      invalid(res, parsed.error.message);
+      return;
+    }
+    const data = await financeReport(dateKey(parsed.data.startDate), dateKey(parsed.data.endDate));
+    const validated = GetFinanceReportResponse.parse(data);
+    res.json({
+      ...validated,
+      startDate: dateKey(validated.startDate),
+      endDate: dateKey(validated.endDate),
+      days: validated.days.map((day) => ({ ...day, date: dateKey(day.date) })),
+    });
+  }),
+);
+
+router.post(
+  "/erp/ingredients",
+  safe(async (req, res) => {
+    const parsed = CreateIngredientBody.safeParse(req.body);
+    if (!parsed.success) {
+      invalid(res, parsed.error.message);
+      return;
+    }
+    const [row] = await db
+      .insert(ingredientsTable)
+      .values({
+        ...parsed.data,
+        stock: String(parsed.data.stock),
+        minStock: String(parsed.data.minStock),
+        lastPrice: String(roundMoney(parsed.data.openingUnitCost)),
+        averageCost: String(roundMoney(parsed.data.openingUnitCost)),
+      })
+      .returning();
+    res.status(201).json(CreateIngredientResponse.parse(asIngredient(row)));
+  }),
+);
+
+router.patch(
+  "/erp/ingredients/:ingredientId",
+  safe(async (req, res) => {
+    const params = UpdateIngredientParams.safeParse(req.params);
+    const body = UpdateIngredientBody.safeParse(req.body);
+    if (!params.success) {
+      invalid(res, params.error.message);
+      return;
+    }
+    if (!body.success) {
+      invalid(res, body.error.message);
+      return;
+    }
+    if (Object.keys(body.data).length === 0) {
+      invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
+      return;
+    }
+    const update: {
+      name?: string;
+      category?: string;
+      unit?: string;
+      minStock?: string;
+    } = {};
+    if (body.data.name !== undefined) update.name = body.data.name;
+    if (body.data.category !== undefined) update.category = body.data.category;
+    if (body.data.unit !== undefined) update.unit = body.data.unit;
+    if (body.data.minStock !== undefined) update.minStock = String(body.data.minStock);
+    const [row] = await db
+      .update(ingredientsTable)
+      .set(update)
+      .where(eq(ingredientsTable.id, params.data.ingredientId))
+      .returning();
+    if (!row) throw new HttpError("Bahan tidak ditemukan.", 404);
+    res.json(UpdateIngredientResponse.parse(asIngredient(row)));
+  }),
+);
+
+router.post(
+  "/erp/products",
+  safe(async (req, res) => {
+    const parsed = CreateProductBody.safeParse(req.body);
+    if (!parsed.success) {
+      invalid(res, parsed.error.message);
+      return;
+    }
+    const [row] = await db
+      .insert(productsTable)
+      .values({ ...parsed.data, sellingPrice: String(parsed.data.sellingPrice) })
+      .returning();
+    res.status(201).json(CreateProductResponse.parse(asProduct(row)));
+  }),
+);
+
+router.patch(
+  "/erp/products/:productId",
+  safe(async (req, res) => {
+    const params = UpdateProductParams.safeParse(req.params);
+    const body = UpdateProductBody.safeParse(req.body);
+    if (!params.success) {
+      invalid(res, params.error.message);
+      return;
+    }
+    if (!body.success) {
+      invalid(res, body.error.message);
+      return;
+    }
+    if (Object.keys(body.data).length === 0) {
+      invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
+      return;
+    }
+    const update: { name?: string; sellingPrice?: string } = {};
+    if (body.data.name !== undefined) update.name = body.data.name;
+    if (body.data.sellingPrice !== undefined) {
+      update.sellingPrice = String(body.data.sellingPrice);
+    }
+    const [row] = await db
+      .update(productsTable)
+      .set(update)
+      .where(eq(productsTable.id, params.data.productId))
+      .returning();
+    if (!row) throw new HttpError("Produk tidak ditemukan.", 404);
+    res.json(UpdateProductResponse.parse(asProduct(row)));
+  }),
+);
+
+router.put(
+  "/erp/products/:productId/recipe",
+  safe(async (req, res) => {
+    const params = SaveProductRecipeParams.safeParse(req.params);
+    const body = SaveProductRecipeBody.safeParse(req.body);
+    if (!params.success) {
+      invalid(res, params.error.message);
+      return;
+    }
+    if (!body.success) {
+      invalid(res, body.error.message);
+      return;
+    }
+    const ids = body.data.items.map((item) => item.ingredientId);
+    if (new Set(ids).size !== ids.length) {
+      invalid(res, "Bahan yang sama hanya boleh ditambahkan satu kali ke resep.");
+      return;
+    }
+
+    const saved = await db.transaction(async (tx) => {
+      const [product] = await tx
+        .select({ id: productsTable.id })
+        .from(productsTable)
+        .where(eq(productsTable.id, params.data.productId))
+        .for("update");
+      if (!product) throw new HttpError("Produk tidak ditemukan.", 404);
+      if (ids.length) {
+        const rows = await tx
+          .select({ id: ingredientsTable.id })
+          .from(ingredientsTable)
+          .where(inArray(ingredientsTable.id, ids));
+        if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
+      }
+      await tx
+        .delete(recipeItemsTable)
+        .where(eq(recipeItemsTable.productId, params.data.productId));
+      if (body.data.items.length) {
+        await tx.insert(recipeItemsTable).values(
+          body.data.items.map((item) => ({
+            productId: params.data.productId,
+            ingredientId: item.ingredientId,
+            qtyRequired: String(item.qtyRequired),
+          })),
+        );
+      }
+      return tx
+        .select({
+          productId: recipeItemsTable.productId,
+          ingredientId: recipeItemsTable.ingredientId,
+          ingredientName: ingredientsTable.name,
+          unit: ingredientsTable.unit,
+          qtyRequired: recipeItemsTable.qtyRequired,
+        })
+        .from(recipeItemsTable)
+        .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
+        .where(eq(recipeItemsTable.productId, params.data.productId));
+    });
+
+    const data = saved.map((row) => ({ ...row, qtyRequired: number(row.qtyRequired) }));
+    res.json(SaveProductRecipeResponse.parse(data));
+  }),
+);
+
+router.post(
+  "/erp/purchases",
+  safe(async (req, res) => {
+    const parsed = RecordPurchaseBody.safeParse(req.body);
+    if (!parsed.success) {
+      invalid(res, parsed.error.message);
+      return;
+    }
+    const lines = parsed.data.items;
+    const ingredientIds = [...new Set(lines.map((line) => line.ingredientId))].sort((a, b) => a - b);
+    const result = await db.transaction(async (tx) => {
+      const locked = await tx
+        .select()
+        .from(ingredientsTable)
+        .where(inArray(ingredientsTable.id, ingredientIds))
+        .orderBy(asc(ingredientsTable.id))
+        .for("update");
+      if (locked.length !== ingredientIds.length) {
+        throw new HttpError("Ada bahan belanja yang tidak ditemukan.", 400);
+      }
+      const byId = new Map(locked.map((row) => [row.id, row]));
+      const totalCost = roundMoney(lines.reduce((sum, line) => sum + line.totalCost, 0));
+      const [purchase] = await tx
+        .insert(purchasesTable)
+        .values({
+          date: dateKey(parsed.data.date),
+          supplierType: parsed.data.supplierType.trim(),
+          totalCost: String(totalCost),
+        })
+        .returning();
+
+      const details: Array<typeof purchaseDetailsTable.$inferInsert> = [];
+      const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
+      for (const line of lines) {
+        const ingredient = byId.get(line.ingredientId);
+        if (!ingredient) throw new HttpError("Bahan belanja tidak ditemukan.", 400);
+        const oldStock = number(ingredient.stock);
+        const oldAverageCost = number(ingredient.averageCost);
+        const unitCost = line.totalCost / line.quantity;
+        const newStock = oldStock + line.quantity;
+        const newAverageCost =
+          newStock > 0
+            ? roundMoney((oldStock * oldAverageCost + line.totalCost) / newStock)
+            : roundMoney(unitCost);
+        details.push({
+          purchaseId: purchase.id,
+          ingredientId: line.ingredientId,
+          quantity: String(line.quantity),
+          totalCost: String(roundMoney(line.totalCost)),
+          unitCost: String(roundMoney(unitCost)),
+        });
+        movements.push({
+          date: dateKey(parsed.data.date),
+          ingredientId: line.ingredientId,
+          movementType: "purchase",
+          quantityDelta: String(line.quantity),
+          stockBefore: String(oldStock),
+          stockAfter: String(newStock),
+          unitCost: String(roundMoney(unitCost)),
+          referenceId: purchase.id,
+          note: parsed.data.supplierType.trim(),
+        });
+        await tx
+          .update(ingredientsTable)
+          .set({
+            stock: String(newStock),
+            lastPrice: String(roundMoney(unitCost)),
+            averageCost: String(newAverageCost),
+          })
+          .where(eq(ingredientsTable.id, line.ingredientId));
+        byId.set(line.ingredientId, {
+          ...ingredient,
+          stock: String(newStock),
+          lastPrice: String(roundMoney(unitCost)),
+          averageCost: String(newAverageCost),
+        });
+      }
+      await tx.insert(purchaseDetailsTable).values(details);
+      await tx.insert(stockMovementsTable).values(movements);
+      return {
+        id: purchase.id,
+        date: purchase.date,
+        supplierType: purchase.supplierType,
+        totalCost,
+        items: lines.map((line) => {
+          const ingredient = byId.get(line.ingredientId)!;
+          return {
+            ingredientId: line.ingredientId,
+            ingredientName: ingredient.name,
+            unit: ingredient.unit,
+            quantity: line.quantity,
+            totalCost: roundMoney(line.totalCost),
+            unitCost: roundMoney(line.totalCost / line.quantity),
+          };
+        }),
+      };
+    });
+
+    const validated = RecordPurchaseResponse.parse(result);
+    res.status(201).json({ ...validated, date: dateKey(validated.date) });
+  }),
+);
+
+router.post(
+  "/erp/sales",
+  safe(async (req, res) => {
+    const parsed = RecordSaleBody.safeParse(req.body);
+    if (!parsed.success) {
+      invalid(res, parsed.error.message);
+      return;
+    }
+    const quantities = new Map<number, number>();
+    for (const line of parsed.data.items) {
+      quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+    }
+    const productIds = [...quantities.keys()].sort((a, b) => a - b);
+    const result = await db.transaction(async (tx) => {
+      const productRows = await tx
+        .select()
+        .from(productsTable)
+        .where(inArray(productsTable.id, productIds))
+        .orderBy(asc(productsTable.id))
+        .for("update");
+      if (productRows.length !== productIds.length) {
+        throw new HttpError("Ada produk yang tidak ditemukan.", 400);
+      }
+      const recipeRows = await tx
+        .select()
+        .from(recipeItemsTable)
+        .where(inArray(recipeItemsTable.productId, productIds));
+      const recipesByProduct = new Map<number, typeof recipeRows>();
+      for (const row of recipeRows) {
+        const items = recipesByProduct.get(row.productId) ?? [];
+        items.push(row);
+        recipesByProduct.set(row.productId, items);
+      }
+
+      const missingRecipes = productRows
+        .filter((product) => !recipesByProduct.get(product.id)?.length)
+        .map((product) => product.name);
+      if (missingRecipes.length) {
+        throw new HttpError(
+          `Resep belum dibuat untuk: ${missingRecipes.join(", ")}. Simpan resep sebelum mencatat penjualan.`,
+          409,
+        );
+      }
+
+      const requiredByIngredient = new Map<number, number>();
+      for (const [productId, soldQuantity] of quantities) {
+        for (const item of recipesByProduct.get(productId) ?? []) {
+          requiredByIngredient.set(
+            item.ingredientId,
+            (requiredByIngredient.get(item.ingredientId) ?? 0) +
+              number(item.qtyRequired) * soldQuantity,
+          );
+        }
+      }
+      const ingredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
+      const lockedIngredients = await tx
+        .select()
+        .from(ingredientsTable)
+        .where(inArray(ingredientsTable.id, ingredientIds))
+        .orderBy(asc(ingredientsTable.id))
+        .for("update");
+      if (lockedIngredients.length !== ingredientIds.length) {
+        throw new HttpError("Salah satu bahan pada resep tidak ditemukan.", 409);
+      }
+
+      const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
+      const shortages = ingredientIds.flatMap((ingredientId) => {
+        const ingredient = ingredientById.get(ingredientId)!;
+        const required = requiredByIngredient.get(ingredientId) ?? 0;
+        const available = number(ingredient.stock);
+        return available + 1e-9 < required
+          ? [`${ingredient.name}: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}`]
+          : [];
+      });
+      if (shortages.length) {
+        throw new HttpError(`Stok tidak cukup. ${shortages.join("; ")}.`, 409);
+      }
+
+      const productById = new Map(productRows.map((row) => [row.id, row]));
+      const saleLines = productIds.map((productId) => {
+        const product = productById.get(productId)!;
+        const quantity = quantities.get(productId)!;
+        const unitPrice = number(product.sellingPrice);
+        const costOfGoodsSold = (recipesByProduct.get(productId) ?? []).reduce((sum, item) => {
+          const ingredient = ingredientById.get(item.ingredientId)!;
+          return (
+            sum +
+            number(item.qtyRequired) *
+              quantity *
+              number(ingredient.averageCost)
+          );
+        }, 0);
+        return {
+          productId,
+          productName: product.name,
+          quantity,
+          unitPrice,
+          revenue: roundMoney(unitPrice * quantity),
+          costOfGoodsSold: roundMoney(costOfGoodsSold),
+        };
+      });
+      const totalRevenue = roundMoney(saleLines.reduce((sum, line) => sum + line.revenue, 0));
+      const totalCostOfGoodsSold = roundMoney(
+        saleLines.reduce((sum, line) => sum + line.costOfGoodsSold, 0),
+      );
+      const [sale] = await tx
+        .insert(salesTable)
+        .values({
+          date: dateKey(parsed.data.date),
+          totalRevenue: String(totalRevenue),
+          totalCostOfGoodsSold: String(totalCostOfGoodsSold),
+        })
+        .returning();
+      await tx.insert(salesDetailsTable).values(
+        saleLines.map((line) => ({
+          salesId: sale.id,
+          productId: line.productId,
+          productName: line.productName,
+          quantity: line.quantity,
+          unitPrice: String(line.unitPrice),
+          revenue: String(line.revenue),
+          costOfGoodsSold: String(line.costOfGoodsSold),
+        })),
+      );
+
+      const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
+      for (const ingredientId of ingredientIds) {
+        const ingredient = ingredientById.get(ingredientId)!;
+        const oldStock = number(ingredient.stock);
+        const used = requiredByIngredient.get(ingredientId)!;
+        const newStock = Math.max(0, oldStock - used);
+        await tx
+          .update(ingredientsTable)
+          .set({ stock: String(newStock) })
+          .where(eq(ingredientsTable.id, ingredientId));
+        movements.push({
+          date: dateKey(parsed.data.date),
+          ingredientId,
+          movementType: "sale",
+          quantityDelta: String(-used),
+          stockBefore: String(oldStock),
+          stockAfter: String(newStock),
+          unitCost: String(number(ingredient.averageCost)),
+          referenceId: sale.id,
+          note: `Penjualan #${sale.id}`,
+        });
+      }
+      await tx.insert(stockMovementsTable).values(movements);
+      return {
+        id: sale.id,
+        date: sale.date,
+        totalRevenue,
+        totalCostOfGoodsSold,
+        grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
+        items: saleLines,
+      };
+    });
+    const validated = RecordSaleResponse.parse(result);
+    res.status(201).json({ ...validated, date: dateKey(validated.date) });
+  }),
+);
+
+router.post(
+  "/erp/stock-counts",
+  safe(async (req, res) => {
+    const parsed = RecordStockCountBody.safeParse(req.body);
+    if (!parsed.success) {
+      invalid(res, parsed.error.message);
+      return;
+    }
+    const ids = parsed.data.items.map((item) => item.ingredientId);
+    if (new Set(ids).size !== ids.length) {
+      invalid(res, "Setiap bahan hanya boleh dicatat satu kali.");
+      return;
+    }
+
+    const updated = await db.transaction(async (tx) => {
+      const locked = await tx
+        .select()
+        .from(ingredientsTable)
+        .where(inArray(ingredientsTable.id, ids))
+        .orderBy(asc(ingredientsTable.id))
+        .for("update");
+      if (locked.length !== ids.length) {
+        throw new HttpError("Ada bahan yang tidak ditemukan.", 400);
+      }
+      const byId = new Map(locked.map((row) => [row.id, row]));
+      const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
+      const rows = [];
+      for (const item of parsed.data.items) {
+        const ingredient = byId.get(item.ingredientId)!;
+        const oldStock = number(ingredient.stock);
+        const difference = item.countedStock - oldStock;
+        const [row] = await tx
+          .update(ingredientsTable)
+          .set({ stock: String(item.countedStock) })
+          .where(eq(ingredientsTable.id, item.ingredientId))
+          .returning();
+        rows.push(asIngredient(row));
+        if (Math.abs(difference) > 1e-9) {
+          movements.push({
+            date: dateKey(parsed.data.date),
+            ingredientId: item.ingredientId,
+            movementType: "adjustment",
+            quantityDelta: String(difference),
+            stockBefore: String(oldStock),
+            stockAfter: String(item.countedStock),
+            unitCost: String(number(ingredient.averageCost)),
+            note: "Penyesuaian stok opname",
+          });
+        }
+      }
+      if (movements.length) await tx.insert(stockMovementsTable).values(movements);
+      return rows;
+    });
+    res.json(RecordStockCountResponse.parse(updated));
+  }),
+);
+
+export default router;

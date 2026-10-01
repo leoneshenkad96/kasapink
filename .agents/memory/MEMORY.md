@@ -1,0 +1,1 @@
+- [OpenAPI date wire format](openapi-date-wire-format.md) — generated Zod date coercion can emit timestamps for date-only contracts; normalize dates at the JSON boundary.
