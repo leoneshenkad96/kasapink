@@ -20,6 +20,16 @@ const legacyAliases = [
     targetMethod: "PATCH",
   },
   {
+    method: "DELETE",
+    pattern: /^\/ingredients\/([^/]+)$/,
+    target: "/erp/ingredients/$1",
+  },
+  {
+    method: "DELETE",
+    pattern: /^\/products\/([^/]+)$/,
+    target: "/erp/products/$1",
+  },
+  {
     method: "POST",
     pattern: /^\/products\/([^/]+)\/recipe$/,
     target: "/erp/products/$1/recipe",

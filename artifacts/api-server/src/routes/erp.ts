@@ -278,24 +278,24 @@ router.get(
     const saleIds = saleHeaders.map((row) => row.id);
     const purchaseLines = purchaseIds.length
       ? await db
-          .select({
-            purchaseId: purchaseDetailsTable.purchaseId,
-            ingredientId: purchaseDetailsTable.ingredientId,
-            ingredientName: ingredientsTable.name,
-            unit: ingredientsTable.unit,
-            quantity: purchaseDetailsTable.quantity,
-            totalCost: purchaseDetailsTable.totalCost,
-            unitCost: purchaseDetailsTable.unitCost,
-          })
-          .from(purchaseDetailsTable)
-          .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
-          .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds))
+        .select({
+          purchaseId: purchaseDetailsTable.purchaseId,
+          ingredientId: purchaseDetailsTable.ingredientId,
+          ingredientName: ingredientsTable.name,
+          unit: ingredientsTable.unit,
+          quantity: purchaseDetailsTable.quantity,
+          totalCost: purchaseDetailsTable.totalCost,
+          unitCost: purchaseDetailsTable.unitCost,
+        })
+        .from(purchaseDetailsTable)
+        .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
+        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds))
       : [];
     const saleLines = saleIds.length
       ? await db
-          .select()
-          .from(salesDetailsTable)
-          .where(inArray(salesDetailsTable.salesId, saleIds))
+        .select()
+        .from(salesDetailsTable)
+        .where(inArray(salesDetailsTable.salesId, saleIds))
       : [];
 
     const recentPurchases = purchaseHeaders.map((purchase) => ({
@@ -713,7 +713,7 @@ router.post(
           requiredByIngredient.set(
             item.ingredientId,
             (requiredByIngredient.get(item.ingredientId) ?? 0) +
-              number(item.qtyRequired) * soldQuantity,
+            number(item.qtyRequired) * soldQuantity,
           );
         }
       }
@@ -751,8 +751,8 @@ router.post(
           return (
             sum +
             number(item.qtyRequired) *
-              quantity *
-              number(ingredient.averageCost)
+            quantity *
+            number(ingredient.averageCost)
           );
         }, 0);
         return {
@@ -879,6 +879,101 @@ router.post(
       return rows;
     });
     res.json(RecordStockCountResponse.parse(updated));
+  }),
+);
+
+// ==========================================
+// ENDPOINT: HAPUS BAHAN (INGREDIENT)
+// ==========================================
+router.delete(
+  "/erp/ingredients/:ingredientId",
+  safe(async (req, res) => {
+    const id = Number(req.params.ingredientId);
+    if (!Number.isFinite(id)) {
+      invalid(res, "ID bahan tidak valid.");
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      // 1. Cek apakah bahan ada
+      const [ingredient] = await tx
+        .select()
+        .from(ingredientsTable)
+        .where(eq(ingredientsTable.id, id))
+        .for("update");
+      if (!ingredient) {
+        throw new HttpError("Bahan tidak ditemukan.", 404);
+      }
+
+      // 2. Cek apakah masih dipakai di dalam resep produk (recipeItemsTable)
+      const [usedInRecipe] = await tx
+        .select({ productId: recipeItemsTable.productId })
+        .from(recipeItemsTable)
+        .where(eq(recipeItemsTable.ingredientId, id))
+        .limit(1);
+      if (usedInRecipe) {
+        throw new HttpError("Bahan tidak dapat dihapus karena masih digunakan dalam resep produk.", 409);
+      }
+
+      // 3. Cek apakah masih ada riwayat pembelian (purchaseDetailsTable)
+      const [usedInPurchase] = await tx
+        .select({ purchaseId: purchaseDetailsTable.purchaseId })
+        .from(purchaseDetailsTable)
+        .where(eq(purchaseDetailsTable.ingredientId, id))
+        .limit(1);
+      if (usedInPurchase) {
+        throw new HttpError("Bahan tidak dapat dihapus karena memiliki riwayat catatan belanja.", 409);
+      }
+
+      // 4. Hapus jika aman
+      await tx.delete(ingredientsTable).where(eq(ingredientsTable.id, id));
+    });
+
+    res.json({ success: true });
+  }),
+);
+
+// ==========================================
+// ENDPOINT: HAPUS PRODUK (PRODUCT)
+// ==========================================
+router.delete(
+  "/erp/products/:productId",
+  safe(async (req, res) => {
+    const id = Number(req.params.productId);
+    if (!Number.isFinite(id)) {
+      invalid(res, "ID produk tidak valid.");
+      return;
+    }
+
+    await db.transaction(async (tx) => {
+      // 1. Cek apakah produk ada
+      const [product] = await tx
+        .select()
+        .from(productsTable)
+        .where(eq(productsTable.id, id))
+        .for("update");
+      if (!product) {
+        throw new HttpError("Produk tidak ditemukan.", 404);
+      }
+
+      // 2. Cek apakah masih ada riwayat penjualan (salesDetailsTable)
+      const [usedInSales] = await tx
+        .select({ salesId: salesDetailsTable.salesId })
+        .from(salesDetailsTable)
+        .where(eq(salesDetailsTable.productId, id))
+        .limit(1);
+      if (usedInSales) {
+        throw new HttpError("Produk tidak dapat dihapus karena memiliki riwayat catatan penjualan.", 409);
+      }
+
+      // 3. Hapus relasi resep terlebih dahulu (jika ada) agar tidak melanggar foreign key
+      await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.productId, id));
+
+      // 4. Hapus produk
+      await tx.delete(productsTable).where(eq(productsTable.id, id));
+    });
+
+    res.json({ success: true });
   }),
 );
 
