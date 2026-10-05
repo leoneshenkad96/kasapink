@@ -1,9 +1,7 @@
 {
   "extends": "./tsconfig.base.json",
   "compileOnSave": false,
-  "include": [
-    "api/**/*"
-  ],
+  "files": [],
   "references": [
     {
       "path": "./lib/db"

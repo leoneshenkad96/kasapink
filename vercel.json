@@ -1,12 +1,12 @@
 {
   "version": 2,
   "installCommand": "pnpm install --no-frozen-lockfile",
-  "buildCommand": "pnpm --filter @workspace/erp-rumahan-emak run build",
+  "buildCommand": "pnpm --filter @workspace/erp-rumahan-emak run build && node ./scripts/build-vercel-api.mjs",
   "outputDirectory": "artifacts/erp-rumahan-emak/dist/public",
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.js"
     },
     {
       "source": "/((?!api/).*)",
