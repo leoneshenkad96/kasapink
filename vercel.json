@@ -1,27 +1,15 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "cd artifacts/erp-rumahan-emak && npm run build",
+  "outputDirectory": "artifacts/erp-rumahan-emak/dist/public",
+  "rewrites": [
     {
-      "src": "artifacts/erp-rumahan-emak/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "dist/public",
-        "zeroConfig": false
-      }
+      "source": "/api/(.*)",
+      "destination": "/api/index.ts"
     },
     {
-      "src": "api/index.ts",
-      "use": "@vercel/node"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/api/(.*)",
-      "dest": "/api/index.ts"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/artifacts/erp-rumahan-emak/$1"
+      "source": "/(.*)",
+      "destination": "/artifacts/erp-rumahan-emak/dist/public/$1"
     }
   ]
 }
