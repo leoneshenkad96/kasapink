@@ -1,6 +1,7 @@
 {
   "version": 2,
-  "buildCommand": "cd artifacts/erp-rumahan-emak && npm run build",
+  "installCommand": "pnpm install --no-frozen-lockfile",
+  "buildCommand": "pnpm --filter @workspace/erp-rumahan-emak run build",
   "outputDirectory": "artifacts/erp-rumahan-emak/dist/public",
   "rewrites": [
     {
@@ -8,8 +9,8 @@
       "destination": "/api/index.ts"
     },
     {
-      "source": "/(.*)",
-      "destination": "/artifacts/erp-rumahan-emak/dist/public/$1"
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
     }
   ]
 }
