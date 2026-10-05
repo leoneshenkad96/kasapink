@@ -4,7 +4,9 @@
     {
       "src": "artifacts/erp-rumahan-emak/package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "dist/public" }
+      "config": {
+        "distDir": "dist/public"
+      }
     },
     {
       "src": "api/index.ts",
