@@ -14,7 +14,7 @@ import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-c
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check,
   CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
-  Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, TrendingUp, User, X,
+  Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, TrendingUp, X,
 } from 'lucide-react';
 import UsersPage from './pages/UsersPage';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
