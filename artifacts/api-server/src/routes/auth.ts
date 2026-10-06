@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
-import { db } from "../lib/db"; // adjust import as needed
-import { usersTable } from "@workspace/db/src/schema/users"; // might need alias resolution
+import { db } from "../../../lib/db"; // correct relative import
+import { usersTable } from "@workspace/db/src/schema"; // usersTable exported from schema index // might need alias resolution
 import { eq } from "drizzle-orm";
 
 const router = Router();
