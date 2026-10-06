@@ -60,7 +60,7 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
           🍲
         </div>
         <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1B3B2B', marginBottom: '4px' }}>Kasapink</h1>
-        <p style={{ fontSize: '13px', color: '#666', marginBottom: '28px' }}>CATATAN USAHA · Masukkan password untuk masuk</p>
+        <p style={{ fontSize: '13px', color: '#666', marginBottom: '28px' }}>CATATAN USAHA</p>
 
         <form onSubmit={onLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
           <div>

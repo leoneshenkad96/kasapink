@@ -3,6 +3,11 @@ import cors from "cors";
 import pinoHttp from "pino-http";
 import router from "./routes";
 import { logger } from "./lib/logger";
+import session from "express-session";
+import cookieParser from "cookie-parser";
+
+// Session secret – in a real app this should come from env variables
+const SESSION_SECRET = process.env.SESSION_SECRET || "super-secret-key";
 
 const app: Express = express();
 
@@ -25,9 +30,13 @@ app.use(
     },
   }),
 );
-app.use(cors());
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
+app.use(session({
+  secret: SESSION_SECRET,
+  resave: false,
+  saveUninitialized: false,
+  cookie: { httpOnly: true, secure: false },
+}));
 
 app.use("/api", router);
 

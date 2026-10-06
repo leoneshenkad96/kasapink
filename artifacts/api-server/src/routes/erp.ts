@@ -247,7 +247,7 @@ async function financeReport(startDate: string, endDate: string) {
 router.get(
   "/erp/state",
   safe(async (_req, res) => {
-    await ensureSeedData();
+    // await ensureSeedData();   // disabled – prevents auto‑reseed
     const [ingredientRows, productRows, recipeRows, purchaseHeaders, saleHeaders] = await Promise.all([
       db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)),
       db.select().from(productsTable).orderBy(asc(productsTable.name)),
@@ -663,7 +663,98 @@ router.post(
   }),
 );
 
+// Helper to enforce simple password protection
+function checkPassword(req: Request): void {
+  const password = req.body.password ?? req.headers["x-password"];
+  if (password !== "doraemon") {
+    throw new HttpError("Invalid password.", 401);
+  }
+}
+
+// -------------------- DELETE ENDPOINTS --------------------
+// Delete an ingredient (stock bahan)
+router.delete(
+  "/erp/ingredients/:ingredientId",
+  safe(async (req, res) => {
+    checkPassword(req);
+    const params = UpdateIngredientParams.safeParse(req.params);
+    if (!params.success) {
+      invalid(res, params.error.message);
+      return;
+    }
+    const [row] = await db
+      .delete(ingredientsTable)
+      .where(eq(ingredientsTable.id, params.data.ingredientId))
+      .returning();
+    if (!row) throw new HttpError("Bahan tidak ditemukan.", 404);
+    res.json({ message: "Ingredient deleted" });
+  })
+);
+
+// Delete a product (produk)
+router.delete(
+  "/erp/products/:productId",
+  safe(async (req, res) => {
+    checkPassword(req);
+    const params = UpdateProductParams.safeParse(req.params);
+    if (!params.success) {
+      invalid(res, params.error.message);
+      return;
+    }
+    const [row] = await db
+      .delete(productsTable)
+      .where(eq(productsTable.id, params.data.productId))
+      .returning();
+    if (!row) throw new HttpError("Produk tidak ditemukan.", 404);
+    res.json({ message: "Product deleted" });
+  })
+);
+
+// Delete a sales record (catat penjualan)
+router.delete(
+  "/erp/sales/:saleId",
+  safe(async (req, res) => {
+    checkPassword(req);
+    const { saleId } = req.params as { saleId: string };
+    const idNum = Number(saleId);
+    if (Number.isNaN(idNum)) {
+      invalid(res, "Invalid sale ID.");
+      return;
+    }
+    const [row] = await db
+      .delete(salesTable)
+      .where(eq(salesTable.id, idNum))
+      .returning();
+    if (!row) throw new HttpError("Penjualan tidak ditemukan.", 404);
+    // Also delete related salesDetails rows
+    await db.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum)).execute();
+    res.json({ message: "Sale record deleted" });
+  })
+);
+
+// Delete ALL ERP tables (dangerous – use with caution)
+router.delete(
+  "/erp/clear-all",
+  safe(async (req, res) => {
+    checkPassword(req);
+    // Perform deletions in order respecting foreign key constraints
+    await db.transaction(async (tx) => {
+      // Delete dependent tables first
+      await tx.delete(salesDetailsTable).execute();
+      await tx.delete(purchaseDetailsTable).execute();
+      await tx.delete(stockMovementsTable).execute();
+      await tx.delete(recipeItemsTable).execute();
+      await tx.delete(purchasesTable).execute();
+      await tx.delete(salesTable).execute();
+      await tx.delete(productsTable).execute();
+      await tx.delete(ingredientsTable).execute();
+    });
+    res.json({ message: "All ERP tables have been cleared" });
+  })
+);
+
 router.post(
+
   "/erp/sales",
   safe(async (req, res) => {
     const parsed = RecordSaleBody.safeParse(req.body);
