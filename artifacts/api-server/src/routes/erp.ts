@@ -799,6 +799,7 @@ router.delete(
 // Delete ALL ERP tables (dangerous – use with caution)
 router.delete(
   "/erp/clear-all",
+  checkRole("admin"),
   safe(async (req, res) => {
     // Perform deletions in order respecting foreign key constraints
     await db.transaction(async (tx) => {
