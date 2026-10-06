@@ -22,7 +22,7 @@ import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter
 const client = new QueryClient();
 const navItems = [
   { href: '/', label: 'Ringkasan', icon: Home },
-  { href: '/stok', label: 'Stok Bahan', icon: Boxes },
+  { href: '/stok/makanan', label: 'Stok Bahan', icon: Boxes, children: [{ href: '/stok/makanan', label: 'Makanan' }, { href: '/stok/parfum', label: 'Parfum' }] },
   { href: '/produk', label: 'Produk & Resep', icon: CookingPot },
   { href: '/belanja', label: 'Catat Belanja', icon: ShoppingBasket },
   { href: '/penjualan', label: 'Catat Penjualan', icon: ReceiptText },
@@ -95,7 +95,7 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
 function Shell({ children, connected, onLogout }: { children: React.ReactNode; connected: boolean; onLogout: () => void }) {
   const [path] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
-  const active = navItems.find((n) => n.href === path);
+  const active = navItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <Link href="/" className="brand-lockup" onClick={() => setMobileNav(false)}>
@@ -104,7 +104,12 @@ function Shell({ children, connected, onLogout }: { children: React.ReactNode; c
       </Link>
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">
-        {navItems.map(({ href, label, icon: Icon }) => <Link key={href} href={href} onClick={() => setMobileNav(false)} className={`nav-link ${path === href ? 'is-active' : ''}`} data-testid={`link-nav-${href.replace('/', '') || 'dashboard'}`}>
+        {navItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith('/stok/') ? 'nav-group-active' : ''}`} key={href}>
+          <div className="nav-group-heading"><Icon size={18} strokeWidth={1.8} /><span>{label}</span></div>
+          {children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileNav(false)} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
+            <span>{child.label}</span>{path === child.href && <span className="nav-current" />}
+          </Link>)}
+        </div> : <Link key={href} href={href} onClick={() => setMobileNav(false)} className={`nav-link ${path === href ? 'is-active' : ''}`} data-testid={`link-nav-${href.replace('/', '') || 'dashboard'}`}>
           <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{path === href && <span className="nav-current" />}
         </Link>)}
       </nav>
@@ -191,22 +196,22 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
   </>;
 }
 
-function StockPage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
+function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum' }) {
   const safeIngredients = ingredients || [];
   const [modal, setModal] = useState<Ingredient | 'new' | null>(null);
   const [search, setSearch] = useState('');
   const create = useCreateIngredient(), update = useUpdateIngredient(), refresh = useRefresh();
   const [error, setError] = useState('');
-  const visible = safeIngredients.filter((x) => `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
+  const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); const f = new FormData(e.currentTarget);
-    const name = String(f.get('name')), category = String(f.get('category')), unit = String(f.get('unit'));
+    const name = String(f.get('name')), category = String(f.get('category')), stockTypeValue = String(f.get('stockType')) as 'Makanan' | 'Parfum', unit = String(f.get('unit'));
     const minStock = Number(f.get('minStock')), stock = Number(f.get('stock'));
     const openingUnitCost = Number(f.get('openingUnitCost'));
     const success = () => { refresh(); setModal(null); setError(''); };
-    if (modal === 'new') create.mutate({ data: { name, category, unit, stock, minStock, openingUnitCost } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
-    else if (modal) update.mutate({ ingredientId: modal.id, data: { name, category, unit, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
+    if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock, openingUnitCost } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
+    else if (modal) update.mutate({ ingredientId: modal.id, data: { name, category, stockType: stockTypeValue, unit, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
   };
 
   const handleDelete = async (id: number, name: string) => {
@@ -225,13 +230,14 @@ function StockPage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
   };
 
   return <>
-    <PageHeading kicker="PERSIAPAN DAPUR" title="Stok Bahan" note="Pantau persediaan dan biaya bahan baku." action={<Button onClick={() => { setError(''); setModal('new'); }}><Plus size={17} /> Tambah bahan</Button>} />
+    <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => { setError(''); setModal('new'); }}><Plus size={17} /> Tambah bahan</Button>} />
     <Card className="table-card"><div className="table-toolbar"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><span className="result-count">{visible.length} bahan</span></div>
       {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => { setError(''); setModal(i); }}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={() => setModal(null)}><form className="form-stack" onSubmit={save}>
       <Field label="Nama bahan"><FieldInput name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" /></Field>
-      <div className="form-row"><Field label="Kategori"><FieldInput name="category" required defaultValue={modal === 'new' ? '' : modal.category} placeholder="Bahan kering" /></Field><Field label="Satuan"><FieldInput name="unit" required defaultValue={modal === 'new' ? '' : modal.unit} placeholder="kg, liter, butir" /></Field></div>
+      <div className="form-row"><Field label="Jenis stok"><FieldSelect name="stockType" defaultValue={modal === 'new' ? stockType : modal.stockType}><option value="Makanan">Makanan</option><option value="Parfum">Parfum</option></FieldSelect></Field><Field label="Kategori"><FieldInput name="category" required defaultValue={modal === 'new' ? '' : modal.category} placeholder="Bahan kering" /></Field></div>
+      <Field label="Satuan"><FieldInput name="unit" required defaultValue={modal === 'new' ? '' : modal.unit} placeholder="kg, liter, butir" /></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput name="stock" type="number" min="0" step="any" defaultValue="0" required /></Field>}
       {modal === 'new' && <Field label="Biaya per satuan stok awal" hint="Isi nilai biaya agar laba kotor dapat dihitung dengan lebih tepat."><FieldInput name="openingUnitCost" type="number" min="0" step="any" defaultValue="0" required /></Field>}
       <Field label="Batas minimum"><FieldInput name="minStock" type="number" min="0" step="any" defaultValue={modal === 'new' ? '0' : modal.minStock} required /></Field>
@@ -442,7 +448,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const shared = state || fallback;
   return <Shell connected={health.isSuccess} onLogout={onLogout}><ErrorBoundary resetKey="routes"><Switch>
     <Route path="/" component={() => <Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />} />
-    <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} />} />
+    <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
+    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
+    <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" />} />
     <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} />} />
     <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} />} />
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} />} />

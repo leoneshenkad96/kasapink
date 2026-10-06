@@ -87,6 +87,7 @@ function asIngredient(row: typeof ingredientsTable.$inferSelect) {
     id: row.id,
     name: row.name,
     category: row.category,
+    stockType: row.stockType,
     unit: row.unit,
     stock: number(row.stock),
     minStock: number(row.minStock),
@@ -439,11 +440,13 @@ router.patch(
     const update: {
       name?: string;
       category?: string;
+      stockType?: "Makanan" | "Parfum";
       unit?: string;
       minStock?: string;
     } = {};
     if (body.data.name !== undefined) update.name = body.data.name;
     if (body.data.category !== undefined) update.category = body.data.category;
+    if (body.data.stockType !== undefined) update.stockType = body.data.stockType;
     if (body.data.unit !== undefined) update.unit = body.data.unit;
     if (body.data.minStock !== undefined) update.minStock = String(body.data.minStock);
     const [row] = await db

@@ -456,27 +456,30 @@ components:
         id: { type: integer }
         name: { type: string }
         category: { type: string }
+        stockType: { type: string, enum: [Makanan, Parfum] }
         unit: { type: string }
         stock: { type: number }
         minStock: { type: number }
         lastPrice: { type: number }
         averageCost: { type: number }
-      required: [id, name, category, unit, stock, minStock, lastPrice, averageCost]
+      required: [id, name, category, stockType, unit, stock, minStock, lastPrice, averageCost]
     IngredientInput:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         category: { type: string, minLength: 1 }
+        stockType: { type: string, enum: [Makanan, Parfum], default: Makanan }
         unit: { type: string, minLength: 1, maxLength: 30 }
         stock: { type: number, minimum: 0 }
         minStock: { type: number, minimum: 0 }
         openingUnitCost: { type: number, minimum: 0 }
-      required: [name, category, unit, stock, minStock, openingUnitCost]
+      required: [name, category, stockType, unit, stock, minStock, openingUnitCost]
     IngredientUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         category: { type: string, minLength: 1 }
+        stockType: { type: string, enum: [Makanan, Parfum] }
         unit: { type: string, minLength: 1, maxLength: 30 }
         minStock: { type: number, minimum: 0 }
     Product:

@@ -25,6 +25,7 @@ export const GetErpStateResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),
@@ -118,6 +119,7 @@ export const GetFinanceReportResponse = zod.object({
 export const createIngredientBodyNameMax = 120;
 
 
+export const createIngredientBodyStockTypeDefault = `Makanan`;
 export const createIngredientBodyUnitMax = 30;
 
 export const createIngredientBodyStockMin = 0;
@@ -131,6 +133,7 @@ export const createIngredientBodyOpeningUnitCostMin = 0;
 export const CreateIngredientBody = zod.object({
   "name": zod.string().min(1).max(createIngredientBodyNameMax),
   "category": zod.string().min(1),
+  "stockType": zod.enum(['Makanan', 'Parfum']).default(createIngredientBodyStockTypeDefault),
   "unit": zod.string().min(1).max(createIngredientBodyUnitMax),
   "stock": zod.number().min(createIngredientBodyStockMin),
   "minStock": zod.number().min(createIngredientBodyMinStockMin),
@@ -141,6 +144,7 @@ export const CreateIngredientResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),
@@ -168,6 +172,7 @@ export const updateIngredientBodyMinStockMin = 0;
 export const UpdateIngredientBody = zod.object({
   "name": zod.string().min(1).max(updateIngredientBodyNameMax).optional(),
   "category": zod.string().min(1).optional(),
+  "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
   "unit": zod.string().min(1).max(updateIngredientBodyUnitMax).optional(),
   "minStock": zod.number().min(updateIngredientBodyMinStockMin).optional()
 })
@@ -176,6 +181,7 @@ export const UpdateIngredientResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),
@@ -374,6 +380,7 @@ export const RecordStockCountResponseItem = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),
@@ -398,6 +405,7 @@ export const LegacyHealthCheckResponse = zod.object({
 export const legacyCreateIngredientBodyNameMax = 120;
 
 
+export const legacyCreateIngredientBodyStockTypeDefault = `Makanan`;
 export const legacyCreateIngredientBodyUnitMax = 30;
 
 export const legacyCreateIngredientBodyStockMin = 0;
@@ -411,6 +419,7 @@ export const legacyCreateIngredientBodyOpeningUnitCostMin = 0;
 export const LegacyCreateIngredientBody = zod.object({
   "name": zod.string().min(1).max(legacyCreateIngredientBodyNameMax),
   "category": zod.string().min(1),
+  "stockType": zod.enum(['Makanan', 'Parfum']).default(legacyCreateIngredientBodyStockTypeDefault),
   "unit": zod.string().min(1).max(legacyCreateIngredientBodyUnitMax),
   "stock": zod.number().min(legacyCreateIngredientBodyStockMin),
   "minStock": zod.number().min(legacyCreateIngredientBodyMinStockMin),
@@ -421,6 +430,7 @@ export const LegacyCreateIngredientResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),
@@ -448,6 +458,7 @@ export const legacyUpdateIngredientBodyMinStockMin = 0;
 export const LegacyUpdateIngredientBody = zod.object({
   "name": zod.string().min(1).max(legacyUpdateIngredientBodyNameMax).optional(),
   "category": zod.string().min(1).optional(),
+  "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
   "unit": zod.string().min(1).max(legacyUpdateIngredientBodyUnitMax).optional(),
   "minStock": zod.number().min(legacyUpdateIngredientBodyMinStockMin).optional()
 })
@@ -456,6 +467,7 @@ export const LegacyUpdateIngredientResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),
@@ -654,6 +666,7 @@ export const LegacyRecordStockCountResponseItem = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
   "minStock": zod.number(),

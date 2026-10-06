@@ -22,6 +22,7 @@ export const ingredientsTable = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     category: text("category").notNull(),
+    stockType: text("stock_type").notNull().default("Makanan"),
     unit: text("unit").notNull(),
     stock: quantity("stock"),
     minStock: quantity("min_stock"),

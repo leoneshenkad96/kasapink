@@ -25,16 +25,33 @@ export interface Error {
   error: string;
 }
 
+export type IngredientStockType = typeof IngredientStockType[keyof typeof IngredientStockType];
+
+
+export const IngredientStockType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
 export interface Ingredient {
   id: number;
   name: string;
   category: string;
+  stockType: IngredientStockType;
   unit: string;
   stock: number;
   minStock: number;
   lastPrice: number;
   averageCost: number;
 }
+
+export type IngredientInputStockType = typeof IngredientInputStockType[keyof typeof IngredientInputStockType];
+
+
+export const IngredientInputStockType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
 
 export interface IngredientInput {
   /**
@@ -44,6 +61,7 @@ export interface IngredientInput {
   name: string;
   /** @minLength 1 */
   category: string;
+  stockType: IngredientInputStockType;
   /**
      * @minLength 1
      * @maxLength 30
@@ -57,6 +75,14 @@ export interface IngredientInput {
   openingUnitCost: number;
 }
 
+export type IngredientUpdateStockType = typeof IngredientUpdateStockType[keyof typeof IngredientUpdateStockType];
+
+
+export const IngredientUpdateStockType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
 export interface IngredientUpdate {
   /**
      * @minLength 1
@@ -65,6 +91,7 @@ export interface IngredientUpdate {
   name?: string;
   /** @minLength 1 */
   category?: string;
+  stockType?: IngredientUpdateStockType;
   /**
      * @minLength 1
      * @maxLength 30

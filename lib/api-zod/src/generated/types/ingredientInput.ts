@@ -5,6 +5,7 @@
  * API for Kasapink ERP
  * OpenAPI spec version: 0.1.0
  */
+import type { IngredientInputStockType } from './ingredientInputStockType';
 
 export interface IngredientInput {
   /**
@@ -14,6 +15,7 @@ export interface IngredientInput {
   name: string;
   /** @minLength 1 */
   category: string;
+  stockType: IngredientInputStockType;
   /**
      * @minLength 1
      * @maxLength 30

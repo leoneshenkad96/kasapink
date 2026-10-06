@@ -5,11 +5,13 @@
  * API for Kasapink ERP
  * OpenAPI spec version: 0.1.0
  */
+import type { IngredientStockType } from './ingredientStockType';
 
 export interface Ingredient {
   id: number;
   name: string;
   category: string;
+  stockType: IngredientStockType;
   unit: string;
   stock: number;
   minStock: number;
