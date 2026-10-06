@@ -635,7 +635,17 @@ router.post(
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
     const lines = parsed.data.items;
-    const ingredientIds = [...new Set(lines.map((line) => line.ingredientId))].sort((a, b) => a - b);
+    const aggregated = new Map<number, { quantity: number; totalCost: number }>();
+    for (const line of lines) {
+      const current = aggregated.get(line.ingredientId) ?? { quantity: 0, totalCost: 0 };
+      current.quantity += line.quantity;
+      current.totalCost += line.totalCost;
+      aggregated.set(line.ingredientId, current);
+    }
+    const purchaseLines = [...aggregated.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([ingredientId, values]) => ({ ingredientId, ...values }));
+    const ingredientIds = purchaseLines.map((line) => line.ingredientId);
     const result = await db.transaction(async (tx) => {
       const locked = await tx
         .select()
@@ -647,7 +657,7 @@ router.post(
         throw new HttpError("Ada bahan belanja yang tidak ditemukan.", 400);
       }
       const byId = new Map(locked.map((row) => [row.id, row]));
-      const totalCost = roundMoney(lines.reduce((sum, line) => sum + line.totalCost, 0));
+      const totalCost = roundMoney(purchaseLines.reduce((sum, line) => sum + line.totalCost, 0));
       const [purchase] = await tx
         .insert(purchasesTable)
         .values({
@@ -659,7 +669,7 @@ router.post(
 
       const details: Array<typeof purchaseDetailsTable.$inferInsert> = [];
       const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
-      for (const line of lines) {
+      for (const line of purchaseLines) {
         const ingredient = byId.get(line.ingredientId);
         if (!ingredient) throw new HttpError("Bahan belanja tidak ditemukan.", 400);
         const oldStock = number(ingredient.stock);
@@ -710,7 +720,7 @@ router.post(
         date: purchase.date,
         supplierType: purchase.supplierType,
         totalCost,
-        items: lines.map((line) => {
+        items: purchaseLines.map((line) => {
           const ingredient = byId.get(line.ingredientId)!;
           return {
             ingredientId: line.ingredientId,
