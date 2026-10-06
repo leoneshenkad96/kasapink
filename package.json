@@ -5,7 +5,8 @@
   "scripts": {
     "build": "pnpm --filter @workspace/erp-rumahan-emak run build && node ./scripts/build-vercel-api.mjs",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "test:security": "node ./scripts/security-api-test.mjs"
   },
   "private": true,
   "dependencies": {
