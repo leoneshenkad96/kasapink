@@ -31,7 +31,13 @@ async function expectStatus(name, path, status, init) {
 async function main() {
   console.log(`Security/API smoke tests against ${baseUrl}`);
 
-  await expectStatus("public healthz", "/api/healthz", 200);
+  const health = await expectStatus("public healthz", "/api/healthz", 200);
+  assert.equal(health.response.headers.get("x-powered-by"), null, "Express X-Powered-By header must be disabled");
+  assert.equal(health.response.headers.get("x-content-type-options"), "nosniff", "X-Content-Type-Options must be nosniff");
+  assert.equal(health.response.headers.get("x-frame-options"), "SAMEORIGIN", "X-Frame-Options must be SAMEORIGIN");
+  assert.equal(health.response.headers.get("cache-control"), "no-store", "API responses must not be cached");
+  console.log("PASS  baseline security headers");
+
   await expectStatus("public legacy health", "/api/health", 200);
 
   await expectStatus("missing auth on /me", "/api/me", 401);
