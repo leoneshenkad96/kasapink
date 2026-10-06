@@ -67,6 +67,14 @@ function invalid(res: Response, message: string): void {
   res.status(400).json({ error: message });
 }
 
+function requireMaxItems(items: unknown[], max: number, res: Response): boolean {
+  if (items.length > max) {
+    invalid(res, `Maksimal ${max} item per transaksi.`);
+    return false;
+  }
+  return true;
+}
+
 function number(value: string | number | null | undefined): number {
   const result = Number(value ?? 0);
   return Number.isFinite(result) ? result : 0;
@@ -563,6 +571,7 @@ router.put(
       invalid(res, body.error.message);
       return;
     }
+    if (!requireMaxItems(body.data.items, 100, res)) return;
     const ids = body.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Bahan yang sama hanya boleh ditambahkan satu kali ke resep.");
@@ -624,6 +633,7 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireMaxItems(parsed.data.items, 100, res)) return;
     const lines = parsed.data.items;
     const ingredientIds = [...new Set(lines.map((line) => line.ingredientId))].sort((a, b) => a - b);
     const result = await db.transaction(async (tx) => {
@@ -800,7 +810,11 @@ router.delete(
 router.delete(
   "/erp/clear-all",
   checkRole("admin"),
-  safe(async (req, res) => {
+  safe(async (_req, res) => {
+    if (process.env.ALLOW_DANGEROUS_CLEAR_ALL !== "true") {
+      res.status(404).json({ error: "Endpoint tidak tersedia." });
+      return;
+    }
     // Perform deletions in order respecting foreign key constraints
     await db.transaction(async (tx) => {
       // Delete dependent tables first
@@ -826,6 +840,7 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireMaxItems(parsed.data.items, 100, res)) return;
     const quantities = new Map<number, number>();
     for (const line of parsed.data.items) {
       quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
@@ -1014,6 +1029,7 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireMaxItems(parsed.data.items, 100, res)) return;
     const ids = parsed.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Setiap bahan hanya boleh dicatat satu kali.");
@@ -1086,7 +1102,7 @@ router.delete(
         throw new HttpError("Bahan tidak ditemukan.", 404);
       }
       const remainingStock = number(ingredient.stock);
-      if (remainingStock > 1e-9) {
+      if (Math.abs(remainingStock) > 1e-9) {
         throw new HttpError(
           `Bahan masih memiliki stok ${remainingStock} ${ingredient.unit}. Habiskan atau sesuaikan stok melalui stok opname sebelum menghapus.`,
           409,
@@ -1151,6 +1167,10 @@ router.delete(
         .for("update");
       if (!product) {
         throw new HttpError("Produk tidak ditemukan.", 404);
+      }
+
+      if (Math.abs(number(product.stock)) > 1e-9) {
+        throw new HttpError("Produk masih memiliki stok. Habiskan atau sesuaikan stok sebelum menghapus.", 409);
       }
 
       // 2. Cek apakah masih ada riwayat penjualan (salesDetailsTable)
