@@ -22,11 +22,11 @@ import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter
 const client = new QueryClient();
 const navItems = [
   { href: '/', label: 'Ringkasan', icon: Home },
-  { href: '/stok', label: 'Stok bahan', icon: Boxes },
-  { href: '/produk', label: 'Produk & resep', icon: CookingPot },
-  { href: '/belanja', label: 'Catat belanja', icon: ShoppingBasket },
-  { href: '/penjualan', label: 'Catat penjualan', icon: ReceiptText },
-  { href: '/opname', label: 'Stok opname', icon: ClipboardList },
+  { href: '/stok', label: 'Stok Bahan', icon: Boxes },
+  { href: '/produk', label: 'Produk & Resep', icon: CookingPot },
+  { href: '/belanja', label: 'Catat Belanja', icon: ShoppingBasket },
+  { href: '/penjualan', label: 'Catat Penjualan', icon: ReceiptText },
+  { href: '/opname', label: 'Stok Opname', icon: ClipboardList },
   { href: '/laporan', label: 'Laporan', icon: FileText },
 ];
 const today = () => {
