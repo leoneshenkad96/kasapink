@@ -20,13 +20,13 @@ app.use(helmet({
   crossOriginEmbedderPolicy: false,
   contentSecurityPolicy: false,
   strictTransportSecurity: process.env.NODE_ENV === "production"
-    ? { maxAge: 31536000, includeSubDomains: true, preload: true }
+    ? { maxAge: 31536000, includeSubDomains: false, preload: false }
     : false,
 }));
 
 app.use(cors({
   origin(origin, callback) {
-    if (!origin || allowedOrigins.length === 0) return callback(null, allowedOrigins.length === 0);
+    if (!origin) return callback(null, true);
     return callback(null, allowedOrigins.includes(origin));
   },
   methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
