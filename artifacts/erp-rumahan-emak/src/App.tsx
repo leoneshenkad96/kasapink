@@ -213,7 +213,10 @@ function StockPage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
     if (confirm(`Yakin ingin menghapus bahan "${name}"?`)) {
       try {
         const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE', headers: { 'x-password': 'doraemon' } });
-        if (!res.ok) throw new Error('Gagal menghapus bahan');
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Gagal menghapus bahan');
+        }
         refresh();
       } catch (err: unknown) {
         alert(errText(err));
@@ -264,7 +267,10 @@ function ProductPage({ state }: { state: ErpState }) {
     if (confirm(`Yakin ingin menghapus produk "${name}"?`)) {
       try {
         const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'x-password': 'doraemon' } });
-        if (!res.ok) throw new Error('Gagal menghapus produk');
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Gagal menghapus produk');
+        }
         refresh();
       } catch (err: unknown) {
         alert(errText(err));
@@ -277,7 +283,13 @@ function ProductPage({ state }: { state: ErpState }) {
     {!safeProducts.length ? <Card><Empty title="Belum ada produk" text="Tambahkan produk jualan untuk mulai mencatat penjualan." /></Card> :
       <div className="product-list">{safeProducts.map((p) => {
         const items = safeRecipes.filter((r) => r.productId === p.id);
-        return <Card className="product-card" key={p.id}><div className="product-top"><span className="product-illustration"><CookingPot size={21} /></span><div style={{ display: 'flex', gap: '4px' }}><button className="icon-button" aria-label={`Ubah ${p.name}`} onClick={() => { setEditing(p); setError(''); }}><Pencil size={16} /></button><button className="icon-button" aria-label={`Hapus ${p.name}`} onClick={() => handleDeleteProduct(p.id, p.name)} style={{ color: '#e11d48' }}><Trash2 size={16} /></button></div></div><h2>{p.name}</h2><div className="product-price">{money(p.sellingPrice)} <small>/ porsi</small></div><div className="recipe-summary">{items.length ? <>{items.length} bahan · {items.slice(0, 3).map((r) => r.ingredientName).join(', ')}{items.length > 3 ? '…' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>}</div><button className="recipe-button" onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button></Card>;
+        const recipeCost = items.reduce((sum, item) => {
+          const ingredient = safeIngredients.find((x) => x.id === item.ingredientId);
+          return sum + item.qtyRequired * (ingredient?.averageCost ?? 0);
+        }, 0);
+        const estimatedGrossProfit = p.sellingPrice - recipeCost;
+        const marginPercent = p.sellingPrice > 0 ? (estimatedGrossProfit / p.sellingPrice) * 100 : 0;
+        return <Card className="product-card" key={p.id}><div className="product-top"><span className="product-illustration"><CookingPot size={21} /></span><div style={{ display: 'flex', gap: '4px' }}><button className="icon-button" aria-label={`Ubah ${p.name}`} onClick={() => { setEditing(p); setError(''); }}><Pencil size={16} /></button><button className="icon-button" aria-label={`Hapus ${p.name}`} onClick={() => handleDeleteProduct(p.id, p.name)} style={{ color: '#e11d48' }}><Trash2 size={16} /></button></div></div><h2>{p.name}</h2><div className="product-price">{money(p.sellingPrice)} <small>/ porsi</small></div><div className="product-economics">{items.length ? <><div><span>Perkiraan biaya bahan</span><b>{money(recipeCost)}</b></div><div><span>Sisa setelah bahan</span><b>{money(estimatedGrossProfit)}</b></div><small>{marginPercent.toFixed(1)}% dari harga jual ? di luar tenaga kerja dan biaya operasional</small></> : <small>Simpan resep untuk melihat perkiraan biaya bahan.</small>}</div><div className="recipe-summary">{items.length ? <>{items.length} bahan · {items.slice(0, 3).map((r) => r.ingredientName).join(', ')}{items.length > 3 ? '…' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>}</div><button className="recipe-button" onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button></Card>;
       })}</div>}
     {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={() => setEditing(null)}><form className="form-stack" onSubmit={submitProduct}><Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Risoles sayur" /></Field><Field label="Harga jual"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field><FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setEditing(null)}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan produk'}</Button></div></form></Modal>}
     {recipeProduct && <Modal title={`Resep ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}><form className="form-stack" onSubmit={saveRecipeForm}><p className="modal-intro">Isi jumlah setiap bahan untuk membuat satu produk. Kosongkan bahan yang tidak digunakan.</p>{safeIngredients.length ? <div className="recipe-editor">{safeIngredients.map((i) => <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>{i.unit} per produk</small></div><FieldInput aria-label={`Jumlah ${i.name}`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={recipe.find((r: RecipeItem) => r.ingredientId === i.id)?.qtyRequired || ''} placeholder="0" /></div>)}</div> : <Empty title="Belum ada bahan" text="Tambahkan data bahan sebelum menyusun resep." />}<FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setRecipeProduct(null)}>Batal</Button><Button type="submit" disabled={saveRecipe.isPending || !safeIngredients.length}>{saveRecipe.isPending ? 'Menyimpan…' : 'Simpan resep'}</Button></div></form></Modal>}
