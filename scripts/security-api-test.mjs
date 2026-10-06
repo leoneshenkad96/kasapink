@@ -52,6 +52,11 @@ async function main() {
     body: JSON.stringify({}),
   });
 
+  await expectStatus("sales deletion without auth", "/api/erp/sales/1", 401, {
+    method: "DELETE",
+    headers: { Accept: "application/json" },
+  });
+
   const cors = await request("/api/healthz", {
     headers: { Origin: "https://evil.example" },
   });
