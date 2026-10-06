@@ -12,7 +12,7 @@ import {
 } from '@workspace/api-client-react';
 import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-client-react';
 import {
-  AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check,
+  AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check, ChevronDown,
   CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
   Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, TrendingUp, X,
 } from 'lucide-react';
@@ -95,6 +95,7 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
 function Shell({ children, connected, onLogout }: { children: React.ReactNode; connected: boolean; onLogout: () => void }) {
   const [path] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
+  const [stockMenuOpen, setStockMenuOpen] = useState(false);
   const active = navItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
@@ -105,10 +106,12 @@ function Shell({ children, connected, onLogout }: { children: React.ReactNode; c
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">
         {navItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith('/stok/') ? 'nav-group-active' : ''}`} key={href}>
-          <div className="nav-group-heading"><Icon size={18} strokeWidth={1.8} /><span>{label}</span></div>
-          {children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileNav(false)} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
+          <button type="button" className="nav-group-heading" aria-expanded={stockMenuOpen} aria-controls="stock-submenu" onClick={() => setStockMenuOpen((open) => !open)}>
+            <Icon size={18} strokeWidth={1.8} /><span>{label}</span><ChevronDown className={`nav-group-chevron ${stockMenuOpen ? 'is-open' : ''}`} size={16} />
+          </button>
+          {stockMenuOpen && <div className="nav-submenu" id="stock-submenu">{children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileNav(false)} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
             <span>{child.label}</span>{path === child.href && <span className="nav-current" />}
-          </Link>)}
+          </Link>)}</div>}
         </div> : <Link key={href} href={href} onClick={() => setMobileNav(false)} className={`nav-link ${path === href ? 'is-active' : ''}`} data-testid={`link-nav-${href.replace('/', '') || 'dashboard'}`}>
           <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{path === href && <span className="nav-current" />}
         </Link>)}
