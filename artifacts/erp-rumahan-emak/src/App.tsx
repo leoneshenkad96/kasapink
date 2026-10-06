@@ -213,7 +213,7 @@ function StockPage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
   const handleDelete = async (id: number, name: string) => {
     if (confirm(`Yakin ingin menghapus bahan "${name}"?`)) {
       try {
-        const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE', headers: { 'x-password': 'doraemon' } });
         if (!res.ok) throw new Error('Gagal menghapus bahan');
         refresh();
       } catch (err: unknown) {
@@ -264,7 +264,7 @@ function ProductPage({ state }: { state: ErpState }) {
   const handleDeleteProduct = async (id: number, name: string) => {
     if (confirm(`Yakin ingin menghapus produk "${name}"?`)) {
       try {
-        const res = await fetch(`/api/products/${id}`, { method: 'DELETE' });
+        const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'x-password': 'doraemon' } });
         if (!res.ok) throw new Error('Gagal menghapus produk');
         refresh();
       } catch (err: unknown) {
