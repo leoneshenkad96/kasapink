@@ -8,10 +8,17 @@ import { logger } from "./lib/logger";
 import cookieParser from "cookie-parser";
 
 const app: Express = express();
-const allowedOrigins = (process.env.CORS_ORIGINS ?? "")
+const configuredOrigins = (process.env.CORS_ORIGINS ?? "")
   .split(",")
   .map((value) => value.trim())
   .filter(Boolean);
+
+const allowedOrigins = [
+  "https://erp.kasapink.com",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  ...configuredOrigins,
+].filter((origin, index, origins) => origins.indexOf(origin) === index);
 
 app.disable("x-powered-by");
 app.set("trust proxy", 1);
