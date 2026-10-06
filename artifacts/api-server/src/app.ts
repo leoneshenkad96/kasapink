@@ -37,6 +37,14 @@ app.use(cors({
 app.use(express.json({ limit: "100kb" }));
 app.use(express.urlencoded({ extended: false, limit: "100kb" }));
 
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 300,
+  standardHeaders: "draft-8",
+  legacyHeaders: false,
+  message: { error: "Terlalu banyak request. Silakan coba lagi nanti." },
+});
+
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   limit: 10,
@@ -46,6 +54,7 @@ const authLimiter = rateLimit({
   message: { error: "Terlalu banyak percobaan. Silakan coba lagi beberapa menit lagi." },
 });
 
+app.use("/api", apiLimiter);
 app.use("/api/login", authLimiter);
 app.use("/api/setup/admin", authLimiter);
 
@@ -67,6 +76,10 @@ app.use(
   }),
 );
 app.use(cookieParser());
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use("/api", router);
 
 export default app;
