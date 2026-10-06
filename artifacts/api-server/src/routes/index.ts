@@ -1,4 +1,5 @@
 import { Router, type IRouter, type NextFunction, type Request, type Response } from "express";
+import authRouter from "./auth"; // added auth routes
 import erpRouter from "./erp";
 import healthRouter from "./health";
 
@@ -59,5 +60,6 @@ function rewriteLegacyAliases(req: Request, _res: Response, next: NextFunction):
 router.use(rewriteLegacyAliases);
 router.use(healthRouter);
 router.use(erpRouter);
+router.use(authRouter); // attach auth routes
 
 export default router;
