@@ -734,6 +734,7 @@ router.post(
 // Delete a sales record (catat penjualan)
 router.delete(
   "/erp/sales/:saleId",
+  checkRole("admin"),
   safe(async (req, res) => {
     const { saleId } = req.params as { saleId: string };
     const idNum = Number(saleId);
