@@ -28,7 +28,6 @@ const navItems = [
   { href: '/penjualan', label: 'Catat penjualan', icon: ReceiptText },
   { href: '/opname', label: 'Stok opname', icon: ClipboardList },
   { href: '/laporan', label: 'Laporan', icon: FileText },
-  { href: '/users', label: 'Manajemen Pengguna', icon: User },
 ];
 const today = () => {
   const now = new Date();
