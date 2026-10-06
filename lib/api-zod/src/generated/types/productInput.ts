@@ -14,4 +14,11 @@ export interface ProductInput {
   name: string;
   /** @minimum 0 */
   sellingPrice: number;
+  needsRecipe?: boolean;
+  /** @minimum 0 */
+  stock?: number;
+  /** @minimum 0 */
+  averageCost?: number;
+  /** @minimum 1 */
+  autoRecipeIngredientId?: number;
 }

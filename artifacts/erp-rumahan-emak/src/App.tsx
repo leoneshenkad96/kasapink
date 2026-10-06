@@ -243,16 +243,42 @@ function StockPage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
 function ProductPage({ state }: { state: ErpState }) {
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const [recipeProduct, setRecipeProduct] = useState<Product | null>(null);
+  const [needsRecipe, setNeedsRecipe] = useState(true);
+  const [autoRecipe, setAutoRecipe] = useState(false);
   const [error, setError] = useState('');
   const create = useCreateProduct(), update = useUpdateProduct(), saveRecipe = useSaveProductRecipe(), refresh = useRefresh();
   const safeProducts = state.products || [];
   const safeRecipes = state.recipes || [];
   const safeIngredients = state.ingredients || [];
+  const macroIngredients = safeIngredients.filter((ingredient) => !/mikro|operasional/i.test(ingredient.category));
   const recipe = useMemo(() => recipeProduct ? safeRecipes.filter((r) => r.productId === recipeProduct.id) : [], [recipeProduct, safeRecipes]);
 
+  const openNewProduct = () => {
+    setError('');
+    setNeedsRecipe(true);
+    setAutoRecipe(false);
+    setEditing('new');
+  };
+  const openEditProduct = (product: Product) => {
+    setError('');
+    setNeedsRecipe(product.needsRecipe);
+    setAutoRecipe(false);
+    setEditing(product);
+  };
   const submitProduct = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); const f = new FormData(e.currentTarget); const data = { name: String(f.get('name')), sellingPrice: Number(f.get('sellingPrice')) };
-    const success = () => { refresh(); setEditing(null); setError(''); };
+    e.preventDefault();
+    const f = new FormData(e.currentTarget);
+    const data = {
+      name: String(f.get('name')).trim(),
+      sellingPrice: Number(f.get('sellingPrice')),
+      needsRecipe,
+      stock: needsRecipe ? 0 : Number(f.get('stock') || 0),
+      averageCost: needsRecipe ? 0 : Number(f.get('averageCost') || 0),
+      ...(editing === 'new' && autoRecipe
+        ? { autoRecipeIngredientId: Number(f.get('autoRecipeIngredientId')) }
+        : {}),
+    };
+    const success = () => { refresh(); setEditing(null); setError(''); setAutoRecipe(false); };
     if (editing === 'new') create.mutate({ data }, { onSuccess: success, onError: (x) => setError(errText(x)) });
     else if (editing) update.mutate({ productId: editing.id, data }, { onSuccess: success, onError: (x) => setError(errText(x)) });
   };
@@ -262,7 +288,6 @@ function ProductPage({ state }: { state: ErpState }) {
     const items = safeIngredients.map((i) => ({ ingredientId: i.id, qtyRequired: Number(form.get(`qty-${i.id}`)) || 0 })).filter((i) => i.qtyRequired > 0);
     saveRecipe.mutate({ productId: recipeProduct.id, data: { items } }, { onSuccess: () => { refresh(); setRecipeProduct(null); setError(''); }, onError: (x) => setError(errText(x)) });
   };
-
   const handleDeleteProduct = async (id: number, name: string) => {
     if (confirm(`Yakin ingin menghapus produk "${name}"?`)) {
       try {
@@ -279,20 +304,65 @@ function ProductPage({ state }: { state: ErpState }) {
   };
 
   return <>
-    <PageHeading kicker="MENU DAPUR" title="Produk & Resep" note="Atur harga jual dan bahan yang dipakai tiap produk." action={<Button onClick={() => { setError(''); setEditing('new'); }}><Plus size={17} /> Tambah produk</Button>} />
+    <PageHeading kicker="MENU DAPUR" title="Produk & Resep" note="Pilih barang jadi yang stoknya dijual langsung, atau produk olahan yang memakai bahan makro." action={<Button onClick={openNewProduct}><Plus size={17} /> Tambah produk</Button>} />
     {!safeProducts.length ? <Card><Empty title="Belum ada produk" text="Tambahkan produk jualan untuk mulai mencatat penjualan." /></Card> :
       <div className="product-list">{safeProducts.map((p) => {
         const items = safeRecipes.filter((r) => r.productId === p.id);
-        const recipeCost = items.reduce((sum, item) => {
+        const macroItems = items.filter((item) => {
+          const ingredient = safeIngredients.find((x) => x.id === item.ingredientId);
+          return ingredient && !/mikro|operasional/i.test(ingredient.category);
+        });
+        const recipeCost = macroItems.reduce((sum, item) => {
           const ingredient = safeIngredients.find((x) => x.id === item.ingredientId);
           return sum + item.qtyRequired * (ingredient?.averageCost ?? 0);
         }, 0);
-        const estimatedGrossProfit = p.sellingPrice - recipeCost;
+        const unitCost = p.needsRecipe ? recipeCost : p.averageCost;
+        const estimatedGrossProfit = p.sellingPrice - unitCost;
         const marginPercent = p.sellingPrice > 0 ? (estimatedGrossProfit / p.sellingPrice) * 100 : 0;
-        return <Card className="product-card" key={p.id}><div className="product-top"><span className="product-illustration"><CookingPot size={21} /></span><div style={{ display: 'flex', gap: '4px' }}><button className="icon-button" aria-label={`Ubah ${p.name}`} onClick={() => { setEditing(p); setError(''); }}><Pencil size={16} /></button><button className="icon-button" aria-label={`Hapus ${p.name}`} onClick={() => handleDeleteProduct(p.id, p.name)} style={{ color: '#e11d48' }}><Trash2 size={16} /></button></div></div><h2>{p.name}</h2><div className="product-price">{money(p.sellingPrice)} <small>/ porsi</small></div><div className="product-economics">{items.length ? <><div><span>Perkiraan biaya bahan</span><b>{money(recipeCost)}</b></div><div><span>Sisa setelah bahan</span><b>{money(estimatedGrossProfit)}</b></div><small>{marginPercent.toFixed(1)}% dari harga jual ? di luar tenaga kerja dan biaya operasional</small></> : <small>Simpan resep untuk melihat perkiraan biaya bahan.</small>}</div><div className="recipe-summary">{items.length ? <>{items.length} bahan · {items.slice(0, 3).map((r) => r.ingredientName).join(', ')}{items.length > 3 ? '…' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>}</div><button className="recipe-button" onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button></Card>;
+        return <Card className="product-card" key={p.id}>
+          <div className="product-top"><span className="product-illustration"><CookingPot size={21} /></span><div style={{ display: 'flex', gap: '4px' }}><button className="icon-button" aria-label={`Ubah ${p.name}`} onClick={() => openEditProduct(p)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Hapus ${p.name}`} onClick={() => handleDeleteProduct(p.id, p.name)} style={{ color: '#e11d48' }}><Trash2 size={16} /></button></div></div>
+          <h2>{p.name}</h2>
+          <span className="status-pill status-ok">{p.needsRecipe ? 'Produk olahan' : 'Produk jadi'}</span>
+          <div className="product-price">{money(p.sellingPrice)} <small>/ unit</small></div>
+          <div className="product-economics">
+            {p.needsRecipe && !macroItems.length
+              ? <small>Resep belum diatur. Penjualan tetap bisa disimpan dengan warning.</small>
+              : <><div><span>{p.needsRecipe ? 'Perkiraan biaya bahan' : 'Biaya beli per unit'}</span><b>{money(unitCost)}</b></div><div><span>Sisa setelah biaya produk</span><b>{money(estimatedGrossProfit)}</b></div><small>{marginPercent.toFixed(1)}% dari harga jual ? di luar biaya operasional</small></>}
+            {!p.needsRecipe && <div><span>Stok barang jadi</span><b>{p.stock}</b></div>}
+          </div>
+          <div className="recipe-summary">{p.needsRecipe ? (macroItems.length ? <>{macroItems.length} bahan makro ? {macroItems.slice(0, 3).map((r) => r.ingredientName).join(', ')}{macroItems.length > 3 ? '?' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>) : 'Stok produk dipotong langsung saat penjualan.'}</div>
+          {p.needsRecipe && <button className="recipe-button" onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button>}
+        </Card>;
       })}</div>}
-    {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={() => setEditing(null)}><form className="form-stack" onSubmit={submitProduct}><Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Risoles sayur" /></Field><Field label="Harga jual"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field><FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setEditing(null)}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan produk'}</Button></div></form></Modal>}
-    {recipeProduct && <Modal title={`Resep ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}><form className="form-stack" onSubmit={saveRecipeForm}><p className="modal-intro">Isi jumlah setiap bahan untuk membuat satu produk. Kosongkan bahan yang tidak digunakan.</p>{safeIngredients.length ? <div className="recipe-editor">{safeIngredients.map((i) => <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>{i.unit} per produk</small></div><FieldInput aria-label={`Jumlah ${i.name}`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={recipe.find((r: RecipeItem) => r.ingredientId === i.id)?.qtyRequired || ''} placeholder="0" /></div>)}</div> : <Empty title="Belum ada bahan" text="Tambahkan data bahan sebelum menyusun resep." />}<FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setRecipeProduct(null)}>Batal</Button><Button type="submit" disabled={saveRecipe.isPending || !safeIngredients.length}>{saveRecipe.isPending ? 'Menyimpan…' : 'Simpan resep'}</Button></div></form></Modal>}
+    {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={() => { setEditing(null); setAutoRecipe(false); }}>
+      <form className="form-stack" onSubmit={submitProduct}>
+        <Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>
+        <Field label="Harga jual per unit"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field>
+        <fieldset className="product-type-options">
+          <legend>Jenis produk</legend>
+          <label><input type="radio" name="productType" checked={!needsRecipe} onChange={() => { setNeedsRecipe(false); setAutoRecipe(false); }} /> Produk Jadi <small>Stok barang yang dibeli lalu dijual kembali.</small></label>
+          <label><input type="radio" name="productType" checked={needsRecipe} onChange={() => setNeedsRecipe(true)} /> Produk Olahan <small>Penjualan memakai resep bahan makro.</small></label>
+        </fieldset>
+        {!needsRecipe && <div className="form-row">
+          <Field label={editing === 'new' ? 'Stok awal barang jadi' : 'Stok barang jadi'} hint="Isi ulang atau koreksi stok lewat formulir ini."><FieldInput name="stock" required type="number" min="0" step="any" defaultValue={editing === 'new' ? '0' : editing.stock} /></Field>
+          <Field label="Biaya beli per unit" hint="Dipakai sebagai biaya pokok penjualan."><FieldInput name="averageCost" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '0' : editing.averageCost} /></Field>
+        </div>}
+        {needsRecipe && editing === 'new' && <div className="auto-recipe-box">
+          <label><input type="checkbox" checked={autoRecipe} onChange={(event) => setAutoRecipe(event.target.checked)} /> Otomatis ambil dari bahan (rasio 1:1)</label>
+          <small>Pilih bahan makro utama; sistem membuat resep satu unit bahan untuk satu unit produk.</small>
+          {autoRecipe && <Field label="Bahan makro utama"><FieldSelect name="autoRecipeIngredientId" required defaultValue=""><option value="" disabled>Pilih bahan</option>{macroIngredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</FieldSelect></Field>}
+        </div>}
+        <FormError text={error} />
+        <div className="form-actions"><Button variant="quiet" onClick={() => { setEditing(null); setAutoRecipe(false); }}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan?' : 'Simpan produk'}</Button></div>
+      </form>
+    </Modal>}
+    {recipeProduct && <Modal title={`Resep bahan makro ? ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}>
+      <form className="form-stack" onSubmit={saveRecipeForm}>
+        <p className="modal-intro">Masukkan jumlah bahan makro untuk membuat satu produk. Garam, micin, dan bahan mikro lainnya dicatat sebagai biaya operasional di luar resep.</p>
+        {macroIngredients.length ? <div className="recipe-editor">{macroIngredients.map((i) => <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>{i.unit} per produk</small></div><FieldInput aria-label={`Jumlah ${i.name}`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={recipe.find((r) => r.ingredientId === i.id)?.qtyRequired || ''} placeholder="0" /></div>)}</div> : <Empty title="Belum ada bahan makro" text="Tambahkan bahan utama di Stok Bahan terlebih dahulu." />}
+        <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setRecipeProduct(null)}>Batal</Button><Button type="submit" disabled={saveRecipe.isPending || !macroIngredients.length}>{saveRecipe.isPending ? 'Menyimpan?' : 'Simpan resep'}</Button></div>
+      </form>
+    </Modal>}
   </>;
 }
 
@@ -316,17 +386,24 @@ function PurchasePage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
 
 function SalePage({ state }: { state: ErpState }) {
   const safeProducts = state.products || [];
-  const [date, setDate] = useState(today()), [lines, setLines] = useState([{ productId: safeProducts[0]?.id || 0, quantity: 1 }]), [error, setError] = useState(''), [done, setDone] = useState('');
+  const [date, setDate] = useState(today()), [lines, setLines] = useState([{ productId: safeProducts[0]?.id || 0, quantity: 1 }]), [error, setError] = useState(''), [done, setDone] = useState(''), [warnings, setWarnings] = useState<string[]>([]);
   const mutation = useRecordSale(), refresh = useRefresh();
   const total = lines.reduce((n, l) => n + (safeProducts.find((p) => p.id === l.productId)?.sellingPrice || 0) * l.quantity, 0);
-  const submit = (e: React.FormEvent) => { e.preventDefault(); setError(''); setDone(''); mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && l.quantity > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, { onSuccess: (sale) => { refresh(); setDone(`Penjualan ${money(sale.totalRevenue)} berhasil dicatat.`); setLines([{ productId: safeProducts[0]?.id || 0, quantity: 1 }]); }, onError: (x) => setError(errText(x)) }); };
-  return <><PageHeading kicker="PENJUALAN HARIAN" title="Catat Penjualan" note="Masukkan produk yang terjual. Stok bahan berkurang mengikuti resep." />
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault(); setError(''); setDone(''); setWarnings([]);
+    mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && l.quantity > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
+      onSuccess: (sale) => { refresh(); setDone(`Penjualan ${money(sale.totalRevenue)} berhasil dicatat.`); setWarnings(sale.warnings || []); setLines([{ productId: safeProducts[0]?.id || 0, quantity: 1 }]); },
+      onError: (x) => setError(errText(x)),
+    });
+  };
+  return <><PageHeading kicker="PENJUALAN HARIAN" title="Catat Penjualan" note="Simpan transaksi meski stok kurang; periksa warning untuk bahan atau produk yang perlu diisi." />
     <div className="entry-layout"><Card className="entry-card"><div className="card-heading"><div><span className="eyebrow">TRANSAKSI BARU</span><h2>Penjualan</h2></div><span className="step-number">01</span></div><form onSubmit={submit} className="form-stack"><Field label="Tanggal"><FieldInput type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field><div className="line-head"><b>Produk terjual</b><span>Harga mengikuti daftar produk</span></div>
-      {lines.map((l, idx) => <div className="sale-line" key={idx}><Field label="Produk"><FieldSelect required value={l.productId || ''} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, productId: Number(e.target.value) } : item))}><option value="" disabled>Pilih produk</option>{safeProducts.map((p) => <option value={p.id} key={p.id}>{p.name} — {money(p.sellingPrice)}</option>)}</FieldSelect></Field><Field label="Jumlah"><FieldInput required type="number" min="1" step="1" value={l.quantity} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, quantity: Number(e.target.value) } : item))} /></Field><button className="remove-line" type="button" disabled={lines.length === 1} aria-label="Hapus produk" onClick={() => setLines(lines.filter((_, i) => i !== idx))}><X size={16} /></button></div>)}
+      {lines.map((l, idx) => <div className="sale-line" key={idx}><Field label="Produk"><FieldSelect required value={l.productId || ''} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, productId: Number(e.target.value) } : item))}><option value="" disabled>Pilih produk</option>{safeProducts.map((p) => <option value={p.id} key={p.id}>{p.name} ? {money(p.sellingPrice)}{p.needsRecipe ? ' ? olahan' : ` ? stok ${p.stock}`}</option>)}</FieldSelect></Field><Field label="Jumlah"><FieldInput required type="number" min="1" step="1" value={l.quantity} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, quantity: Number(e.target.value) } : item))} /></Field><button className="remove-line" type="button" disabled={lines.length === 1} aria-label="Hapus produk" onClick={() => setLines(lines.filter((_, i) => i !== idx))}><X size={16} /></button></div>)}
       <button className="add-line" type="button" disabled={!safeProducts.length} onClick={() => setLines([...lines, { productId: safeProducts[0]?.id || 0, quantity: 1 }])}><CirclePlus size={16} /> Tambah produk</button>
-      {error && <div className="form-error"><AlertCircle size={16} /><span>{error}<small>Periksa kembali resep produk dan ketersediaan stok bahan.</small></span></div>}{done && <div className="success-message"><Check size={16} />{done}</div>}
-      <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={mutation.isPending || !safeProducts.length}>{mutation.isPending ? 'Menyimpan…' : 'Simpan penjualan'}</Button></div>
-    </form></Card><aside className="side-tip"><div className="tip-symbol peach"><ReceiptText size={20} /></div><span className="eyebrow">SEBELUM MENYIMPAN</span><h3>Pastikan resep produk sudah lengkap</h3><p>Penjualan akan mengurangi stok bahan sesuai takaran resep. Sistem akan menolak transaksi jika resep belum diatur atau stok tidak cukup.</p><Link href="/produk" className="inline-link">Atur resep produk <ArrowRight size={15} /></Link></aside></div>
+      {error && <div className="form-error"><AlertCircle size={16} /><span>{error}</span></div>}{done && <div className="success-message"><Check size={16} />{done}</div>}
+      {warnings.length > 0 && <div className="warning-panel" role="alert"><AlertCircle size={18} /><div><b>Transaksi tersimpan dengan catatan stok</b><ul>{warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul></div></div>}
+      <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={mutation.isPending || !safeProducts.length}>{mutation.isPending ? 'Menyimpan?' : 'Simpan penjualan'}</Button></div>
+    </form></Card><aside className="side-tip"><div className="tip-symbol peach"><ReceiptText size={20} /></div><span className="eyebrow">SEBELUM MENYIMPAN</span><h3>Stok kurang tidak menghentikan transaksi</h3><p>Resep kosong atau stok minus akan ditampilkan sebagai warning setelah penjualan berhasil dicatat. Periksa dan sesuaikan stok secara berkala.</p><Link href="/produk" className="inline-link">Cek produk & resep <ArrowRight size={15} /></Link></aside></div>
   </>;
 }
 

@@ -70,6 +70,10 @@ function number(value: string | number | null | undefined): number {
   return Number.isFinite(result) ? result : 0;
 }
 
+function isOperationalIngredient(category: string): boolean {
+  return /mikro|operasional/i.test(category);
+}
+
 function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
@@ -96,6 +100,9 @@ function asProduct(row: typeof productsTable.$inferSelect) {
     id: row.id,
     name: row.name,
     sellingPrice: number(row.sellingPrice),
+    needsRecipe: row.needsRecipe,
+    stock: number(row.stock),
+    averageCost: number(row.averageCost),
   };
 }
 
@@ -457,10 +464,40 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
-    const [row] = await db
-      .insert(productsTable)
-      .values({ ...parsed.data, sellingPrice: String(parsed.data.sellingPrice) })
-      .returning();
+    if (!parsed.data.needsRecipe && parsed.data.autoRecipeIngredientId !== undefined) {
+      invalid(res, "Auto-resep hanya dapat dipakai pada Produk Olahan.");
+      return;
+    }
+    const row = await db.transaction(async (tx) => {
+      if (parsed.data.autoRecipeIngredientId !== undefined) {
+        const [ingredient] = await tx
+          .select({ id: ingredientsTable.id, category: ingredientsTable.category })
+          .from(ingredientsTable)
+          .where(eq(ingredientsTable.id, parsed.data.autoRecipeIngredientId));
+        if (!ingredient) throw new HttpError("Bahan untuk auto-resep tidak ditemukan.", 400);
+        if (isOperationalIngredient(ingredient.category)) {
+          throw new HttpError("Pilih bahan makro; bahan berkategori Mikro/Operasional tidak masuk resep.", 400);
+        }
+      }
+      const [product] = await tx
+        .insert(productsTable)
+        .values({
+          name: parsed.data.name,
+          sellingPrice: String(parsed.data.sellingPrice),
+          needsRecipe: parsed.data.needsRecipe,
+          stock: String(parsed.data.needsRecipe ? 0 : parsed.data.stock),
+          averageCost: String(parsed.data.needsRecipe ? 0 : parsed.data.averageCost),
+        })
+        .returning();
+      if (parsed.data.autoRecipeIngredientId !== undefined) {
+        await tx.insert(recipeItemsTable).values({
+          productId: product.id,
+          ingredientId: parsed.data.autoRecipeIngredientId,
+          qtyRequired: "1",
+        });
+      }
+      return product;
+    });
     res.status(201).json(CreateProductResponse.parse(asProduct(row)));
   }),
 );
@@ -482,11 +519,18 @@ router.patch(
       invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
       return;
     }
-    const update: { name?: string; sellingPrice?: string } = {};
+    const update: {
+      name?: string;
+      sellingPrice?: string;
+      needsRecipe?: boolean;
+      stock?: string;
+      averageCost?: string;
+    } = {};
     if (body.data.name !== undefined) update.name = body.data.name;
-    if (body.data.sellingPrice !== undefined) {
-      update.sellingPrice = String(body.data.sellingPrice);
-    }
+    if (body.data.sellingPrice !== undefined) update.sellingPrice = String(body.data.sellingPrice);
+    if (body.data.needsRecipe !== undefined) update.needsRecipe = body.data.needsRecipe;
+    if (body.data.stock !== undefined) update.stock = String(body.data.stock);
+    if (body.data.averageCost !== undefined) update.averageCost = String(body.data.averageCost);
     const [row] = await db
       .update(productsTable)
       .set(update)
@@ -525,10 +569,13 @@ router.put(
       if (!product) throw new HttpError("Produk tidak ditemukan.", 404);
       if (ids.length) {
         const rows = await tx
-          .select({ id: ingredientsTable.id })
+          .select({ id: ingredientsTable.id, category: ingredientsTable.category })
           .from(ingredientsTable)
           .where(inArray(ingredientsTable.id, ids));
         if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
+        if (rows.some((row) => isOperationalIngredient(row.category))) {
+          throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
+        }
       }
       await tx
         .delete(recipeItemsTable)
@@ -751,18 +798,18 @@ router.post(
         recipesByProduct.set(row.productId, items);
       }
 
+      const warnings: string[] = [];
       const missingRecipes = productRows
-        .filter((product) => !recipesByProduct.get(product.id)?.length)
+        .filter((product) => product.needsRecipe && !recipesByProduct.get(product.id)?.length)
         .map((product) => product.name);
-      if (missingRecipes.length) {
-        throw new HttpError(
-          `Resep belum dibuat untuk: ${missingRecipes.join(", ")}. Simpan resep sebelum mencatat penjualan.`,
-          409,
-        );
+      for (const name of missingRecipes) {
+        warnings.push(`Resep belum diatur untuk ${name}; transaksi tetap dicatat tanpa pemotongan bahan.`);
       }
 
       const requiredByIngredient = new Map<number, number>();
       for (const [productId, soldQuantity] of quantities) {
+        const product = productRows.find((row) => row.id === productId)!;
+        if (!product.needsRecipe) continue;
         for (const item of recipesByProduct.get(productId) ?? []) {
           requiredByIngredient.set(
             item.ingredientId,
@@ -771,44 +818,60 @@ router.post(
           );
         }
       }
-      const ingredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
-      const lockedIngredients = await tx
-        .select()
-        .from(ingredientsTable)
-        .where(inArray(ingredientsTable.id, ingredientIds))
-        .orderBy(asc(ingredientsTable.id))
-        .for("update");
-      if (lockedIngredients.length !== ingredientIds.length) {
+      const requestedIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
+      const lockedIngredients = requestedIngredientIds.length
+        ? await tx
+            .select()
+            .from(ingredientsTable)
+            .where(inArray(ingredientsTable.id, requestedIngredientIds))
+            .orderBy(asc(ingredientsTable.id))
+            .for("update")
+        : [];
+      if (lockedIngredients.length !== requestedIngredientIds.length) {
         throw new HttpError("Salah satu bahan pada resep tidak ditemukan.", 409);
       }
 
       const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
-      const shortages = ingredientIds.flatMap((ingredientId) => {
+      const ingredientIds = requestedIngredientIds.filter((ingredientId) => {
+        const ingredient = ingredientById.get(ingredientId)!;
+        if (!isOperationalIngredient(ingredient.category)) return true;
+        warnings.push(`Bahan ${ingredient.name} berkategori Mikro/Operasional; stoknya tidak dipotong dalam resep.`);
+        requiredByIngredient.delete(ingredientId);
+        return false;
+      });
+      for (const ingredientId of ingredientIds) {
         const ingredient = ingredientById.get(ingredientId)!;
         const required = requiredByIngredient.get(ingredientId) ?? 0;
         const available = number(ingredient.stock);
-        return available + 1e-9 < required
-          ? [`${ingredient.name}: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}`]
-          : [];
-      });
-      if (shortages.length) {
-        throw new HttpError(`Stok tidak cukup. ${shortages.join("; ")}.`, 409);
+        if (available + 1e-9 < required) {
+          warnings.push(
+            `Stok bahan ${ingredient.name} kurang: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}.`,
+          );
+        }
       }
 
       const productById = new Map(productRows.map((row) => [row.id, row]));
+      for (const [productId, soldQuantity] of quantities) {
+        const product = productById.get(productId)!;
+        if (!product.needsRecipe && number(product.stock) + 1e-9 < soldQuantity) {
+          warnings.push(
+            `Stok produk ${product.name} kurang: tersedia ${number(product.stock)}, terjual ${soldQuantity}.`,
+          );
+        }
+      }
+
       const saleLines = productIds.map((productId) => {
         const product = productById.get(productId)!;
         const quantity = quantities.get(productId)!;
         const unitPrice = number(product.sellingPrice);
-        const costOfGoodsSold = (recipesByProduct.get(productId) ?? []).reduce((sum, item) => {
-          const ingredient = ingredientById.get(item.ingredientId)!;
-          return (
-            sum +
-            number(item.qtyRequired) *
-            quantity *
-            number(ingredient.averageCost)
-          );
-        }, 0);
+        const recipe = recipesByProduct.get(productId) ?? [];
+        const costOfGoodsSold = product.needsRecipe
+          ? recipe.reduce((sum, item) => {
+              const ingredient = ingredientById.get(item.ingredientId)!;
+              if (isOperationalIngredient(ingredient.category)) return sum;
+              return sum + number(item.qtyRequired) * quantity * number(ingredient.averageCost);
+            }, 0)
+          : number(product.averageCost) * quantity;
         return {
           productId,
           productName: product.name,
@@ -841,13 +904,22 @@ router.post(
           costOfGoodsSold: String(line.costOfGoodsSold),
         })),
       );
+      for (const [productId, soldQuantity] of quantities) {
+        const product = productById.get(productId)!;
+        if (!product.needsRecipe) {
+          await tx
+            .update(productsTable)
+            .set({ stock: String(number(product.stock) - soldQuantity) })
+            .where(eq(productsTable.id, productId));
+        }
+      }
 
       const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
       for (const ingredientId of ingredientIds) {
         const ingredient = ingredientById.get(ingredientId)!;
         const oldStock = number(ingredient.stock);
         const used = requiredByIngredient.get(ingredientId)!;
-        const newStock = Math.max(0, oldStock - used);
+        const newStock = oldStock - used;
         await tx
           .update(ingredientsTable)
           .set({ stock: String(newStock) })
@@ -871,6 +943,7 @@ router.post(
         totalRevenue,
         totalCostOfGoodsSold,
         grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
+        warnings,
         items: saleLines,
       };
     });

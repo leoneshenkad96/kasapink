@@ -1,4 +1,5 @@
 import {
+  boolean,
   date,
   index,
   integer,
@@ -43,6 +44,9 @@ export const productsTable = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     sellingPrice: money("selling_price"),
+    needsRecipe: boolean("needs_recipe").notNull().default(true),
+    stock: quantity("stock"),
+    averageCost: money("average_cost"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -10,4 +10,7 @@ export interface Product {
   id: number;
   name: string;
   sellingPrice: number;
+  needsRecipe: boolean;
+  stock: number;
+  averageCost: number;
 }

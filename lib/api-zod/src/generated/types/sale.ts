@@ -13,5 +13,6 @@ export interface Sale {
   totalRevenue: number;
   totalCostOfGoodsSold: number;
   grossProfit: number;
+  warnings?: string[];
   items: SaleLine[];
 }

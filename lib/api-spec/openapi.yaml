@@ -485,18 +485,28 @@ components:
         id: { type: integer }
         name: { type: string }
         sellingPrice: { type: number }
-      required: [id, name, sellingPrice]
+        needsRecipe: { type: boolean }
+        stock: { type: number }
+        averageCost: { type: number }
+      required: [id, name, sellingPrice, needsRecipe, stock, averageCost]
     ProductInput:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         sellingPrice: { type: number, minimum: 0 }
+        needsRecipe: { type: boolean, default: true }
+        stock: { type: number, minimum: 0, default: 0 }
+        averageCost: { type: number, minimum: 0, default: 0 }
+        autoRecipeIngredientId: { type: integer, minimum: 1 }
       required: [name, sellingPrice]
     ProductUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         sellingPrice: { type: number, minimum: 0 }
+        needsRecipe: { type: boolean }
+        stock: { type: number, minimum: 0 }
+        averageCost: { type: number, minimum: 0 }
     RecipeItem:
       type: object
       properties:
@@ -594,6 +604,9 @@ components:
         totalRevenue: { type: number }
         totalCostOfGoodsSold: { type: number }
         grossProfit: { type: number }
+        warnings:
+          type: array
+          items: { type: string }
         items:
           type: array
           items:

@@ -78,6 +78,9 @@ export interface Product {
   id: number;
   name: string;
   sellingPrice: number;
+  needsRecipe: boolean;
+  stock: number;
+  averageCost: number;
 }
 
 export interface ProductInput {
@@ -88,6 +91,13 @@ export interface ProductInput {
   name: string;
   /** @minimum 0 */
   sellingPrice: number;
+  needsRecipe?: boolean;
+  /** @minimum 0 */
+  stock?: number;
+  /** @minimum 0 */
+  averageCost?: number;
+  /** @minimum 1 */
+  autoRecipeIngredientId?: number;
 }
 
 export interface ProductUpdate {
@@ -98,6 +108,11 @@ export interface ProductUpdate {
   name?: string;
   /** @minimum 0 */
   sellingPrice?: number;
+  needsRecipe?: boolean;
+  /** @minimum 0 */
+  stock?: number;
+  /** @minimum 0 */
+  averageCost?: number;
 }
 
 export interface RecipeItem {
@@ -181,6 +196,7 @@ export interface Sale {
   totalRevenue: number;
   totalCostOfGoodsSold: number;
   grossProfit: number;
+  warnings?: string[];
   items: SaleLine[];
 }
 
