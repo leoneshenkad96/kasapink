@@ -3,6 +3,12 @@
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
+.readonly-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; padding: 11px 14px; border: 1px solid #e8d28c; border-radius: 10px; background: #fff8dc; color: #624b0b; font-size: 13px; }
+.testing-readonly form { pointer-events: none; opacity: .62; }
+.testing-readonly .page-heading .heading-action,
+.testing-readonly .icon-button,
+.testing-readonly .recipe-button { display: none !important; }
+
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

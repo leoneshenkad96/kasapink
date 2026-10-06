@@ -35,8 +35,10 @@ import {
   stockMovementsTable,
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
+import { readOnlyForTesting, verifyToken } from "../lib/auth";
 
 const router: IRouter = Router();
+router.use(verifyToken, readOnlyForTesting);
 
 class HttpError extends Error {
   constructor(
@@ -717,21 +719,12 @@ router.post(
   }),
 );
 
-// Helper to enforce simple password protection
-function checkPassword(req: Request): void {
-  const password = req.body.password ?? req.headers["x-password"];
-  if (password !== "doraemon") {
-    throw new HttpError("Invalid password.", 401);
-  }
-}
-
 // -------------------- DELETE ENDPOINTS --------------------
 // Delete an ingredient (stock bahan)
 // Delete a sales record (catat penjualan)
 router.delete(
   "/erp/sales/:saleId",
   safe(async (req, res) => {
-    checkPassword(req);
     const { saleId } = req.params as { saleId: string };
     const idNum = Number(saleId);
     if (Number.isNaN(idNum)) {
@@ -753,7 +746,6 @@ router.delete(
 router.delete(
   "/erp/clear-all",
   safe(async (req, res) => {
-    checkPassword(req);
     // Perform deletions in order respecting foreign key constraints
     await db.transaction(async (tx) => {
       // Delete dependent tables first
@@ -1022,7 +1014,6 @@ router.post(
 router.delete(
   "/erp/ingredients/:ingredientId",
   safe(async (req, res) => {
-    checkPassword(req);
     const id = Number(req.params.ingredientId);
     if (!Number.isFinite(id)) {
       invalid(res, "ID bahan tidak valid.");
@@ -1090,7 +1081,6 @@ router.delete(
 router.delete(
   "/erp/products/:productId",
   safe(async (req, res) => {
-    checkPassword(req);
     const id = Number(req.params.productId);
     if (!Number.isFinite(id)) {
       invalid(res, "ID produk tidak valid.");

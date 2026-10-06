@@ -10,16 +10,20 @@ import {
   useRecordSale, useRecordStockCount, useSaveProductRecipe, useUpdateIngredient,
   useUpdateProduct,
 } from '@workspace/api-client-react';
+import { setAuthTokenGetter } from '@workspace/api-client-react';
 import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-client-react';
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check, ChevronDown,
   CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
-  Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, TrendingUp, X,
+  Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2, TrendingUp, X,
 } from 'lucide-react';
 import UsersPage from './pages/UsersPage';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const client = new QueryClient();
+type UserRole = 'admin' | 'testing';
+type AppUser = { id: number; username: string; role: UserRole };
+setAuthTokenGetter(() => localStorage.getItem('kasapink_token'));
 const navItems = [
   { href: '/', label: 'Ringkasan', icon: Home },
   { href: '/stok', label: 'Stok Bahan', icon: Boxes, children: [{ href: '/stok/makanan', label: 'Makanan' }, { href: '/stok/parfum', label: 'Parfum' }] },
@@ -28,6 +32,7 @@ const navItems = [
   { href: '/penjualan', label: 'Catat Penjualan', icon: ReceiptText },
   { href: '/opname', label: 'Stok Opname', icon: ClipboardList },
   { href: '/laporan', label: 'Laporan', icon: FileText },
+  { href: '/users', label: 'Manajemen User', icon: Shield, adminOnly: true },
 ];
 const today = () => {
   const now = new Date();
@@ -47,13 +52,22 @@ const errText = (e: unknown) => {
   const x = e as { response?: { data?: { error?: string; message?: string } }; message?: string };
   return x?.response?.data?.error || x?.response?.data?.message || x?.message || 'Terjadi kendala. Silakan coba lagi.';
 };
+const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('kasapink_token') || ''}` });
 
-function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
+function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg }: {
   onLogin: (e: React.FormEvent) => void;
+  onSetup: (username: string, password: string, bootstrapToken: string) => void;
+  setupAvailable: boolean;
+  usernameInput: string;
+  setUsernameInput: (val: string) => void;
   passwordInput: string;
   setPasswordInput: (val: string) => void;
   errorMsg: string;
 }) {
+  const [setupMode, setSetupMode] = useState(false);
+  const [bootstrapToken, setBootstrapToken] = useState('');
+  const [setupUsername, setSetupUsername] = useState('');
+  const [setupPassword, setSetupPassword] = useState('');
   return (
     <div style={{ minHeight: '100vh', backgroundColor: '#FAF8F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily: 'system-ui, sans-serif' }}>
       <div style={{ backgroundColor: '#ffffff', border: '1px solid #E5E0D8', borderRadius: '24px', padding: '40px 36px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 30px -5px rgba(27, 59, 43, 0.08)', textAlign: 'center' }}>
@@ -63,14 +77,25 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
         <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1B3B2B', marginBottom: '4px' }}>Kasapink</h1>
         <p style={{ fontSize: '13px', color: '#666', marginBottom: '28px' }}>CATATAN USAHA</p>
 
-        <form onSubmit={onLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
+        {setupMode ? <form onSubmit={(e) => { e.preventDefault(); onSetup(setupUsername, setupPassword, bootstrapToken); }} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
+          <p style={{ color: '#555', fontSize: '13px', margin: 0 }}>Buat akun admin pertama. Token setup diberikan oleh pemilik aplikasi.</p>
+          <input value={bootstrapToken} onChange={(e) => setBootstrapToken(e.target.value)} placeholder="Token setup admin" autoComplete="off" required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
+          <input value={setupUsername} onChange={(e) => setSetupUsername(e.target.value)} placeholder="Username admin" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
+          <input value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Password (min. 8 karakter)" type="password" autoComplete="new-password" minLength={8} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
+          {errorMsg && <p style={{ color: '#e11d48', fontSize: '12px', margin: 0 }}>{errorMsg}</p>}
+          <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#1B3B2B', color: '#fff', fontWeight: '600', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>Buat admin pertama</button>
+          <button type="button" className="text-button" onClick={() => setSetupMode(false)}>Kembali ke login</button>
+        </form> : <form onSubmit={onLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
           <div>
-            <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>PASSWORD AKSES</label>
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>USERNAME</label>
+            <input type="text" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} placeholder="Username" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B', marginBottom: '12px' }} />
+            <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>PASSWORD</label>
             <input
               type="password"
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="Masukkan password..."
+              autoComplete="current-password"
               style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B' }}
               autoFocus
             />
@@ -82,7 +107,8 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
           >
             Masuk ke Sistem
           </button>
-        </form>
+          {setupAvailable && <button type="button" className="text-button" onClick={() => setSetupMode(true)}>Buat admin pertama</button>}
+        </form>}
 
         <div style={{ marginTop: '32px', fontSize: '12px', color: '#888', borderTop: '1px solid #F0ECE6', paddingTop: '16px' }}>
           Created by Leoneshenkad
@@ -92,11 +118,12 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
   );
 }
 
-function Shell({ children, connected, onLogout }: { children: React.ReactNode; connected: boolean; onLogout: () => void }) {
+function Shell({ children, connected, onLogout, role }: { children: React.ReactNode; connected: boolean; onLogout: () => void; role: UserRole }) {
   const [path] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
-  const active = navItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
+  const visibleNavItems = navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || role === 'admin');
+  const active = visibleNavItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <Link href="/" className="brand-lockup" onClick={() => setMobileNav(false)}>
@@ -105,7 +132,7 @@ function Shell({ children, connected, onLogout }: { children: React.ReactNode; c
       </Link>
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">
-        {navItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith(`${href}/`) ? 'nav-group-active' : ''}`} key={href}>
+        {visibleNavItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith(`${href}/`) ? 'nav-group-active' : ''}`} key={href}>
           <button type="button" className="nav-group-heading" aria-expanded={expandedMenu === href} aria-controls={`${href.slice(1)}-submenu`} onClick={() => setExpandedMenu((open) => open === href ? null : href)}>
             <Icon size={18} strokeWidth={1.8} /><span>{label}</span><ChevronDown className={`nav-group-chevron ${expandedMenu === href ? 'is-open' : ''}`} size={16} />
           </button>
@@ -137,7 +164,10 @@ function Shell({ children, connected, onLogout }: { children: React.ReactNode; c
           </button>
         </div>
       </header>
-      <div className="page-content">{children}</div>
+      <div className={`page-content ${role === 'testing' ? 'testing-readonly' : ''}`}>
+        {role === 'testing' && <div className="readonly-notice"><Shield size={16} /> Akun testing hanya dapat melihat data.</div>}
+        {children}
+      </div>
     </main>
   </div>;
 }
@@ -220,7 +250,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
   const handleDelete = async (id: number, name: string) => {
     if (confirm(`Yakin ingin menghapus bahan "${name}"?`)) {
       try {
-        const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE', headers: { 'x-password': 'doraemon' } });
+        const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE', headers: authHeaders() });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || 'Gagal menghapus bahan');
@@ -302,7 +332,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
   const handleDeleteProduct = async (id: number, name: string) => {
     if (confirm(`Yakin ingin menghapus produk "${name}"?`)) {
       try {
-        const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers: { 'x-password': 'doraemon' } });
+        const res = await fetch(`/api/products/${id}`, { method: 'DELETE', headers: authHeaders() });
         if (!res.ok) {
           const data = await res.json().catch(() => ({}));
           throw new Error(data.error || 'Gagal menghapus produk');
@@ -451,13 +481,13 @@ function ReportPage() {
   </>;
 }
 
-function AppContent({ onLogout }: { onLogout: () => void }) {
+function AppContent({ onLogout, role }: { onLogout: () => void; role: UserRole }) {
   const query = useGetErpState();
   const health = useHealthCheck();
   const state = query.data;
   const fallback: ErpState = { ingredients: [], products: [], recipes: [], recentPurchases: [], recentSales: [], today: { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }, lowStockCount: 0 };
   const shared = state || fallback;
-  return <Shell connected={health.isSuccess} onLogout={onLogout}><ErrorBoundary resetKey="routes"><Switch>
+  return <Shell connected={health.isSuccess} onLogout={onLogout} role={role}><ErrorBoundary resetKey="routes"><Switch>
     <Route path="/" component={() => <Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />} />
     <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
     <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
@@ -469,91 +499,110 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} />} />
     <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} />} />
     <Route path="/laporan" component={ReportPage} />
-    <Route path="/users" component={UsersPage} />
+    <Route path="/users" component={() => role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
 
     <Route component={() => <div className="not-found"><span className="eyebrow">HALAMAN TIDAK ADA</span><h1>Sepertinya tersesat.</h1><Link href="/" className="inline-link">Kembali ke ringkasan <ArrowRight size={16} /></Link></div>} />
   </Switch></ErrorBoundary></Shell>;
 }
 
-function AppRoutes({ isAuthenticated, onLogin, passwordInput, setPasswordInput, errorMsg, onLogout }: {
-  isAuthenticated: boolean;
-  onLogin: (e: React.FormEvent) => void;
-  passwordInput: string;
-  setPasswordInput: (val: string) => void;
-  errorMsg: string;
-  onLogout: () => void;
+function AppRoutes({ isAuthenticated, authReady, user, setupAvailable, onLogin, onSetup, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg, onLogout }: {
+  isAuthenticated: boolean; authReady: boolean; user: AppUser | null; setupAvailable: boolean;
+  onLogin: (e: React.FormEvent) => void; onSetup: (username: string, password: string, bootstrapToken: string) => void;
+  usernameInput: string; setUsernameInput: (val: string) => void; passwordInput: string;
+  setPasswordInput: (val: string) => void; errorMsg: string; onLogout: () => void;
 }) {
   const [location, setLocation] = useLocation();
-
-  if (!isAuthenticated && location !== '/login') {
-    setLocation('/login');
-  }
-
-  // Jika sudah login tapi URL masih di /login, arahkan otomatis ke menu Ringkasan (/)
-  if (isAuthenticated && location === '/login') {
-    setLocation('/');
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <Switch>
-        <Route path="/login">
-          <LoginPage
-            onLogin={onLogin}
-            passwordInput={passwordInput}
-            setPasswordInput={setPasswordInput}
-            errorMsg={errorMsg}
-          />
-        </Route>
-        <Route>
-          <LoginPage
-            onLogin={onLogin}
-            passwordInput={passwordInput}
-            setPasswordInput={setPasswordInput}
-            errorMsg={errorMsg}
-          />
-        </Route>
-      </Switch>
-    );
-  }
-
-  return <AppContent onLogout={onLogout} />;
+  if (!authReady) return <LoadingPanel />;
+  if (!isAuthenticated && location !== '/login') setLocation('/login');
+  if (isAuthenticated && location === '/login') setLocation('/');
+  if (isAuthenticated && user?.role !== 'admin' && location === '/users') setLocation('/');
+  if (!isAuthenticated) return <LoginPage onLogin={onLogin} onSetup={onSetup} setupAvailable={setupAvailable}
+    usernameInput={usernameInput} setUsernameInput={setUsernameInput} passwordInput={passwordInput}
+    setPasswordInput={setPasswordInput} errorMsg={errorMsg} />;
+  return <AppContent onLogout={onLogout} role={user?.role || 'testing'} />;
 }
 
 const AUTO_LOGOUT_MS = 20 * 60 * 1000;
 const LAST_ACTIVITY_KEY = 'kasapink_last_activity';
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    if (localStorage.getItem('kasapink_auth') !== 'true') return false;
-    const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
-    if (!Number.isFinite(lastActivity)) {
-      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
-      return true;
-    }
-    return Date.now() - lastActivity < AUTO_LOGOUT_MS;
-  });
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
+  const [currentUser, setCurrentUser] = useState<AppUser | null>(null);
+  const [setupAvailable, setSetupAvailable] = useState(false);
+  const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (passwordInput === 'doraemon') {
-      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
-      localStorage.setItem('kasapink_auth', 'true');
-      setIsAuthenticated(true);
-      setErrorMsg('');
-      setPasswordInput('');
-    } else {
-      setErrorMsg('Password salah, silakan coba lagi.');
-    }
-  };
-
   const handleLogout = useCallback(() => {
+    localStorage.removeItem('kasapink_token');
+    localStorage.removeItem('kasapink_user');
     localStorage.removeItem('kasapink_auth');
     localStorage.removeItem(LAST_ACTIVITY_KEY);
+    setCurrentUser(null);
     setIsAuthenticated(false);
   }, []);
+
+  const saveSession = useCallback((data: { token: string; user: AppUser }) => {
+    localStorage.setItem('kasapink_token', data.token);
+    localStorage.setItem('kasapink_user', JSON.stringify(data.user));
+    localStorage.setItem('kasapink_auth', 'true');
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+    setCurrentUser(data.user);
+    setIsAuthenticated(true);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const setupResponse = await fetch('/api/setup/status');
+        const setup = await setupResponse.json().catch(() => ({}));
+        if (active) setSetupAvailable(Boolean(setup.needsAdmin && setup.setupEnabled));
+        const token = localStorage.getItem('kasapink_token');
+        const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
+        if (!token || !Number.isFinite(lastActivity) || Date.now() - lastActivity >= AUTO_LOGOUT_MS) {
+          handleLogout();
+          return;
+        }
+        const response = await fetch('/api/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!response.ok) { handleLogout(); return; }
+        const data = await response.json();
+        if (active) {
+          localStorage.setItem('kasapink_user', JSON.stringify(data.user));
+          setCurrentUser(data.user);
+          setIsAuthenticated(true);
+        }
+      } catch {
+        handleLogout();
+      } finally {
+        if (active) setAuthReady(true);
+      }
+    })();
+    return () => { active = false; };
+  }, [handleLogout]);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault(); setErrorMsg('');
+    try {
+      const response = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Login gagal.');
+      saveSession(data);
+      setUsernameInput(''); setPasswordInput('');
+    } catch (error) { setErrorMsg(errText(error)); }
+  };
+
+  const handleSetup = async (username: string, password: string, bootstrapToken: string) => {
+    setErrorMsg('');
+    try {
+      const response = await fetch('/api/setup/admin', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username, password, bootstrapToken }) });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Gagal membuat admin.');
+      saveSession(data);
+      setSetupAvailable(false);
+    } catch (error) { setErrorMsg(errText(error)); }
+  };
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -580,7 +629,7 @@ function App() {
     };
     const syncAcrossTabs = (event: StorageEvent) => {
       if (event.key === LAST_ACTIVITY_KEY) expireIfIdle();
-      if (event.key === 'kasapink_auth' && event.newValue !== 'true') setIsAuthenticated(false);
+      if (event.key === 'kasapink_token' && !event.newValue) handleLogout();
     };
 
     expireIfIdle();
@@ -603,14 +652,11 @@ function App() {
     <QueryClientProvider client={client}>
       <TooltipProvider>
         <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, '')}>
-          <AppRoutes
-            isAuthenticated={isAuthenticated}
-            onLogin={handleLogin}
-            passwordInput={passwordInput}
-            setPasswordInput={setPasswordInput}
-            errorMsg={errorMsg}
-            onLogout={handleLogout}
-          />
+          <AppRoutes isAuthenticated={isAuthenticated} authReady={authReady} user={currentUser}
+            setupAvailable={setupAvailable} onLogin={handleLogin} onSetup={handleSetup}
+            usernameInput={usernameInput} setUsernameInput={setUsernameInput}
+            passwordInput={passwordInput} setPasswordInput={setPasswordInput}
+            errorMsg={errorMsg} onLogout={handleLogout} />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

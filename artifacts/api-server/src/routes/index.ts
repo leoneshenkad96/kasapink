@@ -59,7 +59,7 @@ function rewriteLegacyAliases(req: Request, _res: Response, next: NextFunction):
 
 router.use(rewriteLegacyAliases);
 router.use(healthRouter);
+router.use(authRouter);
 router.use(erpRouter);
-router.use(authRouter); // attach auth routes
 
 export default router;

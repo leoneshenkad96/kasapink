@@ -1,4 +1,6 @@
-import { pgTable, serial, text, timestamp, json, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
+
+export const userRoleEnum = pgEnum("erp_user_role", ["admin", "testing"]);
 
 export const usersTable = pgTable(
   "erp_users",
@@ -6,9 +8,7 @@ export const usersTable = pgTable(
     id: serial("id").primaryKey(),
     username: text("username").notNull(),
     passwordHash: text("password_hash").notNull(),
-    // store roles and permissions as JSON arrays
-    roles: json("roles").$type<string[]>().default([]),
-    permissions: json("permissions").$type<string[]>().default([]),
+    role: userRoleEnum("role").notNull().default("testing"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
