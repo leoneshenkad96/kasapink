@@ -1085,8 +1085,9 @@ router.post(
 router.delete(
   "/erp/ingredients/:ingredientId",
   safe(async (req, res) => {
-    const id = Number(req.params.ingredientId);
-    if (!Number.isFinite(id)) {
+    const rawId = req.params.ingredientId;
+    const id = Number(rawId);
+    if (!/^\\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID bahan tidak valid.");
       return;
     }
@@ -1152,8 +1153,9 @@ router.delete(
 router.delete(
   "/erp/products/:productId",
   safe(async (req, res) => {
-    const id = Number(req.params.productId);
-    if (!Number.isFinite(id)) {
+    const rawId = req.params.productId;
+    const id = Number(rawId);
+    if (!/^\\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID produk tidak valid.");
       return;
     }
