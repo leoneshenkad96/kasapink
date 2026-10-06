@@ -109,6 +109,23 @@ router.get("/users", verifyToken, checkRole("admin"), async (_req, res) => {
   res.json(users);
 });
 
+router.delete("/users/:id", verifyToken, checkRole("admin"), async (req: AuthRequest, res) => {
+  const userIdParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const userId = Number(userIdParam);
+  if (!/^\d+$/.test(userIdParam) || !Number.isSafeInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: "ID user tidak valid." });
+  }
+  if (userId === req.authUser!.id) {
+    return res.status(400).json({ error: "Admin tidak dapat menghapus akun sendiri." });
+  }
+
+  const [deletedUser] = await db.delete(usersTable)
+    .where(eq(usersTable.id, userId))
+    .returning({ id: usersTable.id });
+  if (!deletedUser) return res.status(404).json({ error: "User tidak ditemukan." });
+  return res.status(200).json({ id: deletedUser.id, message: "User berhasil dihapus." });
+});
+
 router.post("/users", verifyToken, checkRole("admin"), async (req, res) => {
   const username = typeof req.body.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body.password === "string" ? req.body.password : "";

@@ -1,17 +1,27 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { AlertCircle, Plus, Shield, UserRound } from "lucide-react";
+import { AlertCircle, Plus, Shield, Trash2, UserRound } from "lucide-react";
 import PasswordInput from "../components/PasswordInput";
 
 type AppUser = { id: number; username: string; role: "admin" | "testing" | "user"; createdAt: string };
 const headers = () => ({ Authorization: `Bearer ${localStorage.getItem("kasapink_token") || ""}` });
+function getLoggedInUserId(): number | null {
+  try {
+    const user = JSON.parse(localStorage.getItem("kasapink_user") || "null") as { id?: unknown } | null;
+    return typeof user?.id === "number" ? user.id : null;
+  } catch {
+    return null;
+  }
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<AppUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const loggedInUserId = getLoggedInUserId();
 
   const loadUsers = useCallback(async () => {
     setLoading(true);
@@ -58,6 +68,22 @@ export default function UsersPage() {
     }
   }
 
+  async function deleteUser(user: AppUser) {
+    if (!window.confirm(`Apakah Anda yakin ingin menghapus user ${user.username}?`)) return;
+    setDeletingUserId(user.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/users/${user.id}`, { method: "DELETE", headers: headers() });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Gagal menghapus user.");
+      setUsers((currentUsers) => currentUsers.filter((currentUser) => currentUser.id !== user.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal menghapus user.");
+    } finally {
+      setDeletingUserId(null);
+    }
+  }
+
   return <>
     <div className="page-heading">
       <div><div className="eyebrow">PENGATURAN SISTEM</div><h1>Manajemen User</h1><p>Kelola akun admin, user operasional, dan akun testing Kasapink.</p></div>
@@ -80,9 +106,9 @@ export default function UsersPage() {
 
     <section className="card table-card">
       <div className="card-heading"><div><span className="eyebrow">AKUN KASAPINK</span><h2>Daftar user</h2></div><span className="result-count">{users.length} user</span></div>
-      {error && !showForm && <div className="form-error"><AlertCircle size={16} />{error}<button className="text-button" onClick={() => void loadUsers()}>Coba lagi</button></div>}
-      {loading ? <div className="loading-grid"><div className="skeleton" /></div> : users.length ? <div className="table-scroll"><table><thead><tr><th>USERNAME</th><th>ROLE</th><th>DIBUAT</th></tr></thead><tbody>
-        {users.map((user) => <tr key={user.id}><td><div className="table-name"><span className="ingredient-token"><UserRound size={16} /></span><b>{user.username}</b></div></td><td><span className={`status-pill ${user.role === "testing" ? "status-low" : "status-ok"}`}>{user.role}</span></td><td>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(user.createdAt))}</td></tr>)}
+      {error && !showForm && <div className="form-error"><AlertCircle size={16} />{error}<button className="text-button" onClick={() => { setError(""); void loadUsers(); }}>Coba lagi</button></div>}
+      {loading ? <div className="loading-grid"><div className="skeleton" /></div> : users.length ? <div className="table-scroll"><table><thead><tr><th>USERNAME</th><th>ROLE</th><th>DIBUAT</th><th>AKSI</th></tr></thead><tbody>
+        {users.map((user) => <tr key={user.id}><td><div className="table-name"><span className="ingredient-token"><UserRound size={16} /></span><b>{user.username}</b></div></td><td><span className={`status-pill ${user.role === "testing" ? "status-low" : "status-ok"}`}>{user.role}</span></td><td>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(user.createdAt))}</td><td>{user.id !== loggedInUserId && <button type="button" className="button button-quiet" onClick={() => void deleteUser(user)} disabled={deletingUserId !== null} aria-label={`Hapus user ${user.username}`} style={{ color: "#e11d48" }}>{deletingUserId === user.id ? "Menghapus…" : <><Trash2 size={15} /> Hapus</>}</button>}</td></tr>)}
       </tbody></table></div> : <div className="empty-state"><span className="empty-icon"><UserRound size={20} /></span><b>Belum ada user</b><p>Buat user pertama untuk mulai mengelola akses.</p></div>}
     </section>
   </>;
