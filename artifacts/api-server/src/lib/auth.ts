@@ -1,5 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
+import { eq } from "drizzle-orm";
+import { db, usersTable } from "@workspace/db";
 
 export type UserRole = "admin" | "testing" | "user";
 export type AuthUser = { id: number; username: string; role: UserRole };
@@ -19,7 +21,7 @@ export function createToken(user: AuthUser, res?: Response): string | null {
   if (!secret) return null;
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = base64url(JSON.stringify({ ...user, iat: now, exp: now + 12 * 60 * 60 }));
+  const payload = base64url(JSON.stringify({ ...user, iat: now, exp: now + 60 * 60 }));
   const content = `${header}.${payload}`;
   return `${content}.${createHmac("sha256", secret).update(content).digest("base64url")}`;
 }
@@ -37,36 +39,53 @@ function verifyTokenValue(token: string): AuthUser | null {
   try {
     const jwtHeader = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload;
-    if (jwtHeader.alg !== "HS256" || !Number.isInteger(data.id) || !data.username ||
-      !["admin", "testing", "user"].includes(data.role) || data.exp <= Math.floor(Date.now() / 1000)) return null;
+    if (
+      jwtHeader.alg !== "HS256" ||
+      !Number.isSafeInteger(data.id) ||
+      !data.username ||
+      !["admin", "testing", "user"].includes(data.role) ||
+      !Number.isInteger(data.iat) ||
+      data.exp <= Math.floor(Date.now() / 1000)
+    ) return null;
     return { id: data.id, username: data.username, role: data.role };
   } catch { return null; }
 }
 
-export function verifyToken(req: AuthRequest, res: Response, next: NextFunction): void {
+export async function verifyToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   if (!getSecret(res)) return;
   const header = req.headers.authorization;
-  const token = header?.startsWith("Bearer ") ? header.slice(7) : "";
+  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
   const user = token ? verifyTokenValue(token) : null;
   if (!user) {
     res.status(401).json({ error: "Sesi tidak valid atau sudah berakhir. Silakan login kembali." });
     return;
   }
-  req.authUser = user;
+
+  const [currentUser] = await db
+    .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, user.id))
+    .limit(1);
+
+  if (!currentUser || currentUser.username !== user.username || currentUser.role !== user.role) {
+    res.status(401).json({ error: "Sesi tidak lagi berlaku. Silakan login kembali." });
+    return;
+  }
+
+  req.authUser = currentUser;
   next();
 }
 
 export function checkRole(...roles: UserRole[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (!req.authUser || !roles.includes(req.authUser.role)) {
-      res.status(403).json({ error: "Akses hanya tersedia untuk admin." });
+      res.status(403).json({ error: "Akses ditolak." });
       return;
     }
     next();
   };
 }
 
-// Reads are available to every authenticated role; operational writes are limited to admin/user.
 export function requireOperationalRole(...roles: UserRole[]) {
   return (req: AuthRequest, res: Response, next: NextFunction): void => {
     if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
