@@ -14,8 +14,9 @@ import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-c
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check,
   CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
-  Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, TrendingUp, X,
+  Pencil, Plus, ReceiptText, ShoppingBasket, Trash2, TrendingUp, User, X,
 } from 'lucide-react';
+import UsersPage from './pages/UsersPage';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const client = new QueryClient();
@@ -27,6 +28,7 @@ const navItems = [
   { href: '/penjualan', label: 'Catat penjualan', icon: ReceiptText },
   { href: '/opname', label: 'Stok opname', icon: ClipboardList },
   { href: '/laporan', label: 'Laporan', icon: FileText },
+  { href: '/users', label: 'Manajemen Pengguna', icon: User },
 ];
 const today = () => {
   const now = new Date();
@@ -143,11 +145,11 @@ function Empty({ title, text }: { title: string; text: string }) { return <div c
 function Button({ children, onClick, variant = 'primary', type = 'button', disabled = false }: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet'; type?: 'button' | 'submit'; disabled?: boolean }) {
   return <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant}`} data-testid="button-action">{children}</button>;
 }
-function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) { return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
-function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) { return <input className="input" {...props} />; }
+export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) { return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
+export function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) { return <input className="input" {...props} />; }
 function FieldSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) { return <select className="input select" {...props} />; }
-function FormError({ text }: { text: string }) { return text ? <div className="form-error"><AlertCircle size={16} />{text}</div> : null; }
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
+export function FormError({ text }: { text: string }) { return text ? <div className="form-error"><AlertCircle size={16} />{text}</div> : null; }
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className="modal"><div className="modal-head"><div><span className="eyebrow">FORM DATA</span><h2>{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Tutup"><X size={19} /></button></div>{children}</div></div>;
 }
 function useRefresh() {
@@ -358,6 +360,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} />} />
     <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} />} />
     <Route path="/laporan" component={ReportPage} />
+    <Route path="/users" component={UsersPage} />
+
     <Route component={() => <div className="not-found"><span className="eyebrow">HALAMAN TIDAK ADA</span><h1>Sepertinya tersesat.</h1><Link href="/" className="inline-link">Kembali ke ringkasan <ArrowRight size={16} /></Link></div>} />
   </Switch></ErrorBoundary></Shell>;
 }
