@@ -21,7 +21,7 @@ import UsersPage from './pages/UsersPage';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
 const client = new QueryClient();
-type UserRole = 'admin' | 'testing';
+type UserRole = 'admin' | 'testing' | 'user';
 type AppUser = { id: number; username: string; role: UserRole };
 setAuthTokenGetter(() => localStorage.getItem('kasapink_token'));
 const navItems = [

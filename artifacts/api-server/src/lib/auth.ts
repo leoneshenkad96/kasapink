@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 
-export type UserRole = "admin" | "testing";
+export type UserRole = "admin" | "testing" | "user";
 export type AuthUser = { id: number; username: string; role: UserRole };
 export type AuthRequest = Request & { authUser?: AuthUser };
 type JwtPayload = AuthUser & { iat: number; exp: number };
@@ -38,7 +38,7 @@ function verifyTokenValue(token: string): AuthUser | null {
     const jwtHeader = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as JwtPayload;
     if (jwtHeader.alg !== "HS256" || !Number.isInteger(data.id) || !data.username ||
-      !["admin", "testing"].includes(data.role) || data.exp <= Math.floor(Date.now() / 1000)) return null;
+      !["admin", "testing", "user"].includes(data.role) || data.exp <= Math.floor(Date.now() / 1000)) return null;
     return { id: data.id, username: data.username, role: data.role };
   } catch { return null; }
 }
@@ -66,10 +66,17 @@ export function checkRole(...roles: UserRole[]) {
   };
 }
 
-export function readOnlyForTesting(req: AuthRequest, res: Response, next: NextFunction): void {
-  if (req.authUser?.role === "testing" && !["GET", "HEAD", "OPTIONS"].includes(req.method)) {
-    res.status(403).json({ error: "Akun testing hanya dapat melihat data." });
-    return;
-  }
-  next();
+// Reads are available to every authenticated role; operational writes are limited to admin/user.
+export function requireOperationalRole(...roles: UserRole[]) {
+  return (req: AuthRequest, res: Response, next: NextFunction): void => {
+    if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+      next();
+      return;
+    }
+    if (!req.authUser || !roles.includes(req.authUser.role)) {
+      res.status(403).json({ error: "Akun ini hanya dapat melihat data." });
+      return;
+    }
+    next();
+  };
 }

@@ -6,7 +6,7 @@ import { db, usersTable } from "@workspace/db";
 import { checkRole, createToken, type AuthRequest, verifyToken } from "../lib/auth";
 
 const router = Router();
-const publicUser = (user: { id: number; username: string; role: "admin" | "testing" }) => ({
+const publicUser = (user: { id: number; username: string; role: "admin" | "testing" | "user" }) => ({
   id: user.id,
   username: user.username,
   role: user.role,
@@ -91,8 +91,8 @@ router.post("/users", verifyToken, checkRole("admin"), async (req, res) => {
   const username = typeof req.body.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body.password === "string" ? req.body.password : "";
   const role = req.body.role;
-  if (!username || username.length > 80 || password.length < 8 || !["admin", "testing"].includes(role)) {
-    return res.status(400).json({ error: "Username wajib diisi, password minimal 8 karakter, dan role harus admin/testing." });
+  if (!username || username.length > 80 || password.length < 8 || !["admin", "testing", "user"].includes(role)) {
+    return res.status(400).json({ error: "Username wajib diisi, password minimal 8 karakter, dan role harus admin/testing/user." });
   }
   const passwordHash = await bcrypt.hash(password, 12);
   try {

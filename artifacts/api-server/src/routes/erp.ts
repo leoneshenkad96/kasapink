@@ -35,10 +35,10 @@ import {
   stockMovementsTable,
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
-import { readOnlyForTesting, verifyToken } from "../lib/auth";
+import { requireOperationalRole, verifyToken } from "../lib/auth";
 
 const router: IRouter = Router();
-router.use(verifyToken, readOnlyForTesting);
+router.use(verifyToken, requireOperationalRole("admin", "user"));
 
 class HttpError extends Error {
   constructor(

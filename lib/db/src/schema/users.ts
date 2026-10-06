@@ -1,6 +1,6 @@
 import { pgEnum, pgTable, serial, text, timestamp, uniqueIndex } from "drizzle-orm/pg-core";
 
-export const userRoleEnum = pgEnum("erp_user_role", ["admin", "testing"]);
+export const userRoleEnum = pgEnum("erp_user_role", ["admin", "testing", "user"]);
 
 export const usersTable = pgTable(
   "erp_users",
