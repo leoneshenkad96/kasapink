@@ -425,6 +425,7 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock, parsed.data.openingUnitCost], res)) return;
     const [row] = await db
       .insert(ingredientsTable)
       .values({
@@ -456,6 +457,7 @@ router.patch(
       invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
       return;
     }
+    if (!requireFiniteNumbers([body.data.minStock ?? 0], res)) return;
     const update: {
       name?: string;
       category?: string;
@@ -490,6 +492,7 @@ router.post(
       invalid(res, "Auto-resep hanya dapat dipakai pada Produk Olahan.");
       return;
     }
+    if (!requireFiniteNumbers([parsed.data.sellingPrice, parsed.data.stock, parsed.data.averageCost], res)) return;
     const row = await db.transaction(async (tx) => {
       if (parsed.data.autoRecipeIngredientId !== undefined) {
         const [ingredient] = await tx
@@ -542,6 +545,11 @@ router.patch(
       invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
       return;
     }
+    if (!requireFiniteNumbers([
+      body.data.sellingPrice ?? 0,
+      body.data.stock ?? 0,
+      body.data.averageCost ?? 0,
+    ], res)) return;
     const update: {
       name?: string;
       sellingPrice?: string;
