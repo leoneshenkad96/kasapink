@@ -35,7 +35,7 @@ import {
   stockMovementsTable,
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
-import { requireOperationalRole, verifyToken } from "../lib/auth";
+import { checkRole, requireOperationalRole, verifyToken } from "../lib/auth";
 
 const router: IRouter = Router();
 router.use(verifyToken, requireOperationalRole("admin", "user"));
@@ -731,14 +731,66 @@ router.delete(
       invalid(res, "Invalid sale ID.");
       return;
     }
-    const [row] = await db
-      .delete(salesTable)
-      .where(eq(salesTable.id, idNum))
-      .returning();
-    if (!row) throw new HttpError("Penjualan tidak ditemukan.", 404);
-    // Also delete related salesDetails rows
-    await db.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum)).execute();
-    res.json({ message: "Sale record deleted" });
+    const result = await db.transaction(async (tx) => {
+      const [sale] = await tx
+        .select()
+        .from(salesTable)
+        .where(eq(salesTable.id, idNum))
+        .for("update");
+      if (!sale) throw new HttpError("Penjualan tidak ditemukan.", 404);
+
+      const details = await tx
+        .select()
+        .from(salesDetailsTable)
+        .where(eq(salesDetailsTable.salesId, idNum));
+
+      // Restore stock for non-recipe products and recipe ingredients before deleting the sale.
+      for (const line of details) {
+        const [product] = await tx
+          .select()
+          .from(productsTable)
+          .where(eq(productsTable.id, line.productId))
+          .for("update");
+
+        if (product && !product.needsRecipe) {
+          await tx.update(productsTable)
+            .set({ stock: String(number(product.stock) + line.quantity) })
+            .where(eq(productsTable.id, product.id));
+          continue;
+        }
+
+        if (product?.needsRecipe) {
+          const recipe = await tx
+            .select()
+            .from(recipeItemsTable)
+            .where(eq(recipeItemsTable.productId, product.id));
+          for (const item of recipe) {
+            const ingredient = await tx
+              .select()
+              .from(ingredientsTable)
+              .where(eq(ingredientsTable.id, item.ingredientId))
+              .for("update")
+              .then((rows) => rows[0]);
+
+            if (!ingredient || isOperationalIngredient(ingredient.category)) continue;
+
+            const restored = number(item.qtyRequired) * line.quantity;
+            await tx.update(ingredientsTable)
+              .set({ stock: String(number(ingredient.stock) + restored) })
+              .where(eq(ingredientsTable.id, ingredient.id));
+          }
+        }
+      }
+
+      await tx.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum));
+      await tx.delete(stockMovementsTable)
+        .where(eq(stockMovementsTable.referenceId, idNum));
+      await tx.delete(salesTable).where(eq(salesTable.id, idNum));
+
+      return { id: idNum };
+    });
+
+    res.json({ message: "Sale record deleted", id: result.id });
   })
 );
 
