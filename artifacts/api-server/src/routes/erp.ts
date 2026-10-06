@@ -101,6 +101,7 @@ function asProduct(row: typeof productsTable.$inferSelect) {
     id: row.id,
     name: row.name,
     sellingPrice: number(row.sellingPrice),
+    businessType: row.businessType,
     needsRecipe: row.needsRecipe,
     stock: number(row.stock),
     averageCost: number(row.averageCost),
@@ -487,6 +488,7 @@ router.post(
         .values({
           name: parsed.data.name,
           sellingPrice: String(parsed.data.sellingPrice),
+          businessType: parsed.data.businessType,
           needsRecipe: parsed.data.needsRecipe,
           stock: String(parsed.data.needsRecipe ? 0 : parsed.data.stock),
           averageCost: String(parsed.data.needsRecipe ? 0 : parsed.data.averageCost),
@@ -525,12 +527,14 @@ router.patch(
     const update: {
       name?: string;
       sellingPrice?: string;
+      businessType?: "Makanan" | "Parfum";
       needsRecipe?: boolean;
       stock?: string;
       averageCost?: string;
     } = {};
     if (body.data.name !== undefined) update.name = body.data.name;
     if (body.data.sellingPrice !== undefined) update.sellingPrice = String(body.data.sellingPrice);
+    if (body.data.businessType !== undefined) update.businessType = body.data.businessType;
     if (body.data.needsRecipe !== undefined) update.needsRecipe = body.data.needsRecipe;
     if (body.data.stock !== undefined) update.stock = String(body.data.stock);
     if (body.data.averageCost !== undefined) update.averageCost = String(body.data.averageCost);

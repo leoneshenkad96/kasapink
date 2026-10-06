@@ -45,6 +45,7 @@ export const productsTable = pgTable(
     id: serial("id").primaryKey(),
     name: text("name").notNull(),
     sellingPrice: money("selling_price"),
+    businessType: text("business_type").notNull().default("Makanan"),
     needsRecipe: boolean("needs_recipe").notNull().default(true),
     stock: quantity("stock"),
     averageCost: money("average_cost"),

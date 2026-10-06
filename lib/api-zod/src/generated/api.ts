@@ -36,6 +36,7 @@ export const GetErpStateResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "sellingPrice": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum']),
   "needsRecipe": zod.boolean(),
   "stock": zod.number(),
   "averageCost": zod.number()
@@ -197,6 +198,7 @@ export const createProductBodyNameMax = 120;
 
 export const createProductBodySellingPriceMin = 0;
 
+export const createProductBodyBusinessTypeDefault = `Makanan`;
 export const createProductBodyNeedsRecipeDefault = true;
 export const createProductBodyStockDefault = 0;
 export const createProductBodyStockMin = 0;
@@ -210,6 +212,7 @@ export const createProductBodyAverageCostMin = 0;
 export const CreateProductBody = zod.object({
   "name": zod.string().min(1).max(createProductBodyNameMax),
   "sellingPrice": zod.number().min(createProductBodySellingPriceMin),
+  "businessType": zod.enum(['Makanan', 'Parfum']).default(createProductBodyBusinessTypeDefault),
   "needsRecipe": zod.boolean().default(createProductBodyNeedsRecipeDefault),
   "stock": zod.number().min(createProductBodyStockMin).default(createProductBodyStockDefault),
   "averageCost": zod.number().min(createProductBodyAverageCostMin).default(createProductBodyAverageCostDefault),
@@ -220,6 +223,7 @@ export const CreateProductResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "sellingPrice": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum']),
   "needsRecipe": zod.boolean(),
   "stock": zod.number(),
   "averageCost": zod.number()
@@ -246,6 +250,7 @@ export const updateProductBodyAverageCostMin = 0;
 export const UpdateProductBody = zod.object({
   "name": zod.string().min(1).max(updateProductBodyNameMax).optional(),
   "sellingPrice": zod.number().min(updateProductBodySellingPriceMin).optional(),
+  "businessType": zod.enum(['Makanan', 'Parfum']).optional(),
   "needsRecipe": zod.boolean().optional(),
   "stock": zod.number().min(updateProductBodyStockMin).optional(),
   "averageCost": zod.number().min(updateProductBodyAverageCostMin).optional()
@@ -255,6 +260,7 @@ export const UpdateProductResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "sellingPrice": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum']),
   "needsRecipe": zod.boolean(),
   "stock": zod.number(),
   "averageCost": zod.number()
@@ -483,6 +489,7 @@ export const legacyCreateProductBodyNameMax = 120;
 
 export const legacyCreateProductBodySellingPriceMin = 0;
 
+export const legacyCreateProductBodyBusinessTypeDefault = `Makanan`;
 export const legacyCreateProductBodyNeedsRecipeDefault = true;
 export const legacyCreateProductBodyStockDefault = 0;
 export const legacyCreateProductBodyStockMin = 0;
@@ -496,6 +503,7 @@ export const legacyCreateProductBodyAverageCostMin = 0;
 export const LegacyCreateProductBody = zod.object({
   "name": zod.string().min(1).max(legacyCreateProductBodyNameMax),
   "sellingPrice": zod.number().min(legacyCreateProductBodySellingPriceMin),
+  "businessType": zod.enum(['Makanan', 'Parfum']).default(legacyCreateProductBodyBusinessTypeDefault),
   "needsRecipe": zod.boolean().default(legacyCreateProductBodyNeedsRecipeDefault),
   "stock": zod.number().min(legacyCreateProductBodyStockMin).default(legacyCreateProductBodyStockDefault),
   "averageCost": zod.number().min(legacyCreateProductBodyAverageCostMin).default(legacyCreateProductBodyAverageCostDefault),
@@ -506,6 +514,7 @@ export const LegacyCreateProductResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "sellingPrice": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum']),
   "needsRecipe": zod.boolean(),
   "stock": zod.number(),
   "averageCost": zod.number()
@@ -532,6 +541,7 @@ export const legacyUpdateProductBodyAverageCostMin = 0;
 export const LegacyUpdateProductBody = zod.object({
   "name": zod.string().min(1).max(legacyUpdateProductBodyNameMax).optional(),
   "sellingPrice": zod.number().min(legacyUpdateProductBodySellingPriceMin).optional(),
+  "businessType": zod.enum(['Makanan', 'Parfum']).optional(),
   "needsRecipe": zod.boolean().optional(),
   "stock": zod.number().min(legacyUpdateProductBodyStockMin).optional(),
   "averageCost": zod.number().min(legacyUpdateProductBodyAverageCostMin).optional()
@@ -541,6 +551,7 @@ export const LegacyUpdateProductResponse = zod.object({
   "id": zod.number().int(),
   "name": zod.string(),
   "sellingPrice": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum']),
   "needsRecipe": zod.boolean(),
   "stock": zod.number(),
   "averageCost": zod.number()

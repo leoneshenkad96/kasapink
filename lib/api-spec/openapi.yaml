@@ -488,25 +488,28 @@ components:
         id: { type: integer }
         name: { type: string }
         sellingPrice: { type: number }
+        businessType: { type: string, enum: [Makanan, Parfum] }
         needsRecipe: { type: boolean }
         stock: { type: number }
         averageCost: { type: number }
-      required: [id, name, sellingPrice, needsRecipe, stock, averageCost]
+      required: [id, name, sellingPrice, businessType, needsRecipe, stock, averageCost]
     ProductInput:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         sellingPrice: { type: number, minimum: 0 }
+        businessType: { type: string, enum: [Makanan, Parfum], default: Makanan }
         needsRecipe: { type: boolean, default: true }
         stock: { type: number, minimum: 0, default: 0 }
         averageCost: { type: number, minimum: 0, default: 0 }
         autoRecipeIngredientId: { type: integer, minimum: 1 }
-      required: [name, sellingPrice]
+      required: [name, sellingPrice, businessType]
     ProductUpdate:
       type: object
       properties:
         name: { type: string, minLength: 1, maxLength: 120 }
         sellingPrice: { type: number, minimum: 0 }
+        businessType: { type: string, enum: [Makanan, Parfum] }
         needsRecipe: { type: boolean }
         stock: { type: number, minimum: 0 }
         averageCost: { type: number, minimum: 0 }

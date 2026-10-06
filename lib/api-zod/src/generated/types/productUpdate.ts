@@ -5,6 +5,7 @@
  * API for Kasapink ERP
  * OpenAPI spec version: 0.1.0
  */
+import type { ProductUpdateBusinessType } from './productUpdateBusinessType';
 
 export interface ProductUpdate {
   /**
@@ -14,6 +15,7 @@ export interface ProductUpdate {
   name?: string;
   /** @minimum 0 */
   sellingPrice?: number;
+  businessType?: ProductUpdateBusinessType;
   needsRecipe?: boolean;
   /** @minimum 0 */
   stock?: number;

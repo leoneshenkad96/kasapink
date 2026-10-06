@@ -5,11 +5,13 @@
  * API for Kasapink ERP
  * OpenAPI spec version: 0.1.0
  */
+import type { ProductBusinessType } from './productBusinessType';
 
 export interface Product {
   id: number;
   name: string;
   sellingPrice: number;
+  businessType: ProductBusinessType;
   needsRecipe: boolean;
   stock: number;
   averageCost: number;

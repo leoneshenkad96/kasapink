@@ -101,14 +101,31 @@ export interface IngredientUpdate {
   minStock?: number;
 }
 
+export type ProductBusinessType = typeof ProductBusinessType[keyof typeof ProductBusinessType];
+
+
+export const ProductBusinessType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
 export interface Product {
   id: number;
   name: string;
   sellingPrice: number;
+  businessType: ProductBusinessType;
   needsRecipe: boolean;
   stock: number;
   averageCost: number;
 }
+
+export type ProductInputBusinessType = typeof ProductInputBusinessType[keyof typeof ProductInputBusinessType];
+
+
+export const ProductInputBusinessType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
 
 export interface ProductInput {
   /**
@@ -118,6 +135,7 @@ export interface ProductInput {
   name: string;
   /** @minimum 0 */
   sellingPrice: number;
+  businessType: ProductInputBusinessType;
   needsRecipe?: boolean;
   /** @minimum 0 */
   stock?: number;
@@ -127,6 +145,14 @@ export interface ProductInput {
   autoRecipeIngredientId?: number;
 }
 
+export type ProductUpdateBusinessType = typeof ProductUpdateBusinessType[keyof typeof ProductUpdateBusinessType];
+
+
+export const ProductUpdateBusinessType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
 export interface ProductUpdate {
   /**
      * @minLength 1
@@ -135,6 +161,7 @@ export interface ProductUpdate {
   name?: string;
   /** @minimum 0 */
   sellingPrice?: number;
+  businessType?: ProductUpdateBusinessType;
   needsRecipe?: boolean;
   /** @minimum 0 */
   stock?: number;

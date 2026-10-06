@@ -22,8 +22,8 @@ import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter
 const client = new QueryClient();
 const navItems = [
   { href: '/', label: 'Ringkasan', icon: Home },
-  { href: '/stok/makanan', label: 'Stok Bahan', icon: Boxes, children: [{ href: '/stok/makanan', label: 'Makanan' }, { href: '/stok/parfum', label: 'Parfum' }] },
-  { href: '/produk', label: 'Produk & Resep', icon: CookingPot },
+  { href: '/stok', label: 'Stok Bahan', icon: Boxes, children: [{ href: '/stok/makanan', label: 'Makanan' }, { href: '/stok/parfum', label: 'Parfum' }] },
+  { href: '/produk', label: 'Produk & Resep', icon: CookingPot, children: [{ href: '/produk/makanan', label: 'Makanan' }, { href: '/produk/parfum', label: 'Parfum' }] },
   { href: '/belanja', label: 'Catat Belanja', icon: ShoppingBasket },
   { href: '/penjualan', label: 'Catat Penjualan', icon: ReceiptText },
   { href: '/opname', label: 'Stok Opname', icon: ClipboardList },
@@ -95,7 +95,7 @@ function LoginPage({ onLogin, passwordInput, setPasswordInput, errorMsg }: {
 function Shell({ children, connected, onLogout }: { children: React.ReactNode; connected: boolean; onLogout: () => void }) {
   const [path] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
-  const [stockMenuOpen, setStockMenuOpen] = useState(false);
+  const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const active = navItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
@@ -105,11 +105,11 @@ function Shell({ children, connected, onLogout }: { children: React.ReactNode; c
       </Link>
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">
-        {navItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith('/stok/') ? 'nav-group-active' : ''}`} key={href}>
-          <button type="button" className="nav-group-heading" aria-expanded={stockMenuOpen} aria-controls="stock-submenu" onClick={() => setStockMenuOpen((open) => !open)}>
-            <Icon size={18} strokeWidth={1.8} /><span>{label}</span><ChevronDown className={`nav-group-chevron ${stockMenuOpen ? 'is-open' : ''}`} size={16} />
+        {navItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith(`${href}/`) ? 'nav-group-active' : ''}`} key={href}>
+          <button type="button" className="nav-group-heading" aria-expanded={expandedMenu === href} aria-controls={`${href.slice(1)}-submenu`} onClick={() => setExpandedMenu((open) => open === href ? null : href)}>
+            <Icon size={18} strokeWidth={1.8} /><span>{label}</span><ChevronDown className={`nav-group-chevron ${expandedMenu === href ? 'is-open' : ''}`} size={16} />
           </button>
-          {stockMenuOpen && <div className="nav-submenu" id="stock-submenu">{children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileNav(false)} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
+          {expandedMenu === href && <div className="nav-submenu" id={`${href.slice(1)}-submenu`}>{children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileNav(false)} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
             <span>{child.label}</span>{path === child.href && <span className="nav-current" />}
           </Link>)}</div>}
         </div> : <Link key={href} href={href} onClick={() => setMobileNav(false)} className={`nav-link ${path === href ? 'is-active' : ''}`} data-testid={`link-nav-${href.replace('/', '') || 'dashboard'}`}>
@@ -249,7 +249,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
   </>;
 }
 
-function ProductPage({ state }: { state: ErpState }) {
+function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; businessType?: 'Makanan' | 'Parfum' }) {
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const [recipeProduct, setRecipeProduct] = useState<Product | null>(null);
   const [needsRecipe, setNeedsRecipe] = useState(true);
@@ -257,9 +257,10 @@ function ProductPage({ state }: { state: ErpState }) {
   const [error, setError] = useState('');
   const create = useCreateProduct(), update = useUpdateProduct(), saveRecipe = useSaveProductRecipe(), refresh = useRefresh();
   const safeProducts = state.products || [];
+  const visibleProducts = safeProducts.filter((product) => product.businessType === businessType);
   const safeRecipes = state.recipes || [];
   const safeIngredients = state.ingredients || [];
-  const macroIngredients = safeIngredients.filter((ingredient) => !/mikro|operasional/i.test(ingredient.category));
+  const macroIngredients = safeIngredients.filter((ingredient) => ingredient.stockType === businessType && !/mikro|operasional/i.test(ingredient.category));
   const recipe = useMemo(() => recipeProduct ? safeRecipes.filter((r) => r.productId === recipeProduct.id) : [], [recipeProduct, safeRecipes]);
 
   const openNewProduct = () => {
@@ -280,6 +281,7 @@ function ProductPage({ state }: { state: ErpState }) {
     const data = {
       name: String(f.get('name')).trim(),
       sellingPrice: Number(f.get('sellingPrice')),
+      businessType: String(f.get('businessType')) as 'Makanan' | 'Parfum',
       needsRecipe,
       stock: needsRecipe ? 0 : Number(f.get('stock') || 0),
       averageCost: needsRecipe ? 0 : Number(f.get('averageCost') || 0),
@@ -313,9 +315,9 @@ function ProductPage({ state }: { state: ErpState }) {
   };
 
   return <>
-    <PageHeading kicker="MENU DAPUR" title="Produk & Resep" note="Pilih barang jadi yang stoknya dijual langsung, atau produk olahan yang memakai bahan makro." action={<Button onClick={openNewProduct}><Plus size={17} /> Tambah produk</Button>} />
-    {!safeProducts.length ? <Card><Empty title="Belum ada produk" text="Tambahkan produk jualan untuk mulai mencatat penjualan." /></Card> :
-      <div className="product-list">{safeProducts.map((p) => {
+    <PageHeading kicker={`PRODUK ${businessType.toUpperCase()}`} title="Produk & Resep" note="Pilih barang jadi yang stoknya dijual langsung, atau produk olahan yang memakai bahan makro." action={<Button onClick={openNewProduct}><Plus size={17} /> Tambah produk</Button>} />
+    {!visibleProducts.length ? <Card><Empty title={`Belum ada produk ${businessType.toLowerCase()}`} text="Tambahkan produk di submenu ini untuk mulai mencatat penjualan." /></Card> :
+      <div className="product-list">{visibleProducts.map((p) => {
         const items = safeRecipes.filter((r) => r.productId === p.id);
         const macroItems = items.filter((item) => {
           const ingredient = safeIngredients.find((x) => x.id === item.ingredientId);
@@ -347,6 +349,7 @@ function ProductPage({ state }: { state: ErpState }) {
       <form className="form-stack" onSubmit={submitProduct}>
         <Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>
         <Field label="Harga jual per unit"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field>
+        <Field label="Kelompok produk"><FieldSelect name="businessType" defaultValue={editing === 'new' ? businessType : editing.businessType}><option value="Makanan">Makanan</option><option value="Parfum">Parfum</option></FieldSelect></Field>
         <fieldset className="product-type-options">
           <legend>Jenis produk</legend>
           <label><input type="radio" name="productType" checked={!needsRecipe} onChange={() => { setNeedsRecipe(false); setAutoRecipe(false); }} /> Produk Jadi <small>Stok barang yang dibeli lalu dijual kembali.</small></label>
@@ -454,7 +457,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
     <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
     <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" />} />
-    <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} />} />
+    <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" />} />
+    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" />} />
+    <Route path="/produk/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" />} />
     <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} />} />
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} />} />
     <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} />} />
