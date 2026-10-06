@@ -15,8 +15,10 @@ import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-c
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check, ChevronDown,
   CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
-  Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2, TrendingUp, X,
+  KeyRound, Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2, TrendingUp, X,
 } from 'lucide-react';
+import ChangePasswordModal from './components/ChangePasswordModal';
+import PasswordInput from './components/PasswordInput';
 import UsersPage from './pages/UsersPage';
 import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter';
 
@@ -81,7 +83,7 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
           <p style={{ color: '#555', fontSize: '13px', margin: 0 }}>Buat akun admin pertama. Token setup diberikan oleh pemilik aplikasi.</p>
           <input value={bootstrapToken} onChange={(e) => setBootstrapToken(e.target.value)} placeholder="Token setup admin" autoComplete="off" required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
           <input value={setupUsername} onChange={(e) => setSetupUsername(e.target.value)} placeholder="Username admin" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
-          <input value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Password (min. 8 karakter)" type="password" autoComplete="new-password" minLength={8} required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
+          <PasswordInput value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Password (min. 8 karakter)" autoComplete="new-password" minLength={8} required style={{ width: '100%', padding: '12px 40px 12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
           {errorMsg && <p style={{ color: '#e11d48', fontSize: '12px', margin: 0 }}>{errorMsg}</p>}
           <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#1B3B2B', color: '#fff', fontWeight: '600', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>Buat admin pertama</button>
           <button type="button" className="text-button" onClick={() => setSetupMode(false)}>Kembali ke login</button>
@@ -90,13 +92,12 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
             <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>USERNAME</label>
             <input type="text" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} placeholder="Username" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B', marginBottom: '12px' }} />
             <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>PASSWORD</label>
-            <input
-              type="password"
+            <PasswordInput
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="Masukkan password..."
               autoComplete="current-password"
-              style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B' }}
+              style={{ width: '100%', padding: '12px 40px 12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B' }}
               autoFocus
             />
           </div>
@@ -122,6 +123,7 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
   const [path] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
+  const [showChangePassword, setShowChangePassword] = useState(false);
   const visibleNavItems = navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || role === 'admin');
   const active = visibleNavItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
   return <div className="app-shell">
@@ -155,6 +157,10 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
           <span className={`connection ${connected ? '' : 'connection-off'}`}><i />{connected ? 'Tersambung' : 'Menghubungkan'}</span>
           <div className="top-date"><CalendarDays size={15} /> {new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</div>
 
+          <button type="button" onClick={() => setShowChangePassword(true)} title="Ganti Password" aria-label="Ganti Password" className="button button-secondary" style={{ padding: '6px 10px', marginLeft: '6px' }}>
+            <KeyRound size={14} /> Password
+          </button>
+
           <button
             onClick={onLogout}
             title="Kunci Aplikasi"
@@ -169,6 +175,7 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
         {children}
       </div>
     </main>
+    {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
   </div>;
 }
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { AlertCircle, Plus, Shield, UserRound } from "lucide-react";
+import PasswordInput from "../components/PasswordInput";
 
 type AppUser = { id: number; username: string; role: "admin" | "testing" | "user"; createdAt: string };
 const headers = () => ({ Authorization: `Bearer ${localStorage.getItem("kasapink_token") || ""}` });
@@ -68,7 +69,7 @@ export default function UsersPage() {
       <form className="form-stack" onSubmit={addUser}>
         <div className="form-row">
           <label className="field"><span>Username</span><input className="input" name="username" required maxLength={80} autoComplete="username" /></label>
-          <label className="field"><span>Password</span><input className="input" name="password" required minLength={8} type="password" autoComplete="new-password" /></label>
+          <label className="field"><span>Password</span><PasswordInput name="password" required minLength={8} autoComplete="new-password" /></label>
         </div>
         <label className="field"><span>Role</span><select className="input select" name="role" defaultValue="testing"><option value="testing">Testing · hanya baca</option><option value="user">User · kelola data operasional</option><option value="admin">Admin · akses penuh</option></select></label>
         <div className="form-error" role="note"><Shield size={16} /> User dapat mengubah data operasional. Hanya admin yang dapat membuka Manajemen User.</div>

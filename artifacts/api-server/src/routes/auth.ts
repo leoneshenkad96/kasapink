@@ -77,6 +77,28 @@ router.get("/me", verifyToken, (req: AuthRequest, res) => {
 
 router.post("/logout", (_req, res) => res.status(204).end());
 
+router.put("/users/change-password", verifyToken, async (req: AuthRequest, res) => {
+  const oldPassword = typeof req.body.oldPassword === "string" ? req.body.oldPassword : "";
+  const newPassword = typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+  if (!oldPassword || newPassword.length < 8) {
+    return res.status(400).json({ error: "Password lama wajib diisi dan password baru minimal 8 karakter." });
+  }
+
+  const [user] = await db.select({ id: usersTable.id, passwordHash: usersTable.passwordHash })
+    .from(usersTable).where(eq(usersTable.id, req.authUser!.id));
+  if (!user) return res.status(404).json({ error: "Akun tidak ditemukan." });
+  if (!(await bcrypt.compare(oldPassword, user.passwordHash))) {
+    return res.status(400).json({ error: "Password lama salah." });
+  }
+  if (oldPassword === newPassword) {
+    return res.status(400).json({ error: "Password baru harus berbeda dari password lama." });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, req.authUser!.id));
+  return res.json({ message: "Password berhasil diganti." });
+});
+
 router.get("/users", verifyToken, checkRole("admin"), async (_req, res) => {
   const users = await db.select({
     id: usersTable.id,
