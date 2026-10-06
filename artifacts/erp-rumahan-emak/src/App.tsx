@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type React from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -410,9 +410,18 @@ function AppRoutes({ isAuthenticated, onLogin, passwordInput, setPasswordInput, 
   return <AppContent onLogout={onLogout} />;
 }
 
+const AUTO_LOGOUT_MS = 20 * 60 * 1000;
+const LAST_ACTIVITY_KEY = 'kasapink_last_activity';
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    return localStorage.getItem('kasapink_auth') === 'true';
+    if (localStorage.getItem('kasapink_auth') !== 'true') return false;
+    const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
+    if (!Number.isFinite(lastActivity)) {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+      return true;
+    }
+    return Date.now() - lastActivity < AUTO_LOGOUT_MS;
   });
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -420,6 +429,7 @@ function App() {
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     if (passwordInput === 'doraemon') {
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
       localStorage.setItem('kasapink_auth', 'true');
       setIsAuthenticated(true);
       setErrorMsg('');
@@ -429,10 +439,55 @@ function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = useCallback(() => {
     localStorage.removeItem('kasapink_auth');
+    localStorage.removeItem(LAST_ACTIVITY_KEY);
     setIsAuthenticated(false);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    let timeoutId: number;
+    const expireIfIdle = () => {
+      const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
+      const remaining = AUTO_LOGOUT_MS - (Date.now() - lastActivity);
+      if (!Number.isFinite(lastActivity) || remaining <= 0) {
+        handleLogout();
+        return;
+      }
+      window.clearTimeout(timeoutId);
+      timeoutId = window.setTimeout(expireIfIdle, remaining);
+    };
+    const recordActivity = () => {
+      const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
+      if (Number.isFinite(lastActivity) && Date.now() - lastActivity >= AUTO_LOGOUT_MS) {
+        handleLogout();
+        return;
+      }
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
+      expireIfIdle();
+    };
+    const syncAcrossTabs = (event: StorageEvent) => {
+      if (event.key === LAST_ACTIVITY_KEY) expireIfIdle();
+      if (event.key === 'kasapink_auth' && event.newValue !== 'true') setIsAuthenticated(false);
+    };
+
+    expireIfIdle();
+    window.addEventListener('pointerdown', recordActivity);
+    window.addEventListener('keydown', recordActivity);
+    window.addEventListener('touchstart', recordActivity);
+    window.addEventListener('wheel', recordActivity);
+    window.addEventListener('storage', syncAcrossTabs);
+    return () => {
+      window.clearTimeout(timeoutId);
+      window.removeEventListener('pointerdown', recordActivity);
+      window.removeEventListener('keydown', recordActivity);
+      window.removeEventListener('touchstart', recordActivity);
+      window.removeEventListener('wheel', recordActivity);
+      window.removeEventListener('storage', syncAcrossTabs);
+    };
+  }, [isAuthenticated, handleLogout]);
 
   return (
     <QueryClientProvider client={client}>
