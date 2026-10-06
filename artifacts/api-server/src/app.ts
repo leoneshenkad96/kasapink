@@ -11,6 +11,10 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "super-secret-key";
 
 const app: Express = express();
 
+app.use(cors());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
 app.use(
   pinoHttp({
     logger,
