@@ -75,6 +75,14 @@ function requireMaxItems(items: unknown[], max: number, res: Response): boolean 
   return true;
 }
 
+function requireFiniteNumbers(values: Array<number>, res: Response): boolean {
+  if (values.some((value) => !Number.isFinite(value))) {
+    invalid(res, "Nilai angka harus berupa angka terbatas yang valid.");
+    return false;
+  }
+  return true;
+}
+
 function number(value: string | number | null | undefined): number {
   const result = Number(value ?? 0);
   return Number.isFinite(result) ? result : 0;
@@ -572,6 +580,7 @@ router.put(
       return;
     }
     if (!requireMaxItems(body.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(body.data.items.flatMap((item) => [item.ingredientId, item.qtyRequired]), res)) return;
     const ids = body.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Bahan yang sama hanya boleh ditambahkan satu kali ke resep.");
@@ -634,6 +643,7 @@ router.post(
       return;
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.ingredientId, item.quantity, item.totalCost]), res)) return;
     const lines = parsed.data.items;
     const aggregated = new Map<number, { quantity: number; totalCost: number }>();
     for (const line of lines) {
@@ -852,6 +862,7 @@ router.post(
       return;
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.productId, item.quantity]), res)) return;
     const quantities = new Map<number, number>();
     for (const line of parsed.data.items) {
       quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
@@ -1041,6 +1052,7 @@ router.post(
       return;
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(parsed.data.items.map((item) => item.countedStock), res)) return;
     const ids = parsed.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Setiap bahan hanya boleh dicatat satu kali.");
