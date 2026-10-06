@@ -673,43 +673,6 @@ function checkPassword(req: Request): void {
 
 // -------------------- DELETE ENDPOINTS --------------------
 // Delete an ingredient (stock bahan)
-router.delete(
-  "/erp/ingredients/:ingredientId",
-  safe(async (req, res) => {
-    checkPassword(req);
-    const params = UpdateIngredientParams.safeParse(req.params);
-    if (!params.success) {
-      invalid(res, params.error.message);
-      return;
-    }
-    const [row] = await db
-      .delete(ingredientsTable)
-      .where(eq(ingredientsTable.id, params.data.ingredientId))
-      .returning();
-    if (!row) throw new HttpError("Bahan tidak ditemukan.", 404);
-    res.json({ message: "Ingredient deleted" });
-  })
-);
-
-// Delete a product (produk)
-router.delete(
-  "/erp/products/:productId",
-  safe(async (req, res) => {
-    checkPassword(req);
-    const params = UpdateProductParams.safeParse(req.params);
-    if (!params.success) {
-      invalid(res, params.error.message);
-      return;
-    }
-    const [row] = await db
-      .delete(productsTable)
-      .where(eq(productsTable.id, params.data.productId))
-      .returning();
-    if (!row) throw new HttpError("Produk tidak ditemukan.", 404);
-    res.json({ message: "Product deleted" });
-  })
-);
-
 // Delete a sales record (catat penjualan)
 router.delete(
   "/erp/sales/:saleId",
@@ -979,6 +942,7 @@ router.post(
 router.delete(
   "/erp/ingredients/:ingredientId",
   safe(async (req, res) => {
+    checkPassword(req);
     const id = Number(req.params.ingredientId);
     if (!Number.isFinite(id)) {
       invalid(res, "ID bahan tidak valid.");
@@ -994,6 +958,13 @@ router.delete(
         .for("update");
       if (!ingredient) {
         throw new HttpError("Bahan tidak ditemukan.", 404);
+      }
+      const remainingStock = number(ingredient.stock);
+      if (remainingStock > 1e-9) {
+        throw new HttpError(
+          `Bahan masih memiliki stok ${remainingStock} ${ingredient.unit}. Habiskan atau sesuaikan stok melalui stok opname sebelum menghapus.`,
+          409,
+        );
       }
 
       // 2. Cek apakah masih dipakai di dalam resep produk (recipeItemsTable)
@@ -1016,6 +987,15 @@ router.delete(
         throw new HttpError("Bahan tidak dapat dihapus karena memiliki riwayat catatan belanja.", 409);
       }
 
+      const [usedInMovement] = await tx
+        .select({ id: stockMovementsTable.id })
+        .from(stockMovementsTable)
+        .where(eq(stockMovementsTable.ingredientId, id))
+        .limit(1);
+      if (usedInMovement) {
+        throw new HttpError("Bahan tidak dapat dihapus karena memiliki riwayat pergerakan stok.", 409);
+      }
+
       // 4. Hapus jika aman
       await tx.delete(ingredientsTable).where(eq(ingredientsTable.id, id));
     });
@@ -1030,6 +1010,7 @@ router.delete(
 router.delete(
   "/erp/products/:productId",
   safe(async (req, res) => {
+    checkPassword(req);
     const id = Number(req.params.productId);
     if (!Number.isFinite(id)) {
       invalid(res, "ID produk tidak valid.");
