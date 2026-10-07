@@ -6,8 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface RecipeLineInput {
-  ingredientId: number;
-  /** @exclusiveMinimum 0 */
-  qtyRequired: number;
-}
+export type GetFnbReportParams = {
+startDate: Date;
+endDate: Date;
+};

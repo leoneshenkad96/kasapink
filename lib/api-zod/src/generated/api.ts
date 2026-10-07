@@ -46,8 +46,7 @@ export const GetErpStateResponse = zod.object({
   "ingredientId": zod.number().int(),
   "ingredientName": zod.string(),
   "unit": zod.string(),
-  "qtyRequired": zod.number(),
-  "recipeUnit": zod.string()
+  "qtyRequired": zod.number()
 })),
   "recentPurchases": zod.array(zod.object({
   "id": zod.number().int(),
@@ -282,8 +281,7 @@ export const saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 export const SaveProductRecipeBody = zod.object({
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
-  "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin),
-  "recipeUnit": zod.string().min(1)
+  "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
 }))
 })
 
@@ -371,31 +369,147 @@ export const RecordSaleResponse = zod.object({
 /**
  * @summary Record a physical stock count and audit adjustments
  */
-export const recordStockCountBodyItemsItemCountedStockMin = 0;
 
+export const recordStockCountBodyItemsItemOneCountedStockMin = 0;
+
+
+export const recordStockCountBodyItemsItemTwoCountedStockMin = 0;
+
+
+
+export const recordStockCountBodyItemsItemThreeCountedStockMin = 0;
+
+export const recordStockCountBodyItemsMax = 100;
 
 
 
 export const RecordStockCountBody = zod.object({
   "date": zod.coerce.date(),
-  "items": zod.array(zod.object({
-  "ingredientId": zod.number().int(),
-  "countedStock": zod.number().min(recordStockCountBodyItemsItemCountedStockMin)
-})).min(1)
+  "items": zod.array(zod.union([zod.object({
+  "ingredientId": zod.number().int().min(1),
+  "preparationId": zod.never().optional(),
+  "countedStock": zod.number().min(recordStockCountBodyItemsItemOneCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+}),zod.object({
+  "ingredientId": zod.never().optional(),
+  "preparationId": zod.number().int().min(1),
+  "countedStock": zod.number().min(recordStockCountBodyItemsItemTwoCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+})]).and(zod.object({
+  "ingredientId": zod.number().int().min(1).optional(),
+  "preparationId": zod.number().int().min(1).optional(),
+  "countedStock": zod.number().min(recordStockCountBodyItemsItemThreeCountedStockMin).describe('Physical stock quantity, up to three decimal places.')
+}))).min(1).max(recordStockCountBodyItemsMax)
 })
 
 export const RecordStockCountResponseItem = zod.object({
   "id": zod.number().int(),
+  "itemType": zod.enum(['ingredient', 'preparation']),
+  "itemId": zod.number().int(),
+  "date": zod.coerce.date(),
   "name": zod.string(),
-  "category": zod.string(),
-  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
-  "minStock": zod.number(),
-  "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "stockBefore": zod.number(),
+  "countedStock": zod.number(),
+  "stockAfter": zod.number(),
+  "quantityDelta": zod.number(),
+  "varianceQty": zod.number(),
+  "unitCost": zod.number(),
+  "varianceValue": zod.number(),
+  "category": zod.string().optional(),
+  "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
+  "minStock": zod.number().optional(),
+  "lastPrice": zod.number().optional(),
+  "averageCost": zod.number().optional(),
+  "yieldQty": zod.number().optional(),
+  "active": zod.boolean().optional()
 })
 export const RecordStockCountResponse = zod.array(RecordStockCountResponseItem)
+
+
+/**
+ * @summary Get recipe usage and stock opname variances for a date range
+ */
+export const GetFnbReportQueryParams = zod.object({
+  "startDate": zod.date(),
+  "endDate": zod.date()
+})
+
+export const GetFnbReportResponse = zod.object({
+  "startDate": zod.coerce.date(),
+  "endDate": zod.coerce.date(),
+  "revenue": zod.number(),
+  "actualCogs": zod.number(),
+  "theoreticalCogs": zod.number(),
+  "actualFoodCostPercentage": zod.number(),
+  "theoreticalFoodCostPercentage": zod.number(),
+  "foodCostVariance": zod.number(),
+  "wasteCost": zod.number(),
+  "grossProfit": zod.number(),
+  "operatingExpenses": zod.number(),
+  "netProfit": zod.number(),
+  "wasteCount": zod.number().int(),
+  "recipeUsageVariance": zod.array(zod.object({
+  "itemType": zod.enum(['ingredient', 'preparation']),
+  "itemId": zod.number().int(),
+  "itemName": zod.string(),
+  "unit": zod.string(),
+  "actualQty": zod.number(),
+  "theoreticalQty": zod.number(),
+  "varianceQty": zod.number(),
+  "varianceCost": zod.number()
+})),
+  "inventoryVariance": zod.array(zod.object({
+  "itemType": zod.enum(['ingredient', 'preparation']),
+  "itemId": zod.number().int(),
+  "itemName": zod.string(),
+  "unit": zod.string(),
+  "actualQty": zod.number(),
+  "theoreticalQty": zod.number(),
+  "varianceQty": zod.number(),
+  "varianceCost": zod.number()
+})).describe('Legacy alias for recipeUsageVariance.'),
+  "stockOpnameVariance": zod.array(zod.object({
+  "movementId": zod.number().int(),
+  "itemType": zod.enum(['ingredient', 'preparation']),
+  "itemId": zod.number().int(),
+  "itemName": zod.string(),
+  "date": zod.coerce.date(),
+  "unit": zod.string(),
+  "systemStock": zod.number(),
+  "physicalStock": zod.number(),
+  "varianceQty": zod.number(),
+  "unitCost": zod.number().nullable(),
+  "varianceValue": zod.number().nullable()
+})),
+  "menus": zod.array(zod.object({
+  "productId": zod.number().int(),
+  "productName": zod.string(),
+  "quantity": zod.number(),
+  "revenue": zod.number(),
+  "actualCogs": zod.number(),
+  "theoreticalCogs": zod.number(),
+  "grossProfit": zod.number(),
+  "foodCostPercentage": zod.number()
+})),
+  "waste": zod.array(zod.object({
+  "id": zod.number().int(),
+  "date": zod.coerce.date(),
+  "itemType": zod.enum(['ingredient', 'preparation']),
+  "itemId": zod.number().int(),
+  "quantity": zod.number(),
+  "unit": zod.string(),
+  "totalCost": zod.number(),
+  "reason": zod.string(),
+  "note": zod.string().nullable()
+})),
+  "expenses": zod.array(zod.object({
+  "id": zod.number().int(),
+  "date": zod.coerce.date(),
+  "category": zod.string(),
+  "description": zod.string(),
+  "amount": zod.number()
+}))
+})
 
 
 /**
@@ -662,29 +776,59 @@ export const LegacyRecordSaleResponse = zod.object({
 /**
  * @summary Compatibility path to record a stock count
  */
-export const legacyRecordStockCountBodyItemsItemCountedStockMin = 0;
 
+export const legacyRecordStockCountBodyItemsItemOneCountedStockMin = 0;
+
+
+export const legacyRecordStockCountBodyItemsItemTwoCountedStockMin = 0;
+
+
+
+export const legacyRecordStockCountBodyItemsItemThreeCountedStockMin = 0;
+
+export const legacyRecordStockCountBodyItemsMax = 100;
 
 
 
 export const LegacyRecordStockCountBody = zod.object({
   "date": zod.coerce.date(),
-  "items": zod.array(zod.object({
-  "ingredientId": zod.number().int(),
-  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemCountedStockMin)
-})).min(1)
+  "items": zod.array(zod.union([zod.object({
+  "ingredientId": zod.number().int().min(1),
+  "preparationId": zod.never().optional(),
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemOneCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+}),zod.object({
+  "ingredientId": zod.never().optional(),
+  "preparationId": zod.number().int().min(1),
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemTwoCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+})]).and(zod.object({
+  "ingredientId": zod.number().int().min(1).optional(),
+  "preparationId": zod.number().int().min(1).optional(),
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemThreeCountedStockMin).describe('Physical stock quantity, up to three decimal places.')
+}))).min(1).max(legacyRecordStockCountBodyItemsMax)
 })
 
 export const LegacyRecordStockCountResponseItem = zod.object({
   "id": zod.number().int(),
+  "itemType": zod.enum(['ingredient', 'preparation']),
+  "itemId": zod.number().int(),
+  "date": zod.coerce.date(),
   "name": zod.string(),
-  "category": zod.string(),
-  "stockType": zod.enum(['Makanan', 'Parfum']),
   "unit": zod.string(),
   "stock": zod.number(),
-  "minStock": zod.number(),
-  "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "stockBefore": zod.number(),
+  "countedStock": zod.number(),
+  "stockAfter": zod.number(),
+  "quantityDelta": zod.number(),
+  "varianceQty": zod.number(),
+  "unitCost": zod.number(),
+  "varianceValue": zod.number(),
+  "category": zod.string().optional(),
+  "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
+  "minStock": zod.number().optional(),
+  "lastPrice": zod.number().optional(),
+  "averageCost": zod.number().optional(),
+  "yieldQty": zod.number().optional(),
+  "active": zod.boolean().optional()
 })
 export const LegacyRecordStockCountResponse = zod.array(LegacyRecordStockCountResponseItem)
 

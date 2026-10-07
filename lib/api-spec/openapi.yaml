@@ -227,7 +227,28 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Ingredient"
+                  $ref: "#/components/schemas/StockCountResponseItem"
+  /erp/fnb-report:
+    get:
+      operationId: getFnbReport
+      tags: [erp]
+      summary: Get recipe usage and stock opname variances for a date range
+      parameters:
+        - name: startDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+        - name: endDate
+          in: query
+          required: true
+          schema: { type: string, format: date }
+      responses:
+        "200":
+          description: F&B report with separate recipe usage and stock opname variances
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FnbReport"
   /health:
     get:
       operationId: legacyHealthCheck
@@ -408,7 +429,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/Ingredient"
+                  $ref: "#/components/schemas/StockCountResponseItem"
   /finance/report:
     get:
       operationId: legacyGetFinanceReport
@@ -621,9 +642,20 @@ components:
     StockCountLineInput:
       type: object
       properties:
-        ingredientId: { type: integer }
-        countedStock: { type: number, minimum: 0 }
-      required: [ingredientId, countedStock]
+        ingredientId: { type: integer, minimum: 1 }
+        preparationId: { type: integer, minimum: 1 }
+        countedStock:
+          type: number
+          minimum: 0
+          description: Physical stock quantity, up to three decimal places.
+      required: [countedStock]
+      oneOf:
+        - required: [ingredientId]
+          not:
+            required: [preparationId]
+        - required: [preparationId]
+          not:
+            required: [ingredientId]
     StockCountInput:
       type: object
       properties:
@@ -631,9 +663,130 @@ components:
         items:
           type: array
           minItems: 1
+          maxItems: 100
           items:
             $ref: "#/components/schemas/StockCountLineInput"
       required: [date, items]
+    StockCountResponseItem:
+      type: object
+      properties:
+        id: { type: integer }
+        itemType: { type: string, enum: [ingredient, preparation] }
+        itemId: { type: integer }
+        date: { type: string, format: date }
+        name: { type: string }
+        unit: { type: string }
+        stock: { type: number }
+        stockBefore: { type: number }
+        countedStock: { type: number }
+        stockAfter: { type: number }
+        quantityDelta: { type: number }
+        varianceQty: { type: number }
+        unitCost: { type: number }
+        varianceValue: { type: number }
+        category: { type: string }
+        stockType: { type: string, enum: [Makanan, Parfum] }
+        minStock: { type: number }
+        lastPrice: { type: number }
+        averageCost: { type: number }
+        yieldQty: { type: number }
+        active: { type: boolean }
+      required: [id, itemType, itemId, date, name, unit, stock, stockBefore, countedStock, stockAfter, quantityDelta, varianceQty, unitCost, varianceValue]
+    RecipeUsageVariance:
+      type: object
+      properties:
+        itemType: { type: string, enum: [ingredient, preparation] }
+        itemId: { type: integer }
+        itemName: { type: string }
+        unit: { type: string }
+        actualQty: { type: number }
+        theoreticalQty: { type: number }
+        varianceQty: { type: number }
+        varianceCost: { type: number }
+      required: [itemType, itemId, itemName, unit, actualQty, theoreticalQty, varianceQty, varianceCost]
+    StockOpnameVariance:
+      type: object
+      properties:
+        movementId: { type: integer }
+        itemType: { type: string, enum: [ingredient, preparation] }
+        itemId: { type: integer }
+        itemName: { type: string }
+        date: { type: string, format: date }
+        unit: { type: string }
+        systemStock: { type: number }
+        physicalStock: { type: number }
+        varianceQty: { type: number }
+        unitCost: { type: [number, "null"] }
+        varianceValue: { type: [number, "null"] }
+      required: [movementId, itemType, itemId, itemName, date, unit, systemStock, physicalStock, varianceQty, unitCost, varianceValue]
+    FnbReport:
+      type: object
+      properties:
+        startDate: { type: string, format: date }
+        endDate: { type: string, format: date }
+        revenue: { type: number }
+        actualCogs: { type: number }
+        theoreticalCogs: { type: number }
+        actualFoodCostPercentage: { type: number }
+        theoreticalFoodCostPercentage: { type: number }
+        foodCostVariance: { type: number }
+        wasteCost: { type: number }
+        grossProfit: { type: number }
+        operatingExpenses: { type: number }
+        netProfit: { type: number }
+        wasteCount: { type: integer }
+        recipeUsageVariance:
+          type: array
+          items: { $ref: "#/components/schemas/RecipeUsageVariance" }
+        inventoryVariance:
+          type: array
+          deprecated: true
+          description: Legacy alias for recipeUsageVariance.
+          items: { $ref: "#/components/schemas/RecipeUsageVariance" }
+        stockOpnameVariance:
+          type: array
+          items: { $ref: "#/components/schemas/StockOpnameVariance" }
+        menus:
+          type: array
+          items:
+            type: object
+            properties:
+              productId: { type: integer }
+              productName: { type: string }
+              quantity: { type: number }
+              revenue: { type: number }
+              actualCogs: { type: number }
+              theoreticalCogs: { type: number }
+              grossProfit: { type: number }
+              foodCostPercentage: { type: number }
+            required: [productId, productName, quantity, revenue, actualCogs, theoreticalCogs, grossProfit, foodCostPercentage]
+        waste:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              date: { type: string, format: date }
+              itemType: { type: string, enum: [ingredient, preparation] }
+              itemId: { type: integer }
+              quantity: { type: number }
+              unit: { type: string }
+              totalCost: { type: number }
+              reason: { type: string }
+              note: { type: [string, "null"] }
+            required: [id, date, itemType, itemId, quantity, unit, totalCost, reason, note]
+        expenses:
+          type: array
+          items:
+            type: object
+            properties:
+              id: { type: integer }
+              date: { type: string, format: date }
+              category: { type: string }
+              description: { type: string }
+              amount: { type: number }
+            required: [id, date, category, description, amount]
+      required: [startDate, endDate, revenue, actualCogs, theoreticalCogs, actualFoodCostPercentage, theoreticalFoodCostPercentage, foodCostVariance, wasteCost, grossProfit, operatingExpenses, netProfit, wasteCount, recipeUsageVariance, inventoryVariance, stockOpnameVariance, menus, waste, expenses]
     DailyFinance:
       type: object
       properties:

@@ -690,27 +690,35 @@ function positiveNumber(value: unknown): value is number {
 function stringValue(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
-const PrepBody = { safeParse(input: unknown): ParseResult<{ name:string; unit:string; yieldQty:number }> {
-  const b=recordBody(input);
-  if (!b || !stringValue(b.name) || b.name.length>120 || !stringValue(b.unit) || b.unit.length>30 || !positiveNumber(b.yieldQty)) return {success:false,error:{message:"Nama, satuan, dan hasil standar prep wajib diisi dengan benar."}};
-  return {success:true,data:{name:b.name,unit:b.unit,yieldQty:b.yieldQty}};
-}};
-const PrepRecipeBody = { safeParse(input: unknown): ParseResult<{items:Array<{ingredientId:number;qtyRequired:number;recipeUnit:string}>}> {
-  const b=recordBody(input), items=b?.items;
-  if (!Array.isArray(items) || items.length>100 || items.some((x)=>{const v=recordBody(x);return !v||!Number.isSafeInteger(v.ingredientId)||v.ingredientId<=0||!positiveNumber(v.qtyRequired)||!stringValue(v.recipeUnit)||v.recipeUnit.length>30;})) return {success:false,error:{message:"Daftar resep prep tidak valid."}};
-  return {success:true,data:{items:items as Array<{ingredientId:number;qtyRequired:number;recipeUnit:string}>}};
-}};
-const ProductPrepBody = { safeParse(input: unknown): ParseResult<{items:Array<{preparationId:number;qtyRequired:number;recipeUnit:string}>}> {
-  const b=recordBody(input), items=b?.items;
-  if (!Array.isArray(items) || items.length>100 || items.some((x)=>{const v=recordBody(x);return !v||!Number.isSafeInteger(v.preparationId)||v.preparationId<=0||!positiveNumber(v.qtyRequired)||!stringValue(v.recipeUnit)||v.recipeUnit.length>30;})) return {success:false,error:{message:"Daftar komponen prep produk tidak valid."}};
-  return {success:true,data:{items:items as Array<{preparationId:number;qtyRequired:number;recipeUnit:string}>}};
-}};
-const BatchBody = { safeParse(input: unknown): ParseResult<{date:Date;targetQty:number;actualQty:number}> {
-  const b=recordBody(input), d=b?.date;
-  const date=new Date(String(d??""));
-  if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty)) return {success:false,error:{message:"Tanggal, target, dan hasil aktual produksi wajib valid."}};
-  return {success:true,data:{date,targetQty:b.targetQty,actualQty:b.actualQty}};
-}};
+const PrepBody = {
+  safeParse(input: unknown): ParseResult<{ name: string; unit: string; yieldQty: number }> {
+    const b = recordBody(input);
+    if (!b || !stringValue(b.name) || b.name.length > 120 || !stringValue(b.unit) || b.unit.length > 30 || !positiveNumber(b.yieldQty)) return { success: false, error: { message: "Nama, satuan, dan hasil standar prep wajib diisi dengan benar." } };
+    return { success: true, data: { name: b.name, unit: b.unit, yieldQty: b.yieldQty } };
+  }
+};
+const PrepRecipeBody = {
+  safeParse(input: unknown): ParseResult<{ items: Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }> }> {
+    const b = recordBody(input), items = b?.items;
+    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !Number.isSafeInteger(v.ingredientId) || v.ingredientId <= 0 || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
+    return { success: true, data: { items: items as Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }> } };
+  }
+};
+const ProductPrepBody = {
+  safeParse(input: unknown): ParseResult<{ items: Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }> }> {
+    const b = recordBody(input), items = b?.items;
+    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !Number.isSafeInteger(v.preparationId) || v.preparationId <= 0 || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
+    return { success: true, data: { items: items as Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }> } };
+  }
+};
+const BatchBody = {
+  safeParse(input: unknown): ParseResult<{ date: Date; targetQty: number; actualQty: number }> {
+    const b = recordBody(input), d = b?.date;
+    const date = new Date(String(d ?? ""));
+    if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty)) return { success: false, error: { message: "Tanggal, target, dan hasil aktual produksi wajib valid." } };
+    return { success: true, data: { date, targetQty: b.targetQty, actualQty: b.actualQty } };
+  }
+};
 
 router.get("/erp/preparations", safe(async (_req, res) => {
   const preps = await db.select().from(preparationsTable).where(eq(preparationsTable.active, true)).orderBy(asc(preparationsTable.name));
@@ -831,7 +839,7 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     if (!prep) throw new HttpError("Prep tidak ditemukan.", 404);
     const recipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     if (!recipe.length) throw new HttpError("Atur resep prep terlebih dahulu.", 400);
-    const ingredientIds = [...new Set(recipe.map((r) => r.ingredientId))].sort((a,b)=>a-b);
+    const ingredientIds = [...new Set(recipe.map((r) => r.ingredientId))].sort((a, b) => a - b);
     const locked = await tx.select().from(ingredientsTable).where(inArray(ingredientsTable.id, ingredientIds)).orderBy(asc(ingredientsTable.id)).for("update");
     if (locked.length !== ingredientIds.length) throw new HttpError("Bahan prep tidak lengkap.", 409);
     const byId = new Map(locked.map((r) => [r.id, r]));
@@ -857,7 +865,7 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     const newAverageCost = newStock > 0
       ? roundMoney((number(prep.stock) * number(prep.averageCost) + totalCost) / newStock)
       : unitCost;
-    const batchNumber = `P-${dateKey(parsed.data.date).replaceAll("-","")}-${preparationId}-${Date.now()}`;
+    const batchNumber = `P-${dateKey(parsed.data.date).replaceAll("-", "")}-${preparationId}-${Date.now()}`;
     const [batch] = await tx.insert(preparationBatchesTable).values({
       preparationId, batchNumber, date: dateKey(parsed.data.date), targetQty: String(parsed.data.targetQty),
       actualQty: String(parsed.data.actualQty), totalCost: String(totalCost), unitCost: String(unitCost),
@@ -869,8 +877,10 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
       quantityDelta: String(parsed.data.actualQty), stockBefore: String(number(prep.stock)), stockAfter: String(newStock),
       unitCost: String(unitCost), referenceId: batch.id, note: batchNumber,
     });
-    return { id: batch.id, batchNumber, date: batch.date, targetQty: parsed.data.targetQty, actualQty: parsed.data.actualQty,
-      totalCost, unitCost, yieldPercentage, status: "PRODUCED", prepStock: newStock, prepAverageCost: newAverageCost };
+    return {
+      id: batch.id, batchNumber, date: batch.date, targetQty: parsed.data.targetQty, actualQty: parsed.data.actualQty,
+      totalCost, unitCost, yieldPercentage, status: "PRODUCED", prepStock: newStock, prepAverageCost: newAverageCost
+    };
   });
   res.status(201).json(result);
 }));
@@ -980,7 +990,11 @@ router.post("/erp/expenses", safe(async (req, res) => {
 router.get("/erp/fnb-report", safe(async (req, res) => {
   const startDate = String(req.query.startDate ?? "");
   const endDate = String(req.query.endDate ?? "");
-  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || startDate > endDate) return invalid(res, "Rentang tanggal tidak valid.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
+    startDate > endDate) {
+    return invalid(res, "Rentang tanggal tidak valid.");
+  }
   const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
   const saleIds = sales.map((x) => x.id);
   const [details, ingredients, recipes, productPreps, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
@@ -998,18 +1012,18 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   const prepById = new Map(preps.map((x) => [x.id, x]));
   const saleQty = new Map<number, number>();
   for (const line of details) saleQty.set(line.productId, (saleQty.get(line.productId) ?? 0) + line.quantity);
-  const menuMap = new Map<number, { productId:number; productName:string; quantity:number; revenue:number; actualCogs:number; theoreticalCogs:number }>();
+  const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; actualCogs: number; theoreticalCogs: number }>();
   for (const line of details) {
     const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, actualCogs: 0, theoreticalCogs: 0 };
     row.quantity += line.quantity; row.revenue += number(line.revenue); row.actualCogs += number(line.costOfGoodsSold);
-    const ingCost = recipes.filter((r) => r.productId === line.productId && r.ingredientId).reduce((sum,r) => {
+    const ingCost = recipes.filter((r) => r.productId === line.productId && r.ingredientId).reduce((sum, r) => {
       const ing = ingredientById.get(r.ingredientId!); return sum + (ing ? number(r.qtyRequired) * number(r.conversionFactor) * number(ing.averageCost) : 0);
-    },0);
-    const prepCost = productPreps.filter((r)=>r.productId===line.productId).reduce((sum,r)=>{
-      const p=prepById.get(r.preparationId); return sum + (p ? number(r.qtyRequired)*number(p.averageCost) : 0);
-    },0);
+    }, 0);
+    const prepCost = productPreps.filter((r) => r.productId === line.productId).reduce((sum, r) => {
+      const p = prepById.get(r.preparationId); return sum + (p ? number(r.qtyRequired) * number(p.averageCost) : 0);
+    }, 0);
     row.theoreticalCogs += (ingCost + prepCost) * line.quantity;
-    menuMap.set(line.productId,row);
+    menuMap.set(line.productId, row);
   }
   const theoreticalIngredient = new Map<number, number>();
   for (const line of details) {
@@ -1030,7 +1044,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   }
   const actualIngredient = new Map<number, number>();
   for (const m of ingredientMovements) {
-    if (["sale","prep_production","waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
+    if (["sale", "prep_production", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
       actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + Math.abs(number(m.quantityDelta)));
     }
   }
@@ -1040,41 +1054,72 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
       const actual = actualIngredient.get(x.id) ?? 0;
       const theoretical = theoreticalIngredient.get(x.id) ?? 0;
       const variance = actual - theoretical;
-      return { itemType:"ingredient", itemId:x.id, itemName:x.name, unit:x.unit, actualQty:roundMoney(actual), theoreticalQty:roundMoney(theoretical), varianceQty:roundMoney(variance), varianceCost:roundMoney(variance * number(x.averageCost)) };
+      return { itemType: "ingredient", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), varianceCost: roundMoney(variance * number(x.averageCost)) };
     })
-    .sort((a,b)=>Math.abs(b.varianceCost)-Math.abs(a.varianceCost))
-    .slice(0,50);
+    .sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost))
+    .slice(0, 50);
   const actualPrep = new Map<number, number>();
   const theoreticalPrep = new Map<number, number>();
   for (const m of prepMovements) {
-    if (["sale","waste"].includes(m.movementType) && number(m.quantityDelta) < 0) actualPrep.set(m.preparationId,(actualPrep.get(m.preparationId)??0)+Math.abs(number(m.quantityDelta)));
+    if (["sale", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) actualPrep.set(m.preparationId, (actualPrep.get(m.preparationId) ?? 0) + Math.abs(number(m.quantityDelta)));
   }
-  for (const line of details) for (const link of productPreps.filter((r)=>r.productId===line.productId)) {
-    const q=number(link.qtyRequired)*number(link.conversionFactor)*line.quantity;
-    theoreticalPrep.set(link.preparationId,(theoreticalPrep.get(link.preparationId)??0)+q);
+  for (const line of details) for (const link of productPreps.filter((r) => r.productId === line.productId)) {
+    const q = number(link.qtyRequired) * number(link.conversionFactor) * line.quantity;
+    theoreticalPrep.set(link.preparationId, (theoreticalPrep.get(link.preparationId) ?? 0) + q);
   }
-  const prepVariance = preps.filter((x)=>actualPrep.has(x.id)||theoreticalPrep.has(x.id)).map((x)=>{
-    const actual=actualPrep.get(x.id)??0, theoretical=theoreticalPrep.get(x.id)??0, variance=actual-theoretical;
-    return {itemType:"preparation",itemId:x.id,itemName:x.name,unit:x.unit,actualQty:roundMoney(actual),theoreticalQty:roundMoney(theoretical),varianceQty:roundMoney(variance),varianceCost:roundMoney(variance*number(x.averageCost))};
-  }).sort((a,b)=>Math.abs(b.varianceCost)-Math.abs(a.varianceCost)).slice(0,50);
+  const prepVariance = preps.filter((x) => actualPrep.has(x.id) || theoreticalPrep.has(x.id)).map((x) => {
+    const actual = actualPrep.get(x.id) ?? 0, theoretical = theoreticalPrep.get(x.id) ?? 0, variance = actual - theoretical;
+    return { itemType: "preparation", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), varianceCost: roundMoney(variance * number(x.averageCost)) };
+  }).sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost)).slice(0, 50);
+  const recipeUsageVariance = [...ingredientVariance, ...prepVariance];
+  const stockOpnameVariance = [
+    ...ingredientMovements.filter((movement) => movement.movementType === "adjustment").map((movement) => {
+      const ingredient = ingredientById.get(movement.ingredientId);
+      const varianceQty = number(movement.quantityDelta);
+      const unitCost = movement.unitCost == null ? null : number(movement.unitCost);
+      const varianceValue = movement.varianceValue == null
+        ? unitCost == null ? null : roundMoney(varianceQty * unitCost)
+        : number(movement.varianceValue);
+      return {
+        movementId: movement.id, itemType: "ingredient" as const, itemId: movement.ingredientId,
+        itemName: ingredient?.name ?? `Ingredient #${movement.ingredientId}`, date: dateKey(movement.date), unit: ingredient?.unit ?? "",
+        systemStock: number(movement.stockBefore), physicalStock: number(movement.stockAfter), varianceQty, unitCost, varianceValue,
+      };
+    }),
+    ...prepMovements.filter((movement) => movement.movementType === "adjustment").map((movement) => {
+      const preparation = prepById.get(movement.preparationId);
+      const varianceQty = number(movement.quantityDelta);
+      const unitCost = movement.unitCost == null ? null : number(movement.unitCost);
+      const varianceValue = movement.varianceValue == null
+        ? unitCost == null ? null : roundMoney(varianceQty * unitCost)
+        : number(movement.varianceValue);
+      return {
+        movementId: movement.id, itemType: "preparation" as const, itemId: movement.preparationId,
+        itemName: preparation?.name ?? `Preparation #${movement.preparationId}`, date: dateKey(movement.date), unit: preparation?.unit ?? "",
+        systemStock: number(movement.stockBefore), physicalStock: number(movement.stockAfter), varianceQty, unitCost, varianceValue,
+      };
+    }),
+  ].sort((a, b) => b.date.localeCompare(a.date) || b.movementId - a.movementId);
 
-  const revenue = roundMoney(sales.reduce((sum,x)=>sum+number(x.totalRevenue),0));
-  const actualCogs = roundMoney(sales.reduce((sum,x)=>sum+number(x.totalCostOfGoodsSold),0));
-  const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum,x)=>sum+x.theoreticalCogs,0));
-  const wasteCost = roundMoney(waste.reduce((sum,x)=>sum+number(x.totalCost),0));
-  const expenseTotal = roundMoney(expenses.reduce((sum,x)=>sum+number(x.amount),0));
+  const revenue = roundMoney(sales.reduce((sum, x) => sum + number(x.totalRevenue), 0));
+  const actualCogs = roundMoney(sales.reduce((sum, x) => sum + number(x.totalCostOfGoodsSold), 0));
+  const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum, x) => sum + x.theoreticalCogs, 0));
+  const wasteCost = roundMoney(waste.reduce((sum, x) => sum + number(x.totalCost), 0));
+  const expenseTotal = roundMoney(expenses.reduce((sum, x) => sum + number(x.amount), 0));
   const grossProfit = roundMoney(revenue - actualCogs);
   res.json({
-    startDate,endDate,revenue,actualCogs,theoreticalCogs,
+    startDate, endDate, revenue, actualCogs, theoreticalCogs,
     actualFoodCostPercentage: revenue > 0 ? roundMoney(actualCogs / revenue * 100) : 0,
     theoreticalFoodCostPercentage: revenue > 0 ? roundMoney(theoreticalCogs / revenue * 100) : 0,
     foodCostVariance: roundMoney(actualCogs - theoreticalCogs),
     wasteCost, grossProfit, operatingExpenses: expenseTotal, netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
     wasteCount: waste.length,
-    inventoryVariance: [...ingredientVariance, ...prepVariance],
-    menus: [...menuMap.values()].map((x)=>({ ...x, revenue:roundMoney(x.revenue), actualCogs:roundMoney(x.actualCogs), theoreticalCogs:roundMoney(x.theoreticalCogs), grossProfit:roundMoney(x.revenue-x.actualCogs), foodCostPercentage:x.revenue>0?roundMoney(x.actualCogs/x.revenue*100):0 })),
-    waste: waste.map((x)=>({id:x.id,date:x.date,itemType:x.ingredientId?"ingredient":"preparation",itemId:x.ingredientId??x.preparationId,quantity:number(x.quantity),unit:x.unit,totalCost:number(x.totalCost),reason:x.reason,note:x.note})),
-    expenses: expenses.map((x)=>({id:x.id,date:x.date,category:x.category,description:x.description,amount:number(x.amount)})),
+    recipeUsageVariance,
+    inventoryVariance: recipeUsageVariance,
+    stockOpnameVariance,
+    menus: [...menuMap.values()].map((x) => ({ ...x, revenue: roundMoney(x.revenue), actualCogs: roundMoney(x.actualCogs), theoreticalCogs: roundMoney(x.theoreticalCogs), grossProfit: roundMoney(x.revenue - x.actualCogs), foodCostPercentage: x.revenue > 0 ? roundMoney(x.actualCogs / x.revenue * 100) : 0 })),
+    waste: waste.map((x) => ({ id: x.id, date: x.date, itemType: x.ingredientId ? "ingredient" : "preparation", itemId: x.ingredientId ?? x.preparationId, quantity: number(x.quantity), unit: x.unit, totalCost: number(x.totalCost), reason: x.reason, note: x.note })),
+    expenses: expenses.map((x) => ({ id: x.id, date: x.date, category: x.category, description: x.description, amount: number(x.amount) })),
   });
 }));
 
@@ -1161,20 +1206,6 @@ router.post(
         .returning();
 
       const details: Array<typeof purchaseDetailsTable.$inferInsert> = [];
-      const prepMovements: Array<typeof preparationStockMovementsTable.$inferInsert> = [];
-      for (const preparationId of requestedPreparationIds) {
-        const prep = preparationById.get(preparationId)!;
-        const oldStock = number(prep.stock);
-        const used = requiredByPreparation.get(preparationId)!;
-        const newStock = oldStock - used;
-        await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, preparationId));
-        prepMovements.push({
-          date: dateKey(parsed.data.date), preparationId, movementType: "sale",
-          quantityDelta: String(-used), stockBefore: String(oldStock), stockAfter: String(newStock),
-          unitCost: String(number(prep.averageCost)), referenceId: sale.id, note: "Penjualan",
-        });
-      }
-      if (prepMovements.length) await tx.insert(preparationStockMovementsTable).values(prepMovements);
 
       const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
       for (const line of purchaseLines) {
@@ -1222,6 +1253,37 @@ router.post(
         });
       }
       await tx.insert(purchaseDetailsTable).values(details);
+      const prepMovements: Array<typeof preparationStockMovementsTable.$inferInsert> = [];
+
+      for (const preparationId of requestedPreparationIds) {
+        const prep = preparationById.get(preparationId)!;
+        const used = requiredByPreparation.get(preparationId) ?? 0;
+        const oldStock = number(prep.stock);
+        const newStock = oldStock - used;
+
+        await tx
+          .update(preparationsTable)
+          .set({ stock: String(newStock) })
+          .where(eq(preparationsTable.id, preparationId));
+
+        prepMovements.push({
+          date: dateKey(parsed.data.date),
+          preparationId,
+          movementType: "sale",
+          quantityDelta: String(-used),
+          stockBefore: String(oldStock),
+          stockAfter: String(newStock),
+          unitCost: String(number(prep.averageCost)),
+          referenceId: sale.id,
+          note: `Penjualan #${sale.id}`,
+        });
+      }
+
+      if (prepMovements.length) {
+        await tx
+          .insert(preparationStockMovementsTable)
+          .values(prepMovements);
+      }
       if (movements.length) await tx.insert(stockMovementsTable).values(movements);
       return {
         id: purchase.id,
@@ -1472,11 +1534,11 @@ router.post(
       const requestedIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
       const lockedIngredients = requestedIngredientIds.length
         ? await tx
-            .select()
-            .from(ingredientsTable)
-            .where(inArray(ingredientsTable.id, requestedIngredientIds))
-            .orderBy(asc(ingredientsTable.id))
-            .for("update")
+          .select()
+          .from(ingredientsTable)
+          .where(inArray(ingredientsTable.id, requestedIngredientIds))
+          .orderBy(asc(ingredientsTable.id))
+          .for("update")
         : [];
       if (lockedIngredients.length !== requestedIngredientIds.length) {
         throw new HttpError("Salah satu bahan pada resep tidak ditemukan.", 409);
@@ -1518,14 +1580,14 @@ router.post(
         const recipe = recipesByProduct.get(productId) ?? [];
         const costOfGoodsSold = product.needsRecipe
           ? recipe.reduce((sum, item) => {
-              if (!item.ingredientId) return sum;
-              const ingredient = ingredientById.get(item.ingredientId)!;
-              if (isOperationalIngredient(ingredient.category)) return sum;
-              return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(ingredient.averageCost);
-            }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
-              const prep = preparationById.get(item.preparationId);
-              return sum + (prep ? number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(prep.averageCost) : 0);
-            }, 0))
+            if (!item.ingredientId) return sum;
+            const ingredient = ingredientById.get(item.ingredientId)!;
+            if (isOperationalIngredient(ingredient.category)) return sum;
+            return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(ingredient.averageCost);
+          }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
+            const prep = preparationById.get(item.preparationId);
+            return sum + (prep ? number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(prep.averageCost) : 0);
+          }, 0))
           : number(product.averageCost) * quantity;
         return {
           productId,
@@ -1567,6 +1629,37 @@ router.post(
             .set({ stock: String(number(product.stock) - soldQuantity) })
             .where(eq(productsTable.id, productId));
         }
+      }
+      const prepMovements: Array<typeof preparationStockMovementsTable.$inferInsert> = [];
+
+      for (const preparationId of requestedPreparationIds) {
+        const prep = preparationById.get(preparationId)!;
+        const used = requiredByPreparation.get(preparationId) ?? 0;
+        const oldStock = number(prep.stock);
+        const newStock = oldStock - used;
+
+        await tx
+          .update(preparationsTable)
+          .set({ stock: String(newStock) })
+          .where(eq(preparationsTable.id, preparationId));
+
+        prepMovements.push({
+          date: dateKey(parsed.data.date),
+          preparationId,
+          movementType: "sale",
+          quantityDelta: String(-used),
+          stockBefore: String(oldStock),
+          stockAfter: String(newStock),
+          unitCost: String(number(prep.averageCost)),
+          referenceId: sale.id,
+          note: `Penjualan #${sale.id}`,
+        });
+      }
+
+      if (prepMovements.length) {
+        await tx
+          .insert(preparationStockMovementsTable)
+          .values(prepMovements);
       }
 
       const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
@@ -1617,52 +1710,103 @@ router.post(
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
     if (!requireFiniteNumbers(parsed.data.items.map((item) => item.countedStock), res)) return;
-    const ids = parsed.data.items.map((item) => item.ingredientId);
-    if (new Set(ids).size !== ids.length) {
-      invalid(res, "Setiap bahan hanya boleh dicatat satu kali.");
+    if (parsed.data.items.some((item) =>
+      (item.ingredientId === undefined) === (item.preparationId === undefined)
+    )) {
+      invalid(res, "Setiap item harus memilih tepat satu jenis: bahan atau preparation.");
+      return;
+    }
+    if (parsed.data.items.some((item) =>
+      Math.abs(item.countedStock * 1000 - Math.round(item.countedStock * 1000)) > 1e-7
+    )) {
+      invalid(res, "Stok fisik maksimal tiga angka desimal.");
+      return;
+    }
+    const itemKeys = parsed.data.items.map((item) =>
+      item.ingredientId !== undefined ? `ingredient:${item.ingredientId}` : `preparation:${item.preparationId}`
+    );
+    if (new Set(itemKeys).size !== itemKeys.length) {
+      invalid(res, "Setiap item hanya boleh dicatat satu kali.");
       return;
     }
 
-    const updated = await db.transaction(async (tx) => {
-      const locked = await tx
-        .select()
-        .from(ingredientsTable)
-        .where(inArray(ingredientsTable.id, ids))
-        .orderBy(asc(ingredientsTable.id))
-        .for("update");
-      if (locked.length !== ids.length) {
-        throw new HttpError("Ada bahan yang tidak ditemukan.", 400);
+    const validated = await db.transaction(async (tx) => {
+      const ingredientIds = parsed.data.items
+        .flatMap((item) => item.ingredientId === undefined ? [] : [item.ingredientId])
+        .sort((a, b) => a - b);
+      const preparationIds = parsed.data.items
+        .flatMap((item) => item.preparationId === undefined ? [] : [item.preparationId])
+        .sort((a, b) => a - b);
+      const lockedIngredients = ingredientIds.length
+        ? await tx.select().from(ingredientsTable)
+          .where(inArray(ingredientsTable.id, ingredientIds))
+          .orderBy(asc(ingredientsTable.id))
+          .for("update")
+        : [];
+      const lockedPreparations = preparationIds.length
+        ? await tx.select().from(preparationsTable)
+          .where(inArray(preparationsTable.id, preparationIds))
+          .orderBy(asc(preparationsTable.id))
+          .for("update")
+        : [];
+      if (lockedIngredients.length !== ingredientIds.length || lockedPreparations.length !== preparationIds.length) {
+        throw new HttpError("Ada bahan atau preparation yang tidak ditemukan.", 400);
       }
-      const byId = new Map(locked.map((row) => [row.id, row]));
-      const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
-      const rows = [];
+      const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
+      const preparationById = new Map(lockedPreparations.map((row) => [row.id, row]));
+      const ingredientMovements: Array<typeof stockMovementsTable.$inferInsert> = [];
+      const preparationMovements: Array<typeof preparationStockMovementsTable.$inferInsert> = [];
+      const rows: Array<Record<string, unknown>> = [];
       for (const item of parsed.data.items) {
-        const ingredient = byId.get(item.ingredientId)!;
-        const oldStock = number(ingredient.stock);
-        const difference = item.countedStock - oldStock;
-        const [row] = await tx
-          .update(ingredientsTable)
-          .set({ stock: String(item.countedStock) })
-          .where(eq(ingredientsTable.id, item.ingredientId))
-          .returning();
-        rows.push(asIngredient(row));
-        if (Math.abs(difference) > 1e-9) {
-          movements.push({
-            date: dateKey(parsed.data.date),
-            ingredientId: item.ingredientId,
-            movementType: "adjustment",
-            quantityDelta: String(difference),
-            stockBefore: String(oldStock),
-            stockAfter: String(item.countedStock),
-            unitCost: String(number(ingredient.averageCost)),
-            note: "Penyesuaian stok opname",
+        const date = dateKey(parsed.data.date);
+        if (item.ingredientId !== undefined) {
+          const ingredient = ingredientById.get(item.ingredientId)!;
+          const stockBefore = number(ingredient.stock);
+          const varianceQty = item.countedStock - stockBefore;
+          const unitCost = number(ingredient.averageCost);
+          const varianceValue = roundMoney(varianceQty * unitCost);
+          const [row] = await tx.update(ingredientsTable)
+            .set({ stock: String(item.countedStock) })
+            .where(eq(ingredientsTable.id, item.ingredientId))
+            .returning();
+          ingredientMovements.push({
+            date, ingredientId: item.ingredientId, movementType: "adjustment",
+            quantityDelta: String(varianceQty), stockBefore: String(stockBefore), stockAfter: String(item.countedStock),
+            unitCost: String(unitCost), varianceValue: String(varianceValue), note: "Penyesuaian stok opname",
+          });
+          rows.push({
+            ...asIngredient(row), id: row.id, itemType: "ingredient", itemId: row.id, date,
+            stockBefore, countedStock: item.countedStock, stockAfter: number(row.stock),
+            quantityDelta: varianceQty, varianceQty, unitCost, varianceValue,
+          });
+        } else {
+          const preparation = preparationById.get(item.preparationId!)!;
+          const stockBefore = number(preparation.stock);
+          const varianceQty = item.countedStock - stockBefore;
+          const unitCost = number(preparation.averageCost);
+          const varianceValue = roundMoney(varianceQty * unitCost);
+          const [row] = await tx.update(preparationsTable)
+            .set({ stock: String(item.countedStock) })
+            .where(eq(preparationsTable.id, item.preparationId!))
+            .returning();
+          preparationMovements.push({
+            date, preparationId: item.preparationId!, movementType: "adjustment",
+            quantityDelta: String(varianceQty), stockBefore: String(stockBefore), stockAfter: String(item.countedStock),
+            unitCost: String(unitCost), varianceValue: String(varianceValue), note: "Penyesuaian stok opname",
+          });
+          rows.push({
+            id: row.id, itemType: "preparation", itemId: row.id, date, name: row.name, unit: row.unit,
+            stock: number(row.stock), stockBefore, countedStock: item.countedStock, stockAfter: number(row.stock),
+            quantityDelta: varianceQty, varianceQty, unitCost, varianceValue,
+            yieldQty: number(row.yieldQty), averageCost: number(row.averageCost), active: row.active,
           });
         }
       }
-      if (movements.length) await tx.insert(stockMovementsTable).values(movements);
-      return rows;
+      if (ingredientMovements.length) await tx.insert(stockMovementsTable).values(ingredientMovements);
+      if (preparationMovements.length) await tx.insert(preparationStockMovementsTable).values(preparationMovements);
+      return RecordStockCountResponse.parse(rows);
     });
-    res.json(RecordStockCountResponse.parse(updated));
+    res.json(validated.map((row) => ({ ...row, date: dateKey(row.date) })));
   }),
 );
 

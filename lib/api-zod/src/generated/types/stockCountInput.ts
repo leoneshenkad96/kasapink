@@ -9,6 +9,9 @@ import type { StockCountLineInput } from './stockCountLineInput';
 
 export interface StockCountInput {
   date: Date;
-  /** @minItems 1 */
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
   items: StockCountLineInput[];
 }

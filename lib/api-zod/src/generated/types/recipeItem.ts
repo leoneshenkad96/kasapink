@@ -12,5 +12,4 @@ export interface RecipeItem {
   ingredientName: string;
   unit: string;
   qtyRequired: number;
-  recipeUnit: string;
 }
