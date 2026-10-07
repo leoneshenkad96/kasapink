@@ -246,7 +246,7 @@ const STOCK_CATEGORIES: Record<'Makanan' | 'Parfum', string[]> = {
 };
 
 const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
-  Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ekor', 'ikat', 'pack', 'box'],
+  Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ekor', 'potong', 'ikat', 'pack', 'box'],
   Parfum: ['ml', 'liter', 'gram', 'kg', 'botol', 'pcs', 'pack'],
 };
 
