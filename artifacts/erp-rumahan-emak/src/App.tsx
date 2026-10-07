@@ -274,6 +274,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
     if (formDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
     setModal(null);
     setFormDirty(false);
+    setUnsavedChanges(false);
   };
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
@@ -355,6 +356,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
     setEditing(null);
     setAutoRecipe(false);
     setProductFormDirty(false);
+    setUnsavedChanges(false);
   };
   const submitProduct = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
