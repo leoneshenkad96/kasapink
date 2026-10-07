@@ -1118,7 +1118,7 @@ router.delete(
   safe(async (req, res) => {
     const rawId = req.params.ingredientId;
     const id = Number(rawId);
-    if (!/^\\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID bahan tidak valid.");
       return;
     }
@@ -1186,7 +1186,7 @@ router.delete(
   safe(async (req, res) => {
     const rawId = req.params.productId;
     const id = Number(rawId);
-    if (!/^\\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID produk tidak valid.");
       return;
     }
