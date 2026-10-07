@@ -939,9 +939,10 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   const startDate = String(req.query.startDate ?? "");
   const endDate = String(req.query.endDate ?? "");
   if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || startDate > endDate) return invalid(res, "Rentang tanggal tidak valid.");
-  const [sales, details, ingredients, recipes, productPreps, preps, waste, expenses] = await Promise.all([
-    db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))),
-    db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, db.select({ id: salesTable.id }).from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))))),
+  const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
+  const saleIds = sales.map((x) => x.id);
+  const [details, ingredients, recipes, productPreps, preps, waste, expenses] = await Promise.all([
+    saleIds.length ? db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)) : Promise.resolve([]),
     db.select().from(ingredientsTable),
     db.select().from(recipeItemsTable),
     db.select().from(productPreparationItemsTable),
