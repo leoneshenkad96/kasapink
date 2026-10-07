@@ -236,13 +236,28 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
   </>;
 }
 
+const STOCK_CATEGORIES: Record<'Makanan' | 'Parfum', string[]> = {
+  Makanan: ['Bahan Pokok', 'Bumbu & Rempah', 'Protein', 'Sayuran', 'Buah', 'Dairy & Olahan Susu', 'Bahan Minuman', 'Bahan Pelengkap', 'Kemasan', 'Lainnya'],
+  Parfum: ['Bibit / Fragrance Oil', 'Alcohol & Solvent', 'Fixative & Additive', 'Pewarna', 'Kemasan Parfum', 'Aksesoris', 'Lainnya'],
+};
+
 function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum' }) {
   const safeIngredients = ingredients || [];
   const [modal, setModal] = useState<Ingredient | 'new' | null>(null);
   const [search, setSearch] = useState('');
   const create = useCreateIngredient(), update = useUpdateIngredient(), refresh = useRefresh();
   const [error, setError] = useState('');
+  const [formStockType, setFormStockType] = useState<'Makanan' | 'Parfum'>(stockType);
+  const [formCategory, setFormCategory] = useState('');
   const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
+
+  const openModal = (value: Ingredient | 'new') => {
+    setError('');
+    setModal(value);
+    const nextType = value === 'new' ? stockType : value.stockType;
+    setFormStockType(nextType);
+    setFormCategory(value === 'new' ? '' : value.category);
+  };
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); const f = new FormData(e.currentTarget);
@@ -270,13 +285,13 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
   };
 
   return <>
-    <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => { setError(''); setModal('new'); }}><Plus size={17} /> Tambah bahan</Button>} />
+    <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => openModal('new')}><Plus size={17} /> Tambah bahan</Button>} />
     <Card className="table-card"><div className="table-toolbar"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><span className="result-count">{visible.length} bahan</span></div>
-      {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => { setError(''); setModal(i); }}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
+      {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={() => setModal(null)}><form className="form-stack" onSubmit={save}>
       <Field label="Nama bahan"><FieldInput name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" /></Field>
-      <div className="form-row"><Field label="Jenis stok"><FieldSelect name="stockType" defaultValue={modal === 'new' ? stockType : modal.stockType}><option value="Makanan">Makanan</option><option value="Parfum">Parfum</option></FieldSelect></Field><Field label="Kategori"><FieldInput name="category" required defaultValue={modal === 'new' ? '' : modal.category} placeholder="Bahan kering" /></Field></div>
+      <div className="form-row"><Field label="Jenis stok"><FieldSelect name="stockType" value={formStockType} onChange={(e) => { const next = e.target.value as 'Makanan' | 'Parfum'; setFormStockType(next); setFormCategory(''); }}><option value="Makanan">Makanan</option><option value="Parfum">Parfum</option></FieldSelect></Field><Field label="Kategori"><FieldSelect name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[formStockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[formStockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</Field></Field></div>
       <Field label="Satuan"><FieldInput name="unit" required defaultValue={modal === 'new' ? '' : modal.unit} placeholder="kg, liter, butir" /></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput name="stock" type="number" min="0" step="any" defaultValue="0" required /></Field>}
       {modal === 'new' && <Field label="Biaya per satuan stok awal" hint="Isi nilai biaya agar laba kotor dapat dihitung dengan lebih tepat."><FieldInput name="openingUnitCost" type="number" min="0" step="any" defaultValue="0" required /></Field>}
