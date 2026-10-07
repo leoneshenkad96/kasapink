@@ -49,3 +49,11 @@ Thumbs.db
 .local/
 
 .vercel
+
+# Environment files / secrets
+.env
+.env.*
+!.env.example
+*.env
+*.env.*
+!.env.example
