@@ -498,3 +498,128 @@
     inset: -1px;
   }
 }
+
+
+/* Production / Prep — focused kitchen workflow */
+.prep-page { display: grid; gap: 18px; }
+.prep-hero {
+  display: flex; align-items: center; justify-content: space-between; gap: 24px;
+  padding: 22px 24px; border: 1px solid hsl(var(--border)); border-radius: 14px;
+  background: linear-gradient(135deg, hsl(151 27% 27%), hsl(151 27% 23%)); color: hsl(43 40% 95%);
+}
+.prep-hero h2 { margin: 6px 0 5px; font: 500 24px/1.15 var(--app-font-serif); }
+.prep-hero p { margin: 0; max-width: 620px; font-size: 11px; line-height: 1.6; color: hsl(43 25% 84% / .78); }
+.prep-hero .eyebrow { color: hsl(43 25% 84% / .62); }
+.prep-flow { display: flex; align-items: center; gap: 8px; flex: 0 0 auto; }
+.prep-flow > span { display: inline-flex; align-items: center; gap: 7px; font-size: 10px; color: hsl(43 30% 91% / .9); white-space: nowrap; }
+.prep-flow b { width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: hsl(39 77% 68%); color: hsl(157 22% 18%); font-size: 10px; }
+.prep-flow > svg { color: hsl(43 25% 84% / .45); }
+
+.prep-stock-section { display: grid; gap: 12px; }
+.section-title-row { display: flex; align-items: end; justify-content: space-between; gap: 15px; }
+.section-title-row h2 { margin: 5px 0 0; font: 500 23px/1.2 var(--app-font-serif); }
+.prep-stock-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.prep-stock-card {
+  appearance: none; text-align: left; position: relative; display: grid; gap: 10px; min-width: 0;
+  padding: 17px; border: 1px solid hsl(var(--card-border)); border-radius: 13px;
+  background: hsl(var(--card)); color: hsl(var(--foreground)); cursor: pointer;
+  box-shadow: 0 2px 4px hsl(35 24% 37% / .025); transition: border .18s, transform .18s, box-shadow .18s, background .18s;
+}
+.prep-stock-card:hover { transform: translateY(-2px); border-color: hsl(var(--primary) / .35); box-shadow: 0 8px 20px hsl(35 24% 37% / .07); }
+.prep-stock-card.is-selected { border-color: hsl(var(--primary)); box-shadow: 0 0 0 2px hsl(var(--primary) / .11), 0 8px 20px hsl(35 24% 37% / .06); }
+.prep-stock-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.prep-icon { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; background: hsl(39 60% 89%); color: hsl(24 54% 39%); }
+.prep-status { display: inline-flex; align-items: center; width: fit-content; padding: 5px 8px; border-radius: 20px; font-size: 9px; font-weight: 700; }
+.prep-status.ok { color: hsl(148 35% 31%); background: hsl(144 34% 90%); }
+.prep-status.low { color: hsl(23 60% 39%); background: hsl(27 74% 91%); }
+.prep-status.out { color: hsl(5 62% 38%); background: hsl(5 70% 95%); }
+.prep-status.large { padding: 7px 10px; }
+.prep-stock-name { font-size: 14px; font-weight: 700; }
+.prep-stock-card > strong { font-size: 27px; line-height: 1; letter-spacing: -.7px; }
+.prep-stock-card > strong small { font-size: 11px; color: hsl(var(--muted-foreground)); font-weight: 500; letter-spacing: 0; }
+.prep-stock-meta { display: flex; flex-wrap: wrap; gap: 6px 12px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+.prep-stock-action { display: inline-flex; align-items: center; gap: 5px; margin-top: 2px; color: hsl(var(--primary)); font-size: 10px; font-weight: 700; }
+.prep-stock-action svg { transition: transform .18s; }
+.prep-stock-card:hover .prep-stock-action svg { transform: translateX(2px); }
+
+.prep-create-card { display: grid; grid-template-columns: minmax(220px, .7fr) minmax(0, 1.6fr); gap: 24px; padding: 20px 22px; align-items: end; }
+.prep-create-copy h2 { margin: 5px 0; font: 500 21px/1.2 var(--app-font-serif); }
+.prep-create-copy p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.55; }
+.prep-create-form { display: grid; grid-template-columns: 1.3fr .65fr .9fr auto; gap: 10px; align-items: end; }
+.prep-create-submit { display: flex; align-items: end; height: 100%; }
+
+.prep-workspace { display: grid; }
+.prep-detail-card { overflow: hidden; }
+.prep-detail-header { display: flex; justify-content: space-between; align-items: center; gap: 18px; padding: 22px; border-bottom: 1px solid hsl(var(--border)); }
+.prep-detail-header h2 { margin: 5px 0 6px; font: 500 27px/1.1 var(--app-font-serif); }
+.prep-detail-header p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 10px; }
+.prep-workspace-grid { display: grid; grid-template-columns: 1.12fr .88fr; }
+.prep-panel { padding: 20px 22px; min-width: 0; }
+.prep-panel + .prep-panel { border-left: 1px solid hsl(var(--border)); background: hsl(var(--muted) / .25); }
+.prep-panel-head { display: flex; justify-content: space-between; align-items: start; gap: 12px; margin-bottom: 14px; }
+.prep-panel-head h3 { margin: 5px 0 0; font-size: 14px; font-weight: 700; }
+.prep-panel-copy { margin: -3px 0 15px; color: hsl(var(--muted-foreground)); font-size: 10px; line-height: 1.6; }
+.prep-recipe-list { border: 1px solid hsl(var(--border)); border-radius: 10px; overflow: hidden; }
+.prep-recipe-row { display: grid; grid-template-columns: minmax(0, 1fr) 105px 90px 34px; gap: 9px; align-items: end; padding: 11px; border-bottom: 1px solid hsl(var(--border) / .7); }
+.prep-recipe-row:last-child { border-bottom: 0; }
+.prep-recipe-main { min-width: 0; display: flex; align-items: center; gap: 9px; padding-bottom: 2px; }
+.prep-row-number { width: 24px; height: 24px; flex: 0 0 auto; display: grid; place-items: center; border-radius: 7px; background: hsl(145 31% 91%); color: hsl(var(--primary)); font-size: 9px; font-weight: 700; }
+.prep-recipe-main b { display: block; font-size: 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.prep-recipe-main small { display: block; margin-top: 3px; color: hsl(var(--muted-foreground)); font-size: 9px; }
+.prep-recipe-row .field { gap: 5px; }
+.prep-recipe-row .field > span { font-size: 8px; }
+.prep-recipe-row .input { height: 34px; }
+.prep-panel-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.batch-badge { padding: 5px 8px; border-radius: 20px; background: hsl(28 63% 92%); color: hsl(23 60% 39%); font-size: 9px; font-weight: 700; }
+.prep-production-form { display: grid; grid-template-columns: 1fr .8fr .9fr; gap: 9px; }
+.production-submit { grid-column: 1 / -1; width: 100%; }
+.prep-production-note { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; padding: 10px; border-radius: 9px; background: hsl(45 100% 94%); color: hsl(32 77% 29%); font-size: 9px; line-height: 1.5; }
+.prep-production-note svg { flex: 0 0 auto; margin-top: 1px; }
+.prep-history { margin-top: 18px; border-top: 1px solid hsl(var(--border)); padding-top: 14px; }
+.prep-history-head { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 7px; }
+.prep-history-head b { font-size: 10px; }
+.prep-history-row { display: grid; grid-template-columns: 1.2fr .65fr .65fr .8fr; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid hsl(var(--border) / .55); font-size: 9px; }
+.prep-history-row:last-child { border-bottom: 0; }
+.prep-history-row b, .prep-history-row strong { font-size: 9px; }
+.prep-history-row small { display: block; color: hsl(var(--muted-foreground)); margin-top: 2px; font-size: 8px; }
+.prep-history-row span { color: hsl(var(--muted-foreground)); }
+
+.prep-empty-selection { min-height: 250px; display: grid; place-items: center; }
+.prep-product-card { overflow: hidden; }
+.prep-product-header { display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 20px 22px; border-bottom: 1px solid hsl(var(--border)); }
+.prep-product-header h2 { margin: 5px 0; font: 500 21px/1.2 var(--app-font-serif); }
+.prep-product-header p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 10px; }
+.prep-product-step { padding: 6px 9px; border-radius: 20px; background: hsl(145 31% 91%); color: hsl(var(--primary)); font-size: 9px; font-weight: 700; white-space: nowrap; }
+.prep-product-body { padding: 18px 22px 21px; }
+.prep-product-body > .field { max-width: 520px; }
+.prep-product-editor { margin-top: 15px; border: 1px solid hsl(var(--border)); border-radius: 10px; overflow: hidden; }
+.prep-product-row { display: grid; grid-template-columns: minmax(180px, 1.3fr) minmax(150px, .8fr) 100px 34px; gap: 10px; align-items: end; padding: 11px; border-bottom: 1px solid hsl(var(--border) / .7); }
+.prep-product-row:last-child { border-bottom: 0; }
+.prep-product-row .field { gap: 5px; }
+.prep-product-row .field > span { font-size: 8px; }
+.prep-product-row .input { height: 34px; }
+.prep-product-empty { display: flex; align-items: center; gap: 9px; margin-top: 14px; padding: 14px; border-radius: 9px; background: hsl(var(--muted) / .55); color: hsl(var(--muted-foreground)); }
+.prep-product-empty svg { color: hsl(var(--primary)); }
+.prep-product-empty b { color: hsl(var(--foreground)); font-size: 10px; }
+.prep-product-empty span { font-size: 9px; }
+
+@media (max-width: 1080px) {
+  .prep-stock-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .prep-hero { align-items: flex-start; flex-direction: column; }
+  .prep-flow { width: 100%; justify-content: space-between; }
+  .prep-create-card { grid-template-columns: 1fr; }
+  .prep-workspace-grid { grid-template-columns: 1fr; }
+  .prep-panel + .prep-panel { border-left: 0; border-top: 1px solid hsl(var(--border)); }
+}
+@media (max-width: 767px) {
+  .prep-stock-grid { grid-template-columns: 1fr; }
+  .prep-flow { overflow-x: auto; justify-content: flex-start; padding-bottom: 2px; }
+  .prep-create-form { grid-template-columns: 1fr; }
+  .prep-create-submit .button { width: 100%; }
+  .prep-detail-header, .prep-product-header { align-items: flex-start; flex-direction: column; }
+  .prep-recipe-row, .prep-product-row { grid-template-columns: 1fr; align-items: stretch; }
+  .prep-recipe-row .icon-button, .prep-product-row .icon-button { justify-self: end; }
+  .prep-production-form { grid-template-columns: 1fr; }
+  .production-submit { grid-column: auto; }
+  .prep-history-row { grid-template-columns: 1fr 1fr; }
+}
