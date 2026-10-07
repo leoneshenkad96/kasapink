@@ -254,13 +254,21 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
   const [error, setError] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formUnit, setFormUnit] = useState('');
+  const [formDirty, setFormDirty] = useState(false);
   const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
 
   const openModal = (value: Ingredient | 'new') => {
     setError('');
+    setFormDirty(false);
     setModal(value);
     setFormCategory(value === 'new' ? '' : value.category);
     setFormUnit(value === 'new' ? '' : value.unit);
+  };
+
+  const closeStockModal = () => {
+    if (formDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
+    setModal(null);
+    setFormDirty(false);
   };
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
@@ -269,7 +277,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
     const stockTypeValue = stockType;
     const minStock = Number(f.get('minStock')), stock = Number(f.get('stock'));
     const openingUnitCost = Number(f.get('openingUnitCost'));
-    const success = () => { refresh(); setModal(null); setError(''); };
+    const success = () => { refresh(); setModal(null); setError(''); setFormDirty(false); };
     if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock, openingUnitCost } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
     else if (modal) update.mutate({ ingredientId: modal.id, data: { name, category, stockType: stockTypeValue, unit, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
   };
@@ -294,14 +302,14 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
     <Card className="table-card"><div className="table-toolbar"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><span className="result-count">{visible.length} bahan</span></div>
       {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
-    {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={() => setModal(null)}><form className="form-stack" onSubmit={save}>
+    {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => setFormDirty(true)} onChange={() => setFormDirty(true)} onSubmit={save}>
       <Field label="Nama bahan"><FieldInput name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" /></Field>
       <Field label="Kategori"><FieldSelect name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan"><FieldSelect name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput name="stock" type="number" min="0" step="any" defaultValue="" placeholder="Masukkan jumlah stok" required /></Field>}
       {modal === 'new' && <Field label="Biaya per satuan stok awal" hint="Isi nilai biaya agar laba kotor dapat dihitung dengan lebih tepat."><FieldInput name="openingUnitCost" type="number" min="0" step="any" defaultValue="" placeholder="Masukkan biaya per satuan" required /></Field>}
       <Field label="Batas minimum"><FieldInput name="minStock" type="number" min="0" step="any" defaultValue={modal === 'new' ? '' : modal.minStock} placeholder="Masukkan batas minimum" required /></Field>
-      <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setModal(null)}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan bahan'}</Button></div>
+      <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={closeStockModal}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan bahan'}</Button></div>
     </form></Modal>}
   </>;
 }
@@ -312,6 +320,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
   const [needsRecipe, setNeedsRecipe] = useState(true);
   const [autoRecipe, setAutoRecipe] = useState(false);
   const [error, setError] = useState('');
+  const [productFormDirty, setProductFormDirty] = useState(false);
   const create = useCreateProduct(), update = useUpdateProduct(), saveRecipe = useSaveProductRecipe(), refresh = useRefresh();
   const safeProducts = state.products || [];
   const visibleProducts = safeProducts.filter((product) => product.businessType === businessType);
@@ -322,15 +331,23 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
 
   const openNewProduct = () => {
     setError('');
+    setProductFormDirty(false);
     setNeedsRecipe(true);
     setAutoRecipe(false);
     setEditing('new');
   };
   const openEditProduct = (product: Product) => {
     setError('');
+    setProductFormDirty(false);
     setNeedsRecipe(product.needsRecipe);
     setAutoRecipe(false);
     setEditing(product);
+  };
+  const closeProductForm = () => {
+    if (productFormDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
+    setEditing(null);
+    setAutoRecipe(false);
+    setProductFormDirty(false);
   };
   const submitProduct = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -346,7 +363,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
         ? { autoRecipeIngredientId: Number(f.get('autoRecipeIngredientId')) }
         : {}),
     };
-    const success = () => { refresh(); setEditing(null); setError(''); setAutoRecipe(false); };
+    const success = () => { refresh(); setEditing(null); setError(''); setAutoRecipe(false); setProductFormDirty(false); };
     if (editing === 'new') create.mutate({ data }, { onSuccess: success, onError: (x) => setError(errText(x)) });
     else if (editing) update.mutate({ productId: editing.id, data }, { onSuccess: success, onError: (x) => setError(errText(x)) });
   };
@@ -402,8 +419,8 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
           {p.needsRecipe && <button className="recipe-button" onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button>}
         </Card>;
       })}</div>}
-    {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={() => { setEditing(null); setAutoRecipe(false); }}>
-      <form className="form-stack" onSubmit={submitProduct}>
+    {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={closeProductForm}>
+      <form className="form-stack" onInput={() => setProductFormDirty(true)} onChange={() => setProductFormDirty(true)} onSubmit={submitProduct}>
         <Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>
         <Field label="Harga jual per unit"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field>
 
@@ -422,7 +439,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
           {autoRecipe && <Field label="Bahan makro utama"><FieldSelect name="autoRecipeIngredientId" required defaultValue=""><option value="" disabled>Pilih bahan</option>{macroIngredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</FieldSelect></Field>}
         </div>}
         <FormError text={error} />
-        <div className="form-actions"><Button variant="quiet" onClick={() => { setEditing(null); setAutoRecipe(false); }}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan?' : 'Simpan produk'}</Button></div>
+        <div className="form-actions"><Button variant="quiet" onClick={closeProductForm}>Batal</Button><Button type="submit" disabled={create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan?' : 'Simpan produk'}</Button></div>
       </form>
     </Modal>}
     {recipeProduct && <Modal title={`Resep bahan makro ? ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}>
