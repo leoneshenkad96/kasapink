@@ -155,6 +155,19 @@ export const preparationStockMovementsTable = pgTable(
   (table) => [index("erp_prep_stock_movements_preparation_date_idx").on(table.preparationId, table.date)],
 );
 
+
+export const productPreparationItemsTable = pgTable(
+  "erp_product_preparation_items",
+  {
+    id: serial("id").primaryKey(),
+    productId: integer("product_id").notNull().references(() => productsTable.id, { onDelete: "cascade" }),
+    preparationId: integer("preparation_id").notNull().references(() => preparationsTable.id, { onDelete: "restrict" }),
+    qtyRequired: quantity("qty_required"),
+    recipeUnit: text("recipe_unit").notNull(),
+  },
+  (table) => [uniqueIndex("erp_product_preparation_unique").on(table.productId, table.preparationId)],
+);
+
 export const purchasesTable = pgTable(
   "erp_purchases",
   {
