@@ -875,7 +875,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
                       <small>Stok saat ini {ingredient?.stock ?? 0} {ingredient?.unit || line.recipeUnit}</small>
                     </div>
                   </div>
-                  <Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={line.qtyRequired} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
+                  <Field label="Jumlah"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={line.qtyRequired} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
                   <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
                   {!readOnly && <button className="icon-button" type="button" aria-label="Hapus bahan" onClick={() => setRecipeDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
                 </div>;
@@ -981,7 +981,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   </div>;
 }
 
-function FnbControlPage() {
+function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
   const stateQuery = useGetErpState();
   const [startDate,setStartDate]=useState(today());
   const [endDate,setEndDate]=useState(today());
@@ -1134,22 +1134,22 @@ function FnbControlPage() {
         <Card className="fnb-action-card">
           <div className="fnb-action-head"><div className="fnb-action-icon"><Trash2 size={17}/></div><div><span className="eyebrow">WASTE</span><h2>Catat yang terbuang</h2><p>Bahan atau prep yang sudah tidak bisa digunakan.</p></div></div>
           <div className="fnb-form-grid">
-            <Field label="Jenis"><select className="input" value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field>
-            <Field label="Item"><select className="input" value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih item...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field>
+            <Field label="Jenis"><select disabled={readOnly} className="input" value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field>
+            <Field label="Item"><select disabled={readOnly} className="input" value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih item...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field>
             <Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={wasteQty} onChange={e=>setWasteQty(e.target.value)} placeholder="0" /></Field>
-            <Field label="Alasan"><FieldInput value={wasteReason} onChange={e=>setWasteReason(e.target.value)} /></Field>
+            <Field label="Alasan"><FieldInput disabled={readOnly} value={wasteReason} onChange={e=>setWasteReason(e.target.value)} /></Field>
           </div>
-          <button className="button button-primary fnb-action-button" type="button" onClick={()=>void addWaste()}><Trash2 size={15}/> Catat waste</button>
+          <button disabled={readOnly} className="button button-primary fnb-action-button" type="button" onClick={()=>void addWaste()}><Trash2 size={15}/> Catat waste</button>
         </Card>
 
         <Card className="fnb-action-card">
           <div className="fnb-action-head"><div className="fnb-action-icon"><ReceiptText size={17}/></div><div><span className="eyebrow">BIAYA USAHA</span><h2>Catat pengeluaran</h2><p>Gas, listrik, air, transport, dan biaya di luar bahan.</p></div></div>
           <div className="fnb-form-grid">
-            <Field label="Kategori"><FieldInput value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air..." /></Field>
-            <Field label="Keterangan"><FieldInput value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)} placeholder="Contoh: isi ulang gas" /></Field>
-            <Field label="Nominal"><FieldInput type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)} placeholder="0" /></Field>
+            <Field label="Kategori"><FieldInput disabled={readOnly} value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air..." /></Field>
+            <Field label="Keterangan"><FieldInput disabled={readOnly} value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)} placeholder="Contoh: isi ulang gas" /></Field>
+            <Field label="Nominal"><FieldInput disabled={readOnly} type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)} placeholder="0" /></Field>
           </div>
-          <button className="button button-primary fnb-action-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={15}/> Simpan pengeluaran</button>
+          <button disabled={readOnly} className="button button-primary fnb-action-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={15}/> Simpan pengeluaran</button>
         </Card>
       </div>
     </>}
@@ -1165,15 +1165,15 @@ function AppContent({ onLogout, role }: { onLogout: () => void; role: UserRole }
   return <Shell connected={health.isSuccess} onLogout={onLogout} role={role}><ErrorBoundary resetKey="routes"><Switch>
     <Route path="/" component={() => <Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />} />
     <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
+    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={role === 'testing'} />} />
     <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={role === 'testing'} />} />
     <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" />} />
+    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={role === 'testing'} />} />
     <Route path="/produk/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={role === 'testing'} />} />
     <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={role === 'testing'} />} />
     <Route path="/prep" component={() => <PrepPage readOnly={role === 'testing'} />} />
-    <Route path="/kontrol-fnb" component={() => <FnbControlPage />} />
+    <Route path="/kontrol-fnb" component={() => <FnbControlPage readOnly={role === 'testing'} />} />
     <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
     <Route path="/laporan" component={ReportPage} />
     <Route path="/users" component={() => role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
