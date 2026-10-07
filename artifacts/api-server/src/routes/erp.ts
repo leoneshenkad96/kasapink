@@ -1320,6 +1320,8 @@ router.delete(
     await db.transaction(async (tx) => {
       // Delete dependent tables first
       await tx.delete(salesDetailsTable).execute();
+      await tx.delete(wasteTable).execute();
+      await tx.delete(operatingExpensesTable).execute();
       await tx.delete(purchaseDetailsTable).execute();
       await tx.delete(preparationStockMovementsTable).execute();
       await tx.delete(productPreparationItemsTable).execute();
