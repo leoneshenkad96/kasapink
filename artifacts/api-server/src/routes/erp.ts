@@ -35,6 +35,8 @@ import {
   preparationBatchesTable,
   preparationStockMovementsTable,
   productPreparationItemsTable,
+  wasteTable,
+  operatingExpensesTable,
   recipeItemsTable,
   salesDetailsTable,
   salesTable,
@@ -861,6 +863,122 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
       totalCost, unitCost, yieldPercentage, status: "PRODUCED", prepStock: newStock, prepAverageCost: newAverageCost };
   });
   res.status(201).json(result);
+}));
+
+
+const WasteBody = z.object({
+  date: z.coerce.date(),
+  itemType: z.enum(["ingredient", "preparation"]),
+  itemId: z.number().int().positive(),
+  quantity: z.number().positive(),
+  reason: z.string().min(1).max(120),
+  note: z.string().max(500).optional(),
+});
+const ExpenseBody = z.object({
+  date: z.coerce.date(),
+  category: z.string().min(1).max(80),
+  description: z.string().min(1).max(200),
+  amount: z.number().positive(),
+});
+
+router.post("/erp/waste", safe(async (req, res) => {
+  const parsed = WasteBody.safeParse(req.body);
+  if (!parsed.success) return invalid(res, parsed.error.message);
+  const result = await db.transaction(async (tx) => {
+    let unit = "", unitCost = 0;
+    if (parsed.data.itemType === "ingredient") {
+      const [item] = await tx.select().from(ingredientsTable).where(eq(ingredientsTable.id, parsed.data.itemId)).for("update");
+      if (!item) throw new HttpError("Bahan tidak ditemukan.", 404);
+      unit = item.unit; unitCost = number(item.averageCost);
+      const newStock = number(item.stock) - parsed.data.quantity;
+      await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, item.id));
+      await tx.insert(stockMovementsTable).values({
+        date: dateKey(parsed.data.date), ingredientId: item.id, movementType: "waste",
+        quantityDelta: String(-parsed.data.quantity), stockBefore: String(number(item.stock)), stockAfter: String(newStock),
+        unitCost: String(unitCost), note: parsed.data.reason,
+      });
+    } else {
+      const [item] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, parsed.data.itemId)).for("update");
+      if (!item) throw new HttpError("Prep tidak ditemukan.", 404);
+      unit = item.unit; unitCost = number(item.averageCost);
+      const newStock = number(item.stock) - parsed.data.quantity;
+      await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, item.id));
+      await tx.insert(preparationStockMovementsTable).values({
+        date: dateKey(parsed.data.date), preparationId: item.id, movementType: "waste",
+        quantityDelta: String(-parsed.data.quantity), stockBefore: String(number(item.stock)), stockAfter: String(newStock),
+        unitCost: String(unitCost), note: parsed.data.reason,
+      });
+    }
+    const totalCost = roundMoney(parsed.data.quantity * unitCost);
+    const [row] = await tx.insert(wasteTable).values({
+      date: dateKey(parsed.data.date),
+      ingredientId: parsed.data.itemType === "ingredient" ? parsed.data.itemId : null,
+      preparationId: parsed.data.itemType === "preparation" ? parsed.data.itemId : null,
+      quantity: String(parsed.data.quantity), unit, unitCost: String(unitCost), totalCost: String(totalCost),
+      reason: parsed.data.reason, note: parsed.data.note ?? null,
+    }).returning();
+    return { id: row.id, date: row.date, itemType: parsed.data.itemType, itemId: parsed.data.itemId, quantity: parsed.data.quantity, unit, unitCost, totalCost, reason: row.reason, note: row.note };
+  });
+  res.status(201).json(result);
+}));
+
+router.post("/erp/expenses", safe(async (req, res) => {
+  const parsed = ExpenseBody.safeParse(req.body);
+  if (!parsed.success) return invalid(res, parsed.error.message);
+  const [row] = await db.insert(operatingExpensesTable).values({
+    date: dateKey(parsed.data.date), category: parsed.data.category.trim(), description: parsed.data.description.trim(), amount: String(roundMoney(parsed.data.amount)),
+  }).returning();
+  res.status(201).json({ id: row.id, date: row.date, category: row.category, description: row.description, amount: number(row.amount) });
+}));
+
+router.get("/erp/fnb-report", safe(async (req, res) => {
+  const startDate = String(req.query.startDate ?? "");
+  const endDate = String(req.query.endDate ?? "");
+  if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || startDate > endDate) return invalid(res, "Rentang tanggal tidak valid.");
+  const [sales, details, ingredients, recipes, productPreps, preps, waste, expenses] = await Promise.all([
+    db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))),
+    db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, db.select({ id: salesTable.id }).from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))))),
+    db.select().from(ingredientsTable),
+    db.select().from(recipeItemsTable),
+    db.select().from(productPreparationItemsTable),
+    db.select().from(preparationsTable),
+    db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
+    db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
+  ]);
+  const ingredientById = new Map(ingredients.map((x) => [x.id, x]));
+  const prepById = new Map(preps.map((x) => [x.id, x]));
+  const saleQty = new Map<number, number>();
+  for (const line of details) saleQty.set(line.productId, (saleQty.get(line.productId) ?? 0) + line.quantity);
+  const menuMap = new Map<number, { productId:number; productName:string; quantity:number; revenue:number; actualCogs:number; theoreticalCogs:number }>();
+  for (const line of details) {
+    const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, actualCogs: 0, theoreticalCogs: 0 };
+    row.quantity += line.quantity; row.revenue += number(line.revenue); row.actualCogs += number(line.costOfGoodsSold);
+    const ingCost = recipes.filter((r) => r.productId === line.productId && r.ingredientId).reduce((sum,r) => {
+      const ing = ingredientById.get(r.ingredientId!); return sum + (ing ? number(r.qtyRequired) * number(r.conversionFactor) * number(ing.averageCost) : 0);
+    },0);
+    const prepCost = productPreps.filter((r)=>r.productId===line.productId).reduce((sum,r)=>{
+      const p=prepById.get(r.preparationId); return sum + (p ? number(r.qtyRequired)*number(p.averageCost) : 0);
+    },0);
+    row.theoreticalCogs += (ingCost + prepCost) * line.quantity;
+    menuMap.set(line.productId,row);
+  }
+  const revenue = roundMoney(sales.reduce((sum,x)=>sum+number(x.totalRevenue),0));
+  const actualCogs = roundMoney(sales.reduce((sum,x)=>sum+number(x.totalCostOfGoodsSold),0));
+  const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum,x)=>sum+x.theoreticalCogs,0));
+  const wasteCost = roundMoney(waste.reduce((sum,x)=>sum+number(x.totalCost),0));
+  const expenseTotal = roundMoney(expenses.reduce((sum,x)=>sum+number(x.amount),0));
+  const grossProfit = roundMoney(revenue - actualCogs);
+  res.json({
+    startDate,endDate,revenue,actualCogs,theoreticalCogs,
+    actualFoodCostPercentage: revenue > 0 ? roundMoney(actualCogs / revenue * 100) : 0,
+    theoreticalFoodCostPercentage: revenue > 0 ? roundMoney(theoreticalCogs / revenue * 100) : 0,
+    foodCostVariance: roundMoney(actualCogs - theoreticalCogs),
+    wasteCost, grossProfit, operatingExpenses: expenseTotal, netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
+    wasteCount: waste.length,
+    menus: [...menuMap.values()].map((x)=>({ ...x, revenue:roundMoney(x.revenue), actualCogs:roundMoney(x.actualCogs), theoreticalCogs:roundMoney(x.theoreticalCogs), grossProfit:roundMoney(x.revenue-x.actualCogs), foodCostPercentage:x.revenue>0?roundMoney(x.actualCogs/x.revenue*100):0 })),
+    waste: waste.map((x)=>({id:x.id,date:x.date,itemType:x.ingredientId?"ingredient":"preparation",itemId:x.ingredientId??x.preparationId,quantity:number(x.quantity),unit:x.unit,totalCost:number(x.totalCost),reason:x.reason,note:x.note})),
+    expenses: expenses.map((x)=>({id:x.id,date:x.date,category:x.category,description:x.description,amount:number(x.amount)})),
+  });
 }));
 
 router.get(
