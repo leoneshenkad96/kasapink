@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { z } from "zod";
 import {
   CreateIngredientBody,
   CreateIngredientResponse,
@@ -29,6 +30,11 @@ import {
   productsTable,
   purchaseDetailsTable,
   purchasesTable,
+  preparationsTable,
+  preparationRecipeItemsTable,
+  preparationBatchesTable,
+  preparationStockMovementsTable,
+  productPreparationItemsTable,
   recipeItemsTable,
   salesDetailsTable,
   salesTable,
@@ -671,6 +677,191 @@ router.put(
     res.json(SaveProductRecipeResponse.parse(data));
   }),
 );
+
+
+const PrepBody = z.object({
+  name: z.string().min(1).max(120),
+  unit: z.string().min(1).max(30),
+});
+const PrepRecipeBody = z.object({
+  items: z.array(z.object({
+    ingredientId: z.number().int().positive(),
+    qtyRequired: z.number().positive(),
+    recipeUnit: z.string().min(1).max(30),
+  })).max(100),
+});
+const ProductPrepBody = z.object({
+  items: z.array(z.object({
+    preparationId: z.number().int().positive(),
+    qtyRequired: z.number().positive(),
+    recipeUnit: z.string().min(1).max(30),
+  })).max(100),
+});
+const BatchBody = z.object({
+  date: z.coerce.date(),
+  targetQty: z.number().positive(),
+  actualQty: z.number().positive(),
+});
+
+router.get("/erp/preparations", safe(async (_req, res) => {
+  const preps = await db.select().from(preparationsTable).where(eq(preparationsTable.active, true)).orderBy(asc(preparationsTable.name));
+  const ids = preps.map((p) => p.id);
+  const recipeRows = ids.length ? await db.select({
+    preparationId: preparationRecipeItemsTable.preparationId,
+    ingredientId: preparationRecipeItemsTable.ingredientId,
+    ingredientName: ingredientsTable.name,
+    ingredientUnit: ingredientsTable.unit,
+    qtyRequired: preparationRecipeItemsTable.qtyRequired,
+    recipeUnit: preparationRecipeItemsTable.recipeUnit,
+    conversionFactor: preparationRecipeItemsTable.conversionFactor,
+  }).from(preparationRecipeItemsTable)
+    .innerJoin(ingredientsTable, eq(preparationRecipeItemsTable.ingredientId, ingredientsTable.id))
+    .where(inArray(preparationRecipeItemsTable.preparationId, ids)) : [];
+  const productRows = ids.length ? await db.select({
+    preparationId: productPreparationItemsTable.preparationId,
+    productId: productPreparationItemsTable.productId,
+    productName: productsTable.name,
+    qtyRequired: productPreparationItemsTable.qtyRequired,
+    recipeUnit: productPreparationItemsTable.recipeUnit,
+  }).from(productPreparationItemsTable)
+    .innerJoin(productsTable, eq(productPreparationItemsTable.productId, productsTable.id))
+    .where(inArray(productPreparationItemsTable.preparationId, ids)) : [];
+  const batchRows = ids.length ? await db.select().from(preparationBatchesTable)
+    .where(inArray(preparationBatchesTable.preparationId, ids))
+    .orderBy(desc(preparationBatchesTable.date), desc(preparationBatchesTable.id)).limit(50) : [];
+  res.json(preps.map((p) => ({
+    id: p.id, name: p.name, unit: p.unit, stock: number(p.stock), averageCost: number(p.averageCost), active: p.active,
+    recipe: recipeRows.filter((r) => r.preparationId === p.id).map((r) => ({
+      ingredientId: r.ingredientId, ingredientName: r.ingredientName, ingredientUnit: r.ingredientUnit,
+      qtyRequired: number(r.qtyRequired), recipeUnit: r.recipeUnit, conversionFactor: number(r.conversionFactor),
+    })),
+    products: productRows.filter((r) => r.preparationId === p.id).map((r) => ({
+      productId: r.productId, productName: r.productName, qtyRequired: number(r.qtyRequired), recipeUnit: r.recipeUnit,
+    })),
+    batches: batchRows.filter((b) => b.preparationId === p.id).map((b) => ({
+      id: b.id, batchNumber: b.batchNumber, date: b.date, targetQty: number(b.targetQty), actualQty: number(b.actualQty),
+      totalCost: number(b.totalCost), unitCost: number(b.unitCost), yieldPercentage: number(b.yieldPercentage), status: b.status,
+    })),
+  })));
+}));
+
+router.post("/erp/preparations", safe(async (req, res) => {
+  const parsed = PrepBody.safeParse(req.body);
+  if (!parsed.success) return invalid(res, parsed.error.message);
+  const [row] = await db.insert(preparationsTable).values({
+    name: parsed.data.name.trim(), unit: parsed.data.unit.trim(), stock: "0", averageCost: "0",
+  }).returning();
+  res.status(201).json({ id: row.id, name: row.name, unit: row.unit, stock: 0, averageCost: 0, active: row.active });
+}));
+
+router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
+  const preparationId = Number(req.params.preparationId);
+  if (!Number.isSafeInteger(preparationId) || preparationId <= 0) return invalid(res, "ID prep tidak valid.");
+  const parsed = PrepRecipeBody.safeParse(req.body);
+  if (!parsed.success) return invalid(res, parsed.error.message);
+  const ids = parsed.data.items.map((x) => x.ingredientId);
+  if (new Set(ids).size !== ids.length) return invalid(res, "Bahan yang sama hanya boleh ditambahkan satu kali.");
+  const saved = await db.transaction(async (tx) => {
+    const [prep] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, preparationId)).for("update");
+    if (!prep) throw new HttpError("Prep tidak ditemukan.", 404);
+    const rows = ids.length ? await tx.select({
+      id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, category: ingredientsTable.category,
+    }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)) : [];
+    if (rows.length !== ids.length) throw new HttpError("Ada bahan prep yang tidak ditemukan.", 400);
+    const map = new Map(rows.map((r) => [r.id, r]));
+    const recipeRows = parsed.data.items.map((item) => {
+      const ingredient = map.get(item.ingredientId)!;
+      if (isOperationalIngredient(ingredient.category)) throw new HttpError("Bahan Mikro/Operasional tidak dapat dipakai sebagai bahan prep.", 400);
+      const factor = recipeConversionFactor(item.recipeUnit, ingredient.unit);
+      if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok ${ingredient.unit} untuk ${ingredient.name}.`, 400);
+      return { preparationId, ingredientId: item.ingredientId, qtyRequired: String(item.qtyRequired), recipeUnit: item.recipeUnit, conversionFactor: String(factor) };
+    });
+    await tx.delete(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
+    if (recipeRows.length) await tx.insert(preparationRecipeItemsTable).values(recipeRows);
+    return recipeRows;
+  });
+  res.json(saved.map((r) => ({ ...r, qtyRequired: number(r.qtyRequired), conversionFactor: number(r.conversionFactor) })));
+}));
+
+router.put("/erp/products/:productId/preparations", safe(async (req, res) => {
+  const productId = Number(req.params.productId);
+  if (!Number.isSafeInteger(productId) || productId <= 0) return invalid(res, "ID produk tidak valid.");
+  const parsed = ProductPrepBody.safeParse(req.body);
+  if (!parsed.success) return invalid(res, parsed.error.message);
+  const ids = parsed.data.items.map((x) => x.preparationId);
+  if (new Set(ids).size !== ids.length) return invalid(res, "Prep yang sama hanya boleh ditambahkan satu kali.");
+  const saved = await db.transaction(async (tx) => {
+    const [product] = await tx.select({ id: productsTable.id }).from(productsTable).where(eq(productsTable.id, productId)).for("update");
+    if (!product) throw new HttpError("Produk tidak ditemukan.", 404);
+    const rows = ids.length ? await tx.select().from(preparationsTable).where(inArray(preparationsTable.id, ids)) : [];
+    if (rows.length !== ids.length) throw new HttpError("Ada prep yang tidak ditemukan.", 400);
+    const map = new Map(rows.map((r) => [r.id, r]));
+    for (const item of parsed.data.items) {
+      const prep = map.get(item.preparationId)!;
+      const factor = recipeConversionFactor(item.recipeUnit, prep.unit);
+      if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok prep ${prep.unit} untuk ${prep.name}.`, 400);
+      if (factor !== 1) throw new HttpError("Untuk sementara satuan resep produk harus sama dengan satuan stok prep.", 400);
+    }
+    await tx.delete(productPreparationItemsTable).where(eq(productPreparationItemsTable.productId, productId));
+    if (parsed.data.items.length) await tx.insert(productPreparationItemsTable).values(parsed.data.items.map((x) => ({
+      productId, preparationId: x.preparationId, qtyRequired: String(x.qtyRequired), recipeUnit: x.recipeUnit,
+    })));
+    return parsed.data.items;
+  });
+  res.json(saved);
+}));
+
+router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) => {
+  const preparationId = Number(req.params.preparationId);
+  if (!Number.isSafeInteger(preparationId) || preparationId <= 0) return invalid(res, "ID prep tidak valid.");
+  const parsed = BatchBody.safeParse(req.body);
+  if (!parsed.success) return invalid(res, parsed.error.message);
+  const result = await db.transaction(async (tx) => {
+    const [prep] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, preparationId)).for("update");
+    if (!prep) throw new HttpError("Prep tidak ditemukan.", 404);
+    const recipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
+    if (!recipe.length) throw new HttpError("Atur resep prep terlebih dahulu.", 400);
+    const ingredientIds = [...new Set(recipe.map((r) => r.ingredientId))].sort((a,b)=>a-b);
+    const locked = await tx.select().from(ingredientsTable).where(inArray(ingredientsTable.id, ingredientIds)).orderBy(asc(ingredientsTable.id)).for("update");
+    if (locked.length !== ingredientIds.length) throw new HttpError("Bahan prep tidak lengkap.", 409);
+    const byId = new Map(locked.map((r) => [r.id, r]));
+    let totalCost = 0;
+    for (const line of recipe) {
+      const ing = byId.get(line.ingredientId)!;
+      const used = number(line.qtyRequired) * number(line.conversionFactor);
+      totalCost += used * number(ing.averageCost);
+      const newStock = number(ing.stock) - used;
+      await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, ing.id));
+      await tx.insert(stockMovementsTable).values({
+        date: dateKey(parsed.data.date), ingredientId: ing.id, movementType: "prep_production",
+        quantityDelta: String(-used), stockBefore: String(number(ing.stock)), stockAfter: String(newStock),
+        unitCost: String(number(ing.averageCost)), referenceId: preparationId, note: prep.name,
+      });
+    }
+    totalCost = roundMoney(totalCost);
+    const unitCost = roundMoney(totalCost / parsed.data.actualQty);
+    const yieldPercentage = roundMoney((parsed.data.actualQty / parsed.data.targetQty) * 1000) / 10;
+    const newStock = number(prep.stock) + parsed.data.actualQty;
+    const newAverageCost = newStock > 0
+      ? roundMoney((number(prep.stock) * number(prep.averageCost) + totalCost) / newStock)
+      : unitCost;
+    const batchNumber = `P-${dateKey(parsed.data.date).replaceAll("-","")}-${preparationId}-${Date.now()}`;
+    const [batch] = await tx.insert(preparationBatchesTable).values({
+      preparationId, batchNumber, date: dateKey(parsed.data.date), targetQty: String(parsed.data.targetQty),
+      actualQty: String(parsed.data.actualQty), totalCost: String(totalCost), unitCost: String(unitCost),
+      yieldPercentage: String(yieldPercentage), status: "PRODUCED",
+    }).returning();
+    await tx.update(preparationsTable).set({ stock: String(newStock), averageCost: String(newAverageCost) }).where(eq(preparationsTable.id, preparationId));
+    await tx.insert(preparationStockMovementsTable).values({
+      date: dateKey(parsed.data.date), preparationId, movementType: "production",
+      quantityDelta: String(parsed.data.actualQty), stockBefore: String(number(prep.stock)), stockAfter: String(newStock),
+      unitCost: String(unitCost), referenceId: batch.id, note: batchNumber,
+    });
+    return { id: batch.id, batchNumber, date: batch.date, targetQty: parsed.data.targetQty, actualQty: parsed.data.actualQty,
+      totalCost, unitCost, yieldPercentage, status: "PRODUCED", prepStock: newStock, prepAverageCost: newAverageCost };
+  });
+  res.status(201).json(result);
+}));
 
 router.get(
   "/erp/price-trends",
