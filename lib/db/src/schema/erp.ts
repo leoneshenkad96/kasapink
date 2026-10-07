@@ -71,6 +71,8 @@ export const recipeItemsTable = pgTable(
       .notNull()
       .references(() => ingredientsTable.id, { onDelete: "restrict" }),
     qtyRequired: quantity("qty_required"),
+    recipeUnit: text("recipe_unit").notNull(),
+    conversionFactor: numeric("conversion_factor", { precision: 14, scale: 6 }).notNull().default("1"),
   },
   (table) => [
     uniqueIndex("erp_recipe_product_ingredient_unique").on(
