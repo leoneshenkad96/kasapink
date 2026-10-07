@@ -46,7 +46,8 @@ export const GetErpStateResponse = zod.object({
   "ingredientId": zod.number().int(),
   "ingredientName": zod.string(),
   "unit": zod.string(),
-  "qtyRequired": zod.number()
+  "qtyRequired": zod.number(),
+  "recipeUnit": zod.string()
 })),
   "recentPurchases": zod.array(zod.object({
   "id": zod.number().int(),
@@ -281,7 +282,8 @@ export const saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 export const SaveProductRecipeBody = zod.object({
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
-  "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
+  "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin),
+  "recipeUnit": zod.string().min(1)
 }))
 })
 
