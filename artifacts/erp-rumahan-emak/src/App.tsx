@@ -247,6 +247,19 @@ const STOCK_CATEGORIES: Record<'Makanan' | 'Parfum', string[]> = {
   Parfum: ['Bibit / Fragrance Oil', 'Alcohol & Solvent', 'Fixative & Additive', 'Pewarna', 'Kemasan Parfum', 'Aksesoris', 'Lainnya'],
 };
 
+const RECIPE_UNIT_GROUPS: Record<string, { group: string; factor: number }> = {
+  gram: { group: 'weight', factor: 1 }, kg: { group: 'weight', factor: 1000 },
+  ml: { group: 'volume', factor: 1 }, liter: { group: 'volume', factor: 1000 },
+  pcs: { group: 'count', factor: 1 }, butir: { group: 'count', factor: 1 }, ekor: { group: 'count', factor: 1 },
+  potong: { group: 'count', factor: 1 }, ikat: { group: 'count', factor: 1 }, pack: { group: 'count', factor: 1 },
+  box: { group: 'count', factor: 1 }, botol: { group: 'count', factor: 1 },
+};
+const recipeUnitFactor = (recipeUnit: string, stockUnit: string) => {
+  if (recipeUnit === stockUnit) return 1;
+  const a = RECIPE_UNIT_GROUPS[recipeUnit], b = RECIPE_UNIT_GROUPS[stockUnit];
+  return a && b && a.group === b.group ? a.factor / b.factor : 1;
+};
+
 const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
   Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ekor', 'potong', 'ikat', 'pack', 'box'],
   Parfum: ['ml', 'liter', 'gram', 'kg', 'botol', 'pcs', 'pack'],
@@ -344,6 +357,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const [autoRecipe, setAutoRecipe] = useState(false);
   const [error, setError] = useState('');
   const [productFormDirty, setProductFormDirty] = useState(false);
+  const [prepData, setPrepData] = useState<Prep[]>([]);
   const create = useCreateProduct(), update = useUpdateProduct(), saveRecipe = useSaveProductRecipe(), refresh = useRefresh();
   const safeProducts = state.products || [];
   const visibleProducts = safeProducts.filter((product) => product.businessType === businessType);
@@ -351,6 +365,11 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const safeIngredients = state.ingredients || [];
   const macroIngredients = safeIngredients.filter((ingredient) => ingredient.stockType === businessType && !/mikro|operasional/i.test(ingredient.category));
   const recipe = useMemo(() => recipeProduct ? safeRecipes.filter((r) => r.productId === recipeProduct.id) : [], [recipeProduct, safeRecipes]);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/erp/preparations', { headers: authHeaders() }).then(r => r.ok ? r.json() : []).then((d: Prep[]) => { if (active && Array.isArray(d)) setPrepData(d); }).catch(() => {});
+    return () => { active = false; };
+  }, []);
 
   const openNewProduct = () => {
     setError('');
@@ -425,9 +444,10 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
         });
         const recipeCost = macroItems.reduce((sum, item) => {
           const ingredient = safeIngredients.find((x) => x.id === item.ingredientId);
-          return sum + item.qtyRequired * (ingredient?.averageCost ?? 0);
+          return sum + item.qtyRequired * recipeUnitFactor(item.recipeUnit, ingredient?.unit ?? item.recipeUnit) * (ingredient?.averageCost ?? 0);
         }, 0);
-        const unitCost = p.needsRecipe ? recipeCost : p.averageCost;
+        const prepCost = prepData.flatMap((prep) => prep.products.filter((line) => line.productId === p.id).map((line) => line.qtyRequired * recipeUnitFactor(line.recipeUnit, prep.unit) * prep.averageCost)).reduce((sum, value) => sum + value, 0);
+        const unitCost = p.needsRecipe ? recipeCost + prepCost : p.averageCost;
         const estimatedGrossProfit = p.sellingPrice - unitCost;
         const marginPercent = p.sellingPrice > 0 ? (estimatedGrossProfit / p.sellingPrice) * 100 : 0;
         return <Card className="product-card" key={p.id}>
