@@ -250,6 +250,8 @@ const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
   Parfum: ['ml', 'liter', 'gram', 'kg', 'botol', 'pcs', 'pack'],
 };
 
+type PriceTrend = { ingredientId: number; ingredientName: string; unit: string; latestPrice: number | null; previousPrice: number | null; changeAmount: number | null; changePercent: number | null; history: Array<{ date: string; supplierType: string; quantity: number; totalCost: number; unitCost: number }> };
+
 function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum'; readOnly?: boolean }) {
   const safeIngredients = ingredients || [];
   const [modal, setModal] = useState<Ingredient | 'new' | null>(null);
@@ -259,6 +261,15 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
   const [formCategory, setFormCategory] = useState('');
   const [formUnit, setFormUnit] = useState('');
   const [formDirty, setFormDirty] = useState(false);
+  const [priceTrends, setPriceTrends] = useState<PriceTrend[]>([]);
+  useEffect(() => {
+    let active = true;
+    fetch('/api/erp/price-trends', { headers: authHeaders(), cache: 'no-store' })
+      .then((response) => response.ok ? response.json() : [])
+      .then((data: PriceTrend[]) => { if (active && Array.isArray(data)) setPriceTrends(data); })
+      .catch(() => { if (active) setPriceTrends([]); });
+    return () => { active = false; };
+  }, []);
   const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
 
   const openModal = (value: Ingredient | 'new') => {
@@ -306,7 +317,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
   return <>
     <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => openModal('new')}><Plus size={17} /> Tambah bahan</Button>} />
     <Card className="table-card"><div className="table-toolbar"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><span className="result-count">{visible.length} bahan</span></div>
-      {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
+      {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
       <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" /></Field>
