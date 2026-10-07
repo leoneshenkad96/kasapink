@@ -10,4 +10,5 @@ export interface RecipeLineInput {
   ingredientId: number;
   /** @exclusiveMinimum 0 */
   qtyRequired: number;
+  recipeUnit: string;
 }
