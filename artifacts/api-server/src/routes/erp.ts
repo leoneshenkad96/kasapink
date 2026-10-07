@@ -532,10 +532,17 @@ router.post(
         })
         .returning();
       if (parsed.data.autoRecipeIngredientId !== undefined) {
+        const [ingredient] = await tx
+          .select({ unit: ingredientsTable.unit })
+          .from(ingredientsTable)
+          .where(eq(ingredientsTable.id, parsed.data.autoRecipeIngredientId));
+        if (!ingredient) throw new HttpError("Bahan resep tidak ditemukan.", 400);
         await tx.insert(recipeItemsTable).values({
           productId: product.id,
           ingredientId: parsed.data.autoRecipeIngredientId,
           qtyRequired: "1",
+          recipeUnit: ingredient.unit,
+          conversionFactor: "1",
         });
       }
       return product;
