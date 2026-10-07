@@ -1073,6 +1073,30 @@ router.delete(
         }
       }
 
+      const prepMovements = await tx
+        .select()
+        .from(preparationStockMovementsTable)
+        .where(and(
+          eq(preparationStockMovementsTable.referenceId, idNum),
+          eq(preparationStockMovementsTable.movementType, "sale"),
+        ));
+      for (const movement of prepMovements) {
+        const [prep] = await tx
+          .select()
+          .from(preparationsTable)
+          .where(eq(preparationsTable.id, movement.preparationId))
+          .for("update");
+        if (!prep) continue;
+        const restored = -number(movement.quantityDelta);
+        await tx.update(preparationsTable)
+          .set({ stock: String(number(prep.stock) + restored) })
+          .where(eq(preparationsTable.id, prep.id));
+      }
+      await tx.delete(preparationStockMovementsTable).where(and(
+        eq(preparationStockMovementsTable.referenceId, idNum),
+        eq(preparationStockMovementsTable.movementType, "sale"),
+      ));
+
       const movements = await tx
         .select()
         .from(stockMovementsTable)
