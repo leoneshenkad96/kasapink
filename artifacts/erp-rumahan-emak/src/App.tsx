@@ -241,6 +241,11 @@ const STOCK_CATEGORIES: Record<'Makanan' | 'Parfum', string[]> = {
   Parfum: ['Bibit / Fragrance Oil', 'Alcohol & Solvent', 'Fixative & Additive', 'Pewarna', 'Kemasan Parfum', 'Aksesoris', 'Lainnya'],
 };
 
+const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
+  Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ikat', 'pack', 'box'],
+  Parfum: ['ml', 'liter', 'gram', 'kg', 'botol', 'pcs', 'pack'],
+};
+
 function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum' }) {
   const safeIngredients = ingredients || [];
   const [modal, setModal] = useState<Ingredient | 'new' | null>(null);
@@ -248,12 +253,14 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
   const create = useCreateIngredient(), update = useUpdateIngredient(), refresh = useRefresh();
   const [error, setError] = useState('');
   const [formCategory, setFormCategory] = useState('');
+  const [formUnit, setFormUnit] = useState('');
   const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
 
   const openModal = (value: Ingredient | 'new') => {
     setError('');
     setModal(value);
     setFormCategory(value === 'new' ? '' : value.category);
+    setFormUnit(value === 'new' ? '' : value.unit);
   };
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
@@ -290,7 +297,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={() => setModal(null)}><form className="form-stack" onSubmit={save}>
       <Field label="Nama bahan"><FieldInput name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" /></Field>
       <Field label="Kategori"><FieldSelect name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
-      <Field label="Satuan"><FieldInput name="unit" required defaultValue={modal === 'new' ? '' : modal.unit} placeholder="kg, liter, butir" /></Field>
+      <Field label="Satuan"><FieldSelect name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput name="stock" type="number" min="0" step="any" defaultValue="0" required /></Field>}
       {modal === 'new' && <Field label="Biaya per satuan stok awal" hint="Isi nilai biaya agar laba kotor dapat dihitung dengan lebih tepat."><FieldInput name="openingUnitCost" type="number" min="0" step="any" defaultValue="0" required /></Field>}
       <Field label="Batas minimum"><FieldInput name="minStock" type="number" min="0" step="any" defaultValue={modal === 'new' ? '0' : modal.minStock} required /></Field>
