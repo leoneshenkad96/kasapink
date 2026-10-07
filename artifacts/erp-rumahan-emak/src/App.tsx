@@ -555,7 +555,7 @@ function ReportPage() {
 type PrepRecipeLine = { ingredientId: number; ingredientName: string; ingredientUnit: string; qtyRequired: number; recipeUnit: string; conversionFactor: number };
 type PrepProductLine = { productId: number; productName: string; qtyRequired: number; recipeUnit: string };
 type PrepBatch = { id: number; batchNumber: string; date: string; targetQty: number; actualQty: number; totalCost: number; unitCost: number; yieldPercentage: number; status: string };
-type Prep = { id: number; name: string; unit: string; stock: number; averageCost: number; active: boolean; recipe: PrepRecipeLine[]; products: PrepProductLine[]; batches: PrepBatch[] };
+type Prep = { id: number; name: string; unit: string; yieldQty: number; stock: number; averageCost: number; active: boolean; recipe: PrepRecipeLine[]; products: PrepProductLine[]; batches: PrepBatch[] };
 
 function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const stateQuery = useGetErpState();
@@ -564,6 +564,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [error, setError] = useState('');
   const [newName, setNewName] = useState('');
   const [newUnit, setNewUnit] = useState('kg');
+  const [newYieldQty, setNewYieldQty] = useState('1');
   const [selectedPrep, setSelectedPrep] = useState<number | null>(null);
   const [recipeDraft, setRecipeDraft] = useState<Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }>>([]);
   const [targetQty, setTargetQty] = useState('');
@@ -596,7 +597,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const savePrep = async () => {
     if (readOnly || !newName.trim()) return;
     try {
-      const r = await fetch('/api/erp/preparations', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), unit: newUnit }) });
+      const r = await fetch('/api/erp/preparations', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), unit: newUnit, yieldQty: Number(newYieldQty) }) });
       const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || 'Gagal membuat prep.');
       setNewName(''); await load(); setSelectedPrep(data.id);
     } catch (e) { setError(errText(e)); }
@@ -637,7 +638,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 
   if (loading) return <LoadingPanel />;
   return <div className="page-stack">
-    <PageHeader eyebrow="PRODUKSI" title="Produksi / Prep" description="Buat stok semi-finished seperti nasi matang, ayam suwir, jamur marinasi, usus berbumbu, lontong, dan isian." />
+    <PageHeader eyebrow="PRODUKSI" title="Produksi / Prep" description="Buat stok semi-finished seperti nasi matang, ayam suwir, jamur marinasi, usus berbumbu, lontong, dan isian. Resep prep dihitung untuk satu hasil standar; target batch akan menskalakan bahan otomatis." />
     {error && <div className="error-panel"><AlertCircle size={20} /><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
 
     <Card>
@@ -645,6 +646,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       <div className="form-grid">
         <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Contoh: Ayam Suwir" /></Field>
         <Field label="Satuan stok"><FieldInput value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="kg / gram / pcs" /></Field>
+        <Field label="Hasil standar per resep"><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 1.8" /></Field>
         {!readOnly && <button className="primary-button" type="button" onClick={() => void savePrep()}><Plus size={16} /> Buat Prep</button>}
       </div>
     </Card>
@@ -653,7 +655,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       <Card>
         <div className="card-heading"><div><span className="eyebrow">PREP</span><h2>Stok Prep</h2></div><span className="period-chip">{preps.length} jenis</span></div>
         {preps.length ? <div className="list-stack">{preps.map((p) => <button key={p.id} type="button" className={`list-row ${selectedPrep === p.id ? 'is-active' : ''}`} onClick={() => setSelectedPrep(p.id)}>
-          <span><b>{p.name}</b><small>{p.stock} {p.unit} · HPP {money(p.averageCost)}/{p.unit}</small></span><ArrowRight size={16} />
+          <span><b>{p.name}</b><small>Stok {p.stock} {p.unit} · Hasil standar {p.yieldQty} {p.unit} · HPP ${money(p.averageCost)}/${p.unit}</small></span><ArrowRight size={16} />
         </button>)}</div> : <Empty title="Belum ada prep" text="Buat prep pertama untuk memulai produksi batch." />}
       </Card>
 
