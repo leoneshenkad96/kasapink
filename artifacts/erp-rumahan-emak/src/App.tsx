@@ -594,14 +594,20 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [productPrepDraft, setProductPrepDraft] = useState<Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }>>([]);
 
   const load = useCallback(async () => {
-    setLoading(true); setError('');
+    setLoading(true);
+    setError('');
     try {
       const r = await fetch('/api/erp/preparations', { headers: authHeaders() });
       const data = await r.json().catch(() => []);
       if (!r.ok) throw new Error(data.error || 'Gagal memuat data prep.');
       setPreps(data);
-    } catch (e) { setError(errText(e)); } finally { setLoading(false); }
+    } catch (e) {
+      setError(errText(e));
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
   useEffect(() => { void load(); }, [load]);
 
   const ingredients = stateQuery.data?.ingredients.filter((x) => x.stockType === 'Makanan') ?? [];
@@ -610,100 +616,285 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 
   useEffect(() => {
     if (!prep) return;
-    setRecipeDraft(prep.recipe.map((x) => ({ ingredientId: x.ingredientId, qtyRequired: x.qtyRequired, recipeUnit: x.recipeUnit })));
-    setTargetQty(''); setActualQty('');
+    setRecipeDraft(prep.recipe.map((x) => ({
+      ingredientId: x.ingredientId,
+      qtyRequired: x.qtyRequired,
+      recipeUnit: x.recipeUnit,
+    })));
+    setTargetQty('');
+    setActualQty('');
   }, [selectedPrep]);
 
   const savePrep = async () => {
     if (readOnly || !newName.trim()) return;
     try {
-      const r = await fetch('/api/erp/preparations', { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ name: newName.trim(), unit: newUnit, yieldQty: Number(newYieldQty) }) });
-      const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || 'Gagal membuat prep.');
-      setNewName(''); await load(); setSelectedPrep(data.id);
-    } catch (e) { setError(errText(e)); }
+      const r = await fetch('/api/erp/preparations', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newName.trim(), unit: newUnit, yieldQty: Number(newYieldQty) }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Gagal membuat prep.');
+      setNewName('');
+      await load();
+      setSelectedPrep(data.id);
+    } catch (e) {
+      setError(errText(e));
+    }
   };
 
   const saveRecipe = async () => {
     if (readOnly || !prep) return;
     try {
-      const r = await fetch(`/api/erp/preparations/${prep.id}/recipe`, { method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ items: recipeDraft }) });
-      const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || 'Gagal menyimpan resep prep.');
+      const r = await fetch('/api/erp/preparations/' + prep.id + '/recipe', {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: recipeDraft }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Gagal menyimpan resep prep.');
       await load();
-    } catch (e) { setError(errText(e)); }
+    } catch (e) {
+      setError(errText(e));
+    }
   };
 
   const produce = async () => {
     if (readOnly || !prep) return;
     try {
-      const r = await fetch(`/api/erp/preparations/${prep.id}/batches`, { method: 'POST', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ date: batchDate, targetQty: Number(targetQty), actualQty: Number(actualQty) }) });
-      const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || 'Gagal mencatat produksi.');
-      setTargetQty(''); setActualQty(''); await load();
-    } catch (e) { setError(errText(e)); }
+      const r = await fetch('/api/erp/preparations/' + prep.id + '/batches', {
+        method: 'POST',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          date: batchDate,
+          targetQty: Number(targetQty),
+          actualQty: Number(actualQty),
+        }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Gagal mencatat produksi.');
+      setTargetQty('');
+      setActualQty('');
+      await load();
+    } catch (e) {
+      setError(errText(e));
+    }
   };
 
   const loadProductPrep = async (id: string) => {
     setProductId(id);
-    if (!id) { setProductPrepDraft([]); return; }
-    const p = preps.flatMap((x) => x.products.map((line) => ({ ...line, preparationId: x.id }))).filter((x) => x.productId === Number(id));
-    setProductPrepDraft(p.map((x) => ({ preparationId: x.preparationId, qtyRequired: x.qtyRequired, recipeUnit: x.recipeUnit })));
+    if (!id) {
+      setProductPrepDraft([]);
+      return;
+    }
+    const p = preps
+      .flatMap((x) => x.products.map((line) => ({ ...line, preparationId: x.id })))
+      .filter((x) => x.productId === Number(id));
+    setProductPrepDraft(p.map((x) => ({
+      preparationId: x.preparationId,
+      qtyRequired: x.qtyRequired,
+      recipeUnit: x.recipeUnit,
+    })));
   };
+
   const saveProductPrep = async () => {
     if (readOnly || !productId) return;
     try {
-      const r = await fetch(`/api/erp/products/${productId}/preparations`, { method: 'PUT', headers: { ...authHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ items: productPrepDraft }) });
-      const data = await r.json().catch(() => ({})); if (!r.ok) throw new Error(data.error || 'Gagal menyimpan komponen prep produk.');
+      const r = await fetch('/api/erp/products/' + productId + '/preparations', {
+        method: 'PUT',
+        headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: productPrepDraft }),
+      });
+      const data = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(data.error || 'Gagal menyimpan komponen prep produk.');
       await load();
-    } catch (e) { setError(errText(e)); }
+    } catch (e) {
+      setError(errText(e));
+    }
   };
 
   if (loading) return <LoadingPanel />;
-  return <div className="page-stack">
-    <PageHeader eyebrow="PRODUKSI" title="Produksi / Prep" description="Buat stok semi-finished seperti nasi matang, ayam suwir, jamur marinasi, usus berbumbu, lontong, dan isian. Resep prep dihitung untuk satu hasil standar; target batch akan menskalakan bahan otomatis." />
+
+  const stockTone = (p: Prep) => p.stock <= 0 ? 'out' : p.stock <= p.yieldQty * 0.25 ? 'low' : 'ok';
+
+  return <div className="page-stack prep-page">
+    <PageHeading
+      kicker="PRODUKSI & PERSIAPAN"
+      title="Stok Prep"
+      note="Kelola bahan olahan yang dibuat dalam batch sebelum dipakai oleh produk jualan."
+      action={!readOnly ? <button className="button button-primary" type="button" onClick={() => document.getElementById('prep-master-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Plus size={15} /> Buat prep</button> : undefined}
+    />
+
     {error && <div className="error-panel"><AlertCircle size={20} /><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
 
-    <Card>
-      <div className="card-heading"><div><span className="eyebrow">MASTER PREP</span><h2>Tambah prep baru</h2></div></div>
-      <div className="form-grid">
-        <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Contoh: Ayam Suwir" /></Field>
-        <Field label="Satuan stok"><FieldInput value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="kg / gram / pcs" /></Field>
-        <Field label="Hasil standar per resep"><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 1.8" /></Field>
-        {!readOnly && <button className="primary-button" type="button" onClick={() => void savePrep()}><Plus size={16} /> Buat Prep</button>}
+    <section className="prep-hero">
+      <div>
+        <span className="eyebrow">ALUR KERJA</span>
+        <h2>Raw → Prep → Produk</h2>
+        <p>Produksi batch mengurangi bahan baku, menambah stok prep, dan menghitung HPP secara otomatis.</p>
       </div>
-    </Card>
+      <div className="prep-flow">
+        <span><b>1</b>Bahan baku</span>
+        <ArrowRight size={15} />
+        <span><b>2</b>Produksi batch</span>
+        <ArrowRight size={15} />
+        <span><b>3</b>Stok prep</span>
+        <ArrowRight size={15} />
+        <span><b>4</b>Produk jualan</span>
+      </div>
+    </section>
 
-    <div className="content-grid">
-      <Card>
-        <div className="card-heading"><div><span className="eyebrow">PREP</span><h2>Stok Prep</h2></div><span className="period-chip">{preps.length} jenis</span></div>
-        {preps.length ? <div className="list-stack">{preps.map((p) => <button key={p.id} type="button" className={`list-row ${selectedPrep === p.id ? 'is-active' : ''}`} onClick={() => setSelectedPrep(p.id)}>
-          <span><b>{p.name}</b><small>Stok {p.stock} {p.unit} · Hasil standar {p.yieldQty} {p.unit} · HPP {money(p.averageCost)}/{p.unit}</small></span><ArrowRight size={16} />
-        </button>)}</div> : <Empty title="Belum ada prep" text="Buat prep pertama untuk memulai produksi batch." />}
+    <section className="prep-stock-section">
+      <div className="section-title-row">
+        <div>
+          <span className="eyebrow">STOK SAAT INI</span>
+          <h2>Persiapan yang tersedia</h2>
+        </div>
+        <span className="period-chip">{preps.length} jenis prep</span>
+      </div>
+
+      {preps.length ? <div className="prep-stock-grid">
+        {preps.map((p) => {
+          const tone = stockTone(p);
+          return <button
+            key={p.id}
+            type="button"
+            className={'prep-stock-card ' + (selectedPrep === p.id ? 'is-selected' : '')}
+            onClick={() => setSelectedPrep(p.id)}
+          >
+            <div className="prep-stock-top">
+              <span className="prep-icon"><CookingPot size={18} /></span>
+              <span className={'prep-status ' + tone}>{tone === 'ok' ? 'Stok aman' : tone === 'low' ? 'Perlu produksi' : 'Stok habis'}</span>
+            </div>
+            <b className="prep-stock-name">{p.name}</b>
+            <strong>{p.stock} <small>{p.unit}</small></strong>
+            <div className="prep-stock-meta">
+              <span>Hasil standar {p.yieldQty} {p.unit}</span>
+              <span>HPP {money(p.averageCost)}/{p.unit}</span>
+            </div>
+            <span className="prep-stock-action">{selectedPrep === p.id ? 'Sedang dipilih' : 'Kelola prep'} <ArrowRight size={14} /></span>
+          </button>;
+        })}
+      </div> : <Card><Empty title="Belum ada stok prep" text="Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi." /></Card>}
+    </section>
+
+    {!readOnly && <Card className="prep-create-card" id="prep-master-form">
+      <div className="prep-create-copy">
+        <span className="eyebrow">MASTER PREP</span>
+        <h2>Buat jenis prep baru</h2>
+        <p>Contoh: Nasi Matang, Ayam Suwir, Jamur Marinasi, atau Isian Lontong.</p>
+      </div>
+      <div className="prep-create-form">
+        <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Contoh: Ayam Suwir" /></Field>
+        <Field label="Satuan stok"><FieldInput value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="kg, gram, pcs" /></Field>
+        <Field label="Hasil standar"><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 5" hint="Hasil satu kali resep/batch." /></Field>
+        <div className="prep-create-submit"><button className="button button-primary" type="button" onClick={() => void savePrep()}><Plus size={15} /> Buat prep</button></div>
+      </div>
+    </Card>}
+
+    {prep ? <section className="prep-workspace">
+      <Card className="prep-detail-card">
+        <div className="prep-detail-header">
+          <div>
+            <span className="eyebrow">DETAIL PREP</span>
+            <h2>{prep.name}</h2>
+            <p>Stok tersedia <b>{prep.stock} {prep.unit}</b> · Hasil standar <b>{prep.yieldQty} {prep.unit}</b> · HPP <b>{money(prep.averageCost)}/{prep.unit}</b></p>
+          </div>
+          <span className={'prep-status large ' + stockTone(prep)}>{stockTone(prep) === 'ok' ? 'Stok aman' : stockTone(prep) === 'low' ? 'Perlu produksi' : 'Stok habis'}</span>
+        </div>
+
+        <div className="prep-workspace-grid">
+          <div className="prep-panel">
+            <div className="prep-panel-head">
+              <div><span className="eyebrow">RESEP</span><h3>Bahan untuk 1 hasil standar</h3></div>
+              <span className="period-chip">{recipeDraft.length} bahan</span>
+            </div>
+
+            {recipeDraft.length ? <div className="prep-recipe-list">
+              {recipeDraft.map((line, i) => {
+                const ingredient = ingredients.find((x) => x.id === line.ingredientId);
+                return <div className="prep-recipe-row" key={i}>
+                  <div className="prep-recipe-main">
+                    <span className="prep-row-number">{i + 1}</span>
+                    <div>
+                      <b>{ingredient?.name || 'Bahan tidak ditemukan'}</b>
+                      <small>Stok saat ini {ingredient?.stock ?? 0} {ingredient?.unit || line.recipeUnit}</small>
+                    </div>
+                  </div>
+                  <Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={line.qtyRequired} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
+                  <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
+                  {!readOnly && <button className="icon-button" type="button" aria-label="Hapus bahan" onClick={() => setRecipeDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
+                </div>;
+              })}
+            </div> : <Empty title="Resep prep belum diatur" text="Tambahkan bahan baku yang dipakai untuk menghasilkan satu batch standar." />}
+
+            {!readOnly && <div className="prep-panel-actions">
+              <button className="button button-secondary" type="button" onClick={() => {
+                const ing = ingredients[0];
+                if (ing) setRecipeDraft((x) => [...x, { ingredientId: ing.id, qtyRequired: 1, recipeUnit: ing.unit }]);
+              }}><Plus size={15} /> Tambah bahan</button>
+              <button className="button button-primary" type="button" onClick={() => void saveRecipe()}><Check size={15} /> Simpan resep</button>
+            </div>}
+          </div>
+
+          <div className="prep-panel prep-production-panel">
+            <div className="prep-panel-head">
+              <div><span className="eyebrow">PRODUKSI BATCH</span><h3>Tambah stok prep</h3></div>
+              <span className="batch-badge">Produksi</span>
+            </div>
+            <p className="prep-panel-copy">Catat berapa yang direncanakan dan berapa hasil nyata. Sistem akan menghitung biaya dan yield batch.</p>
+            <div className="prep-production-form">
+              <Field label="Tanggal"><FieldInput type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></Field>
+              <Field label="Target"><FieldInput type="number" min="0.001" step="0.001" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder={prep.unit} /></Field>
+              <Field label="Hasil aktual"><FieldInput type="number" min="0.001" step="0.001" value={actualQty} onChange={(e) => setActualQty(e.target.value)} placeholder={prep.unit} /></Field>
+              {!readOnly && <button className="button button-primary production-submit" type="button" onClick={() => void produce()}><CookingPot size={15} /> Catat produksi</button>}
+            </div>
+            <div className="prep-production-note"><AlertCircle size={15} /><span>Produksi memakai resep di sebelah kiri. Pastikan resep sudah disimpan sebelum membuat batch.</span></div>
+
+            {prep.batches.length > 0 && <div className="prep-history">
+              <div className="prep-history-head"><span className="eyebrow">RIWAYAT</span><b>Batch terakhir</b></div>
+              {prep.batches.slice(0, 5).map((b) => <div className="prep-history-row" key={b.id}>
+                <div><b>{dateLabel(b.date)}</b><small>{b.batchNumber}</small></div>
+                <span>{b.actualQty} {prep.unit}</span>
+                <span>{b.yieldPercentage}% yield</span>
+                <strong>{money(b.unitCost)}/{prep.unit}</strong>
+              </div>)}
+            </div>}
+          </div>
+        </div>
       </Card>
+    </section> : <Card className="prep-empty-selection"><Empty title="Pilih stok prep untuk mengelola" text="Klik salah satu kartu di atas untuk melihat resep, membuat batch, dan melihat riwayat produksi." /></Card>}
 
-      {prep ? <Card>
-        <div className="card-heading"><div><span className="eyebrow">DETAIL PREP</span><h2>{prep.name}</h2></div><span className="period-chip">Stok {prep.stock} {prep.unit}</span></div>
-        <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>QTY</th><th>SATUAN RESEP</th><th /></tr></thead><tbody>
-          {recipeDraft.map((line, i) => <tr key={i}><td><select value={line.ingredientId} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v,j)=>j===i?{...v,ingredientId:Number(e.target.value)}:v))}>{ingredients.map((ing)=><option key={ing.id} value={ing.id}>{ing.name} ({ing.unit})</option>)}</select></td><td><input type="number" min="0.001" step="0.001" value={line.qtyRequired} disabled={readOnly} onChange={(e)=>setRecipeDraft((x)=>x.map((v,j)=>j===i?{...v,qtyRequired:Number(e.target.value)}:v))}/></td><td><input value={line.recipeUnit} disabled={readOnly} onChange={(e)=>setRecipeDraft((x)=>x.map((v,j)=>j===i?{...v,recipeUnit:e.target.value}:v))}/></td><td>{!readOnly && <button className="icon-button" type="button" onClick={()=>setRecipeDraft((x)=>x.filter((_,j)=>j!==i))}><Trash2 size={15}/></button>}</td></tr>)}
-        </tbody></table></div>
-        {!readOnly && <div className="button-row"><button className="secondary-button" type="button" onClick={()=>{const ing=ingredients[0]; if(ing)setRecipeDraft((x)=>[...x,{ingredientId:ing.id,qtyRequired:1,recipeUnit:ing.unit}]);}}><Plus size={16}/> Tambah bahan</button><button className="primary-button" type="button" onClick={()=>void saveRecipe()}><Check size={16}/> Simpan resep prep</button></div>}
-
-        <div className="section-divider" />
-        <div className="card-heading"><div><span className="eyebrow">PRODUKSI BATCH</span><h2>Buat stok prep</h2></div></div>
-        <div className="form-grid"><Field label="Tanggal"><FieldInput type="date" value={batchDate} onChange={(e)=>setBatchDate(e.target.value)} /></Field><Field label="Target"><FieldInput type="number" min="0.001" step="0.001" value={targetQty} onChange={(e)=>setTargetQty(e.target.value)} placeholder={`mis. 2 ${prep.unit}`} /></Field><Field label="Hasil aktual"><FieldInput type="number" min="0.001" step="0.001" value={actualQty} onChange={(e)=>setActualQty(e.target.value)} placeholder={`mis. 1.8 ${prep.unit}`} /></Field>{!readOnly && <button className="primary-button" type="button" onClick={()=>void produce()}><CookingPot size={16}/> Catat produksi</button>}</div>
-        <p className="helper-text">Yield dihitung otomatis dari hasil aktual ÷ target. Bahan baku dikurangi saat produksi dikonfirmasi dan hasilnya masuk sebagai stok prep.</p>
-
-        {prep.batches.length > 0 && <div className="table-scroll"><table><thead><tr><th>BATCH</th><th>TANGGAL</th><th>HASIL</th><th>YIELD</th><th>HPP/UNIT</th></tr></thead><tbody>{prep.batches.slice(0,10).map((b)=><tr key={b.id}><td><b>{b.batchNumber}</b></td><td>{dateLabel(b.date)}</td><td>{b.actualQty} {prep.unit}</td><td>{b.yieldPercentage}%</td><td>{money(b.unitCost)}</td></tr>)}</tbody></table></div>}
-      </Card> : <Card><Empty title="Pilih prep" text="Pilih prep di sebelah kiri untuk mengatur resep dan produksi batch." /></Card>}
-    </div>
-
-    <Card>
-      <div className="card-heading"><div><span className="eyebrow">INTEGRASI PRODUK</span><h2>Pasangkan prep ke produk jualan</h2></div></div>
-      <p className="helper-text">Contoh: Nasi Bakar Ayam memakai Nasi Matang 120 g dan Ayam Suwir 40 g. Saat terjual, stok prep akan berkurang otomatis.</p>
-      <div className="form-grid"><Field label="Produk"><select value={productId} onChange={(e)=>void loadProductPrep(e.target.value)}><option value="">Pilih produk...</option>{products.map((p)=><option key={p.id} value={p.id}>{p.name}</option>)}</select></Field></div>
-      {productId && <><div className="table-scroll"><table><thead><tr><th>PREP</th><th>QTY</th><th>SATUAN RESEP</th><th /></tr></thead><tbody>{productPrepDraft.map((line,i)=><tr key={i}><td><select value={line.preparationId} onChange={(e)=>setProductPrepDraft(x=>x.map((v,j)=>j===i?{...v,preparationId:Number(e.target.value)}:v))} disabled={readOnly}>{preps.map(p=><option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}</select></td><td><input type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e)=>setProductPrepDraft(x=>x.map((v,j)=>j===i?{...v,qtyRequired:Number(e.target.value)}:v))} disabled={readOnly}/></td><td><input value={line.recipeUnit} disabled={readOnly} onChange={(e)=>setProductPrepDraft(x=>x.map((v,j)=>j===i?{...v,recipeUnit:e.target.value}:v))}/></td><td>{!readOnly&&<button className="icon-button" type="button" onClick={()=>setProductPrepDraft(x=>x.filter((_,j)=>j!==i))}><Trash2 size={15}/></button>}</td></tr>)}</tbody></table></div>{!readOnly&&<div className="button-row"><button className="secondary-button" type="button" onClick={()=>{const p=preps[0];if(p)setProductPrepDraft(x=>[...x,{preparationId:p.id,qtyRequired:1,recipeUnit:p.unit}]);}}><Plus size={16}/> Tambah prep</button><button className="primary-button" type="button" onClick={()=>void saveProductPrep()}><Check size={16}/> Simpan komponen prep</button></div>}</>}
+    <Card className="prep-product-card">
+      <div className="prep-product-header">
+        <div>
+          <span className="eyebrow">INTEGRASI PRODUK</span>
+          <h2>Hubungkan prep ke produk jualan</h2>
+          <p>Saat produk terjual, stok prep yang dipakai akan otomatis berkurang dan masuk ke HPP.</p>
+        </div>
+        <span className="prep-product-step">Langkah terakhir</span>
+      </div>
+      <div className="prep-product-body">
+        <Field label="Produk"><FieldSelect value={productId} onChange={(e) => void loadProductPrep(e.target.value)} disabled={readOnly}><option value="">Pilih produk makanan...</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</FieldSelect></Field>
+        {productId ? <div className="prep-product-editor">
+          {productPrepDraft.length ? productPrepDraft.map((line, i) => <div className="prep-product-row" key={i}>
+            <Field label="Prep"><FieldSelect value={line.preparationId} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, preparationId: Number(e.target.value) } : v))} disabled={readOnly}>{preps.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}</FieldSelect></Field>
+            <Field label="Pemakaian per produk"><FieldInput type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} disabled={readOnly} /></Field>
+            <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
+            {!readOnly && <button className="icon-button" type="button" aria-label="Hapus komponen prep" onClick={() => setProductPrepDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
+          </div>) : <Empty title="Belum ada prep untuk produk ini" text="Tambahkan komponen prep yang akan dipakai setiap kali produk terjual." />}
+          {!readOnly && <div className="prep-panel-actions">
+            <button className="button button-secondary" type="button" onClick={() => {
+              const p = preps[0];
+              if (p) setProductPrepDraft((x) => [...x, { preparationId: p.id, qtyRequired: 1, recipeUnit: p.unit }]);
+            }}><Plus size={15} /> Tambah prep</button>
+            <button className="button button-primary" type="button" onClick={() => void saveProductPrep()}><Check size={15} /> Simpan hubungan</button>
+          </div>}
+        </div> : <div className="prep-product-empty"><CookingPot size={18} /><b>Pilih produk terlebih dahulu</b><span>Setelah dipilih, tentukan prep dan jumlah pemakaian per produk.</span></div>}
+      </div>
     </Card>
   </div>;
 }
-
 
 function FnbControlPage() {
   const stateQuery = useGetErpState();
@@ -727,7 +918,7 @@ function FnbControlPage() {
   const addWaste=async()=>{try{const r=await fetch('/api/erp/waste',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({date:endDate,itemType:wasteType,itemId:Number(wasteItem),quantity:Number(wasteQty),reason:wasteReason})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal mencatat waste.');setWasteQty('');await load();}catch(e){setError(errText(e));}};
   const addExpense=async()=>{try{const r=await fetch('/api/erp/expenses',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({date:endDate,category:expenseCategory,description:expenseDescription,amount:Number(expenseAmount)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal mencatat biaya.');setExpenseDescription('');setExpenseAmount('');await load();}catch(e){setError(errText(e));}};
   return <div className="page-stack">
-    <PageHeader eyebrow="KONTROL F&B" title="Food Cost & Profitabilitas" description="Pantau food cost aktual, food cost teoritis, waste, biaya operasional, dan menu paling menguntungkan." />
+    <PageHeading kicker="KONTROL F&B" title="Food Cost & Profitabilitas" note="Pantau food cost aktual, food cost teoritis, waste, biaya operasional, dan menu paling menguntungkan." />
     <Card><div className="form-grid"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={e=>setStartDate(e.target.value)}/></Field><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={e=>setEndDate(e.target.value)}/></Field></div></Card>
     {error&&<div className="error-panel"><AlertCircle size={20}/><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
     {report&&<><div className="report-metrics">
