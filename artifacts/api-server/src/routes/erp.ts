@@ -192,6 +192,21 @@ async function ensureSeedData(): Promise<void> {
   }
 }
 
+const UNIT_GROUPS: Record<string, { group: string; factor: number }> = {
+  gram: { group: "weight", factor: 1 }, kg: { group: "weight", factor: 1000 },
+  ml: { group: "volume", factor: 1 }, liter: { group: "volume", factor: 1000 },
+  pcs: { group: "count", factor: 1 }, butir: { group: "count", factor: 1 },
+  ekor: { group: "count", factor: 1 }, potong: { group: "count", factor: 1 },
+  ikat: { group: "count", factor: 1 }, pack: { group: "count", factor: 1 },
+  box: { group: "count", factor: 1 }, botol: { group: "count", factor: 1 },
+};
+function recipeConversionFactor(recipeUnit: string, stockUnit: string): number | null {
+  if (recipeUnit === stockUnit) return 1;
+  const recipe = UNIT_GROUPS[recipeUnit], stock = UNIT_GROUPS[stockUnit];
+  if (!recipe || !stock || recipe.group !== stock.group) return null;
+  return recipe.factor / stock.factor;
+}
+
 function jakartaToday(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Jakarta",
@@ -285,6 +300,7 @@ router.get(
           ingredientName: ingredientsTable.name,
           unit: ingredientsTable.unit,
           qtyRequired: recipeItemsTable.qtyRequired,
+          recipeUnit: recipeItemsTable.recipeUnit,
         })
         .from(recipeItemsTable)
         .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
@@ -612,18 +628,24 @@ router.put(
           throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
         }
       }
-      await tx
-        .delete(recipeItemsTable)
-        .where(eq(recipeItemsTable.productId, params.data.productId));
-      if (body.data.items.length) {
-        await tx.insert(recipeItemsTable).values(
-          body.data.items.map((item) => ({
-            productId: params.data.productId,
-            ingredientId: item.ingredientId,
-            qtyRequired: String(item.qtyRequired),
-          })),
-        );
+      const rows = ids.length
+        ? await tx.select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids))
+        : [];
+      if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
+      if (rows.some((row) => isOperationalIngredient(row.category))) {
+        throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
       }
+      const ingredientMap = new Map(rows.map((row) => [row.id, row]));
+      const recipeRows = body.data.items.map((item) => {
+        const ingredient = ingredientMap.get(item.ingredientId)!;
+        const conversionFactor = recipeConversionFactor(item.recipeUnit, ingredient.unit);
+        if (conversionFactor === null) {
+          throw new HttpError(`Satuan resep ${item.recipeUnit} tidak kompatibel dengan satuan stok ${ingredient.unit} untuk bahan ${ingredient.name}.`, 400);
+        }
+        return { productId: params.data.productId, ingredientId: item.ingredientId, qtyRequired: String(item.qtyRequired), recipeUnit: item.recipeUnit, conversionFactor: String(conversionFactor) };
+      });
+      await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
+      if (recipeRows.length) await tx.insert(recipeItemsTable).values(recipeRows);
       return tx
         .select({
           productId: recipeItemsTable.productId,
@@ -952,7 +974,7 @@ router.post(
           requiredByIngredient.set(
             item.ingredientId,
             (requiredByIngredient.get(item.ingredientId) ?? 0) +
-            number(item.qtyRequired) * soldQuantity,
+            number(item.qtyRequired) * number(item.conversionFactor) * soldQuantity,
           );
         }
       }
@@ -1007,7 +1029,7 @@ router.post(
           ? recipe.reduce((sum, item) => {
               const ingredient = ingredientById.get(item.ingredientId)!;
               if (isOperationalIngredient(ingredient.category)) return sum;
-              return sum + number(item.qtyRequired) * quantity * number(ingredient.averageCost);
+              return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(ingredient.averageCost);
             }, 0)
           : number(product.averageCost) * quantity;
         return {
