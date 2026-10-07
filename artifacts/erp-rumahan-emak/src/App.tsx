@@ -56,6 +56,10 @@ const errText = (e: unknown) => {
 };
 const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('kasapink_token') || ''}` });
 
+let unsavedChanges = false;
+const setUnsavedChanges = (value: boolean) => { unsavedChanges = value; };
+const confirmNavigation = () => !unsavedChanges || window.confirm('Perubahan belum disimpan. Jika pindah menu sekarang, isian yang belum disimpan akan hilang. Tetap keluar?');
+
 function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg }: {
   onLogin: (e: React.FormEvent) => void;
   onSetup: (username: string, password: string, bootstrapToken: string) => void;
@@ -138,10 +142,10 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
           <button type="button" className="nav-group-heading" aria-expanded={expandedMenu === href} aria-controls={`${href.slice(1)}-submenu`} onClick={() => setExpandedMenu((open) => open === href ? null : href)}>
             <Icon size={18} strokeWidth={1.8} /><span>{label}</span><ChevronDown className={`nav-group-chevron ${expandedMenu === href ? 'is-open' : ''}`} size={16} />
           </button>
-          {expandedMenu === href && <div className="nav-submenu" id={`${href.slice(1)}-submenu`}>{children.map((child) => <Link key={child.href} href={child.href} onClick={() => setMobileNav(false)} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
+          {expandedMenu === href && <div className="nav-submenu" id={`${href.slice(1)}-submenu`}>{children.map((child) => <Link key={child.href} href={child.href} onClick={(e) => { if (!confirmNavigation()) { e.preventDefault(); return; } setMobileNav(false); setUnsavedChanges(false); }} className={`nav-sub-link ${path === child.href ? 'is-active' : ''}`} data-testid={`link-nav-${child.href.replaceAll('/', '-')}`}>
             <span>{child.label}</span>{path === child.href && <span className="nav-current" />}
           </Link>)}</div>}
-        </div> : <Link key={href} href={href} onClick={() => setMobileNav(false)} className={`nav-link ${path === href ? 'is-active' : ''}`} data-testid={`link-nav-${href.replace('/', '') || 'dashboard'}`}>
+        </div> : <Link key={href} href={href} onClick={(e) => { if (!confirmNavigation()) { e.preventDefault(); return; } setMobileNav(false); setUnsavedChanges(false); }} className={`nav-link ${path === href ? 'is-active' : ''}`} data-testid={`link-nav-${href.replace('/', '') || 'dashboard'}`}>
           <Icon size={18} strokeWidth={1.8} /><span>{label}</span>{path === href && <span className="nav-current" />}
         </Link>)}
       </nav>
@@ -260,6 +264,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
   const openModal = (value: Ingredient | 'new') => {
     setError('');
     setFormDirty(false);
+    setUnsavedChanges(false);
     setModal(value);
     setFormCategory(value === 'new' ? '' : value.category);
     setFormUnit(value === 'new' ? '' : value.unit);
@@ -302,7 +307,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan' }: { ingredients?: 
     <Card className="table-card"><div className="table-toolbar"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><span className="result-count">{visible.length} bahan</span></div>
       {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
-    {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => setFormDirty(true)} onChange={() => setFormDirty(true)} onSubmit={save}>
+    {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
       <Field label="Nama bahan"><FieldInput name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" /></Field>
       <Field label="Kategori"><FieldSelect name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan"><FieldSelect name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
@@ -332,6 +337,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
   const openNewProduct = () => {
     setError('');
     setProductFormDirty(false);
+    setUnsavedChanges(false);
     setNeedsRecipe(true);
     setAutoRecipe(false);
     setEditing('new');
@@ -339,6 +345,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
   const openEditProduct = (product: Product) => {
     setError('');
     setProductFormDirty(false);
+    setUnsavedChanges(false);
     setNeedsRecipe(product.needsRecipe);
     setAutoRecipe(false);
     setEditing(product);
@@ -363,7 +370,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
         ? { autoRecipeIngredientId: Number(f.get('autoRecipeIngredientId')) }
         : {}),
     };
-    const success = () => { refresh(); setEditing(null); setError(''); setAutoRecipe(false); setProductFormDirty(false); };
+    const success = () => { refresh(); setEditing(null); setError(''); setAutoRecipe(false); setProductFormDirty(false); setUnsavedChanges(false); };
     if (editing === 'new') create.mutate({ data }, { onSuccess: success, onError: (x) => setError(errText(x)) });
     else if (editing) update.mutate({ productId: editing.id, data }, { onSuccess: success, onError: (x) => setError(errText(x)) });
   };
@@ -420,7 +427,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
         </Card>;
       })}</div>}
     {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={closeProductForm}>
-      <form className="form-stack" onInput={() => setProductFormDirty(true)} onChange={() => setProductFormDirty(true)} onSubmit={submitProduct}>
+      <form className="form-stack" onInput={() => { setProductFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setProductFormDirty(true); setUnsavedChanges(true); }} onSubmit={submitProduct}>
         <Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>
         <Field label="Harga jual per unit"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field>
 
@@ -459,9 +466,9 @@ function PurchasePage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
   const mutation = useRecordPurchase(), refresh = useRefresh();
   const total = lines.reduce((sum, l) => sum + (Number(l.totalCost) || 0), 0);
   const patch = (index: number, key: keyof PurchaseLine, value: number | '') => setLines((prev) => prev.map((l, i) => i === index ? { ...l, [key]: value } : l));
-  const submit = (e: React.FormEvent) => { e.preventDefault(); setError(''); setDone(''); mutation.mutate({ data: { date, supplierType: supplier, items: lines.filter((l) => l.ingredientId && l.quantity > 0).map((l) => ({ ingredientId: l.ingredientId, quantity: Number(l.quantity), totalCost: Number(l.totalCost || 0) })) } }, { onSuccess: (p) => { refresh(); setDone(`Belanja ${money(p.totalCost)} berhasil dicatat.`); setLines([{ ingredientId: safeIngredients[0]?.id || 0, quantity: 1, totalCost: '' }]); }, onError: (x) => setError(errText(x)) }); };
+  const submit = (e: React.FormEvent) => { e.preventDefault(); setError(''); setDone(''); mutation.mutate({ data: { date, supplierType: supplier, items: lines.filter((l) => l.ingredientId && l.quantity > 0).map((l) => ({ ingredientId: l.ingredientId, quantity: Number(l.quantity), totalCost: Number(l.totalCost || 0) })) } }, { onSuccess: (p) => { refresh(); setUnsavedChanges(false); setDone(`Belanja ${money(p.totalCost)} berhasil dicatat.`); setLines([{ ingredientId: safeIngredients[0]?.id || 0, quantity: 1, totalCost: '' }]); }, onError: (x) => setError(errText(x)) }); };
   return <><PageHeading kicker="PEMBELIAN BAHAN" title="Catat Belanja" note="Satu catatan untuk semua bahan yang dibeli hari ini." />
-    <div className="entry-layout"><Card className="entry-card"><div className="card-heading"><div><span className="eyebrow">DETAIL BELANJA</span><h2>Belanja bahan</h2></div><span className="step-number">01</span></div><form onSubmit={submit} className="form-stack"><div className="form-row"><Field label="Tanggal"><FieldInput type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field><Field label="Asal belanja"><FieldSelect value={supplier} onChange={(e) => setSupplier(e.target.value)}><option>Pasar</option><option>Toko</option><option>Grosir</option><option>Lainnya</option></FieldSelect></Field></div>
+    <div className="entry-layout"><Card className="entry-card"><div className="card-heading"><div><span className="eyebrow">DETAIL BELANJA</span><h2>Belanja bahan</h2></div><span className="step-number">01</span></div><form onSubmit={submit} className="form-stack" onInput={() => setUnsavedChanges(true)} onChange={() => setUnsavedChanges(true)}><div className="form-row"><Field label="Tanggal"><FieldInput type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field><Field label="Asal belanja"><FieldSelect value={supplier} onChange={(e) => setSupplier(e.target.value)}><option>Pasar</option><option>Toko</option><option>Grosir</option><option>Lainnya</option></FieldSelect></Field></div>
       <div className="line-head"><b>Daftar bahan</b><span>Jumlah & biaya total</span></div>
       {lines.map((l, idx) => <div className="purchase-line" key={idx}><Field label="Bahan"><FieldSelect required value={l.ingredientId || ''} onChange={(e) => patch(idx, 'ingredientId', Number(e.target.value))}><option value="" disabled>Pilih bahan</option>{safeIngredients.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}</FieldSelect></Field><Field label="Jumlah"><FieldInput required min="0.001" step="any" type="number" value={l.quantity} onChange={(e) => patch(idx, 'quantity', Number(e.target.value))} /></Field><Field label="Total biaya"><FieldInput required min="0" step="100" type="number" value={l.totalCost} onChange={(e) => patch(idx, 'totalCost', e.target.value === '' ? '' : Number(e.target.value))} /></Field><button className="remove-line" type="button" aria-label="Hapus baris" disabled={lines.length === 1} onClick={() => setLines(lines.filter((_, i) => i !== idx))}><X size={16} /></button></div>)}
       <button className="add-line" type="button" onClick={() => setLines([...lines, { ingredientId: safeIngredients[0]?.id || 0, quantity: 1, totalCost: '' }])}><CirclePlus size={16} /> Tambah bahan</button>
@@ -480,12 +487,12 @@ function SalePage({ state }: { state: ErpState }) {
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone(''); setWarnings([]);
     mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && l.quantity > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
-      onSuccess: (sale) => { refresh(); setDone(`Penjualan ${money(sale.totalRevenue)} berhasil dicatat.`); setWarnings(sale.warnings || []); setLines([{ productId: availableProducts[0]?.id || 0, quantity: '' }]); },
+      onSuccess: (sale) => { refresh(); setUnsavedChanges(false); setDone(`Penjualan ${money(sale.totalRevenue)} berhasil dicatat.`); setWarnings(sale.warnings || []); setLines([{ productId: availableProducts[0]?.id || 0, quantity: '' }]); },
       onError: (x) => setError(errText(x)),
     });
   };
   return <><PageHeading kicker="PENJUALAN HARIAN" title="Catat Penjualan" note="Simpan transaksi meski stok kurang; periksa warning untuk bahan atau produk yang perlu diisi." />
-    <div className="entry-layout"><Card className="entry-card"><div className="card-heading"><div><span className="eyebrow">TRANSAKSI BARU</span><h2>Penjualan</h2></div><span className="step-number">01</span></div><form onSubmit={submit} className="form-stack">
+    <div className="entry-layout"><Card className="entry-card"><div className="card-heading"><div><span className="eyebrow">TRANSAKSI BARU</span><h2>Penjualan</h2></div><span className="step-number">01</span></div><form onSubmit={submit} className="form-stack" onInput={() => setUnsavedChanges(true)} onChange={() => setUnsavedChanges(true)}>
       <div><span className="mb-2 block text-xs font-semibold text-gray-600">Kategori penjualan</span><div className="flex flex-wrap gap-2" role="group" aria-label="Kategori penjualan">{(['Makanan', 'Parfum'] as const).map((category) => <button key={category} type="button" aria-pressed={kategoriPenjualan === category} className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${kategoriPenjualan === category ? 'bg-[#2A3F32] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} onClick={() => { setKategoriPenjualan(category); setLines([{ productId: safeProducts.find((product) => product.businessType === category)?.id || 0, quantity: '' }]); setError(''); setDone(''); setWarnings([]); }}>{category}</button>)}</div></div>
       <Field label="Tanggal"><FieldInput type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field><div className="line-head"><b>Produk terjual</b><span>Harga mengikuti daftar produk</span></div>
       {lines.map((l, idx) => <div className="sale-line" key={idx}><Field label="Produk"><FieldSelect required value={l.productId || ''} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, productId: Number(e.target.value) } : item))}><option value="" disabled>Pilih produk</option>{availableProducts.map((p) => <option value={p.id} key={p.id}>{p.name} • {money(p.sellingPrice)}{p.needsRecipe ? ' • olahan' : ` • stok ${p.stock}`}</option>)}</FieldSelect></Field><Field label="Jumlah"><FieldInput required type="number" min="1" step="1" value={l.quantity} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, quantity: e.target.value === '' ? '' : Number(e.target.value) } : item))} /></Field><button className="remove-line" type="button" disabled={lines.length === 1} aria-label="Hapus produk" onClick={() => setLines(lines.filter((_, i) => i !== idx))}><X size={16} /></button></div>)}
