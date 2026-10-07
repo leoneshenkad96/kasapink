@@ -1126,7 +1126,7 @@ router.post(
         });
       }
       await tx.insert(purchaseDetailsTable).values(details);
-      await tx.insert(stockMovementsTable).values(movements);
+      if (movements.length) await tx.insert(stockMovementsTable).values(movements);
       return {
         id: purchase.id,
         date: purchase.date,
@@ -1326,7 +1326,7 @@ router.post(
 
       const warnings: string[] = [];
       const missingRecipes = productRows
-        .filter((product) => product.needsRecipe && !recipesByProduct.get(product.id)?.length)
+        .filter((product) => product.needsRecipe && !recipesByProduct.get(product.id)?.length && !productPrepRows.some((row) => row.productId === product.id))
         .map((product) => product.name);
       for (const name of missingRecipes) {
         warnings.push(`Resep belum diatur untuk ${name}; transaksi tetap dicatat tanpa pemotongan bahan.`);
@@ -1338,6 +1338,7 @@ router.post(
         const product = productRows.find((row) => row.id === productId)!;
         if (!product.needsRecipe) continue;
         for (const item of recipesByProduct.get(productId) ?? []) {
+          if (!item.ingredientId) continue;
           requiredByIngredient.set(
             item.ingredientId,
             (requiredByIngredient.get(item.ingredientId) ?? 0) +
