@@ -974,12 +974,6 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     for (const recipe of recipes.filter((r) => r.productId === line.productId && r.ingredientId)) {
       theoreticalIngredient.set(recipe.ingredientId!, (theoreticalIngredient.get(recipe.ingredientId!) ?? 0) + number(recipe.qtyRequired) * number(recipe.conversionFactor) * line.quantity);
     }
-    for (const link of productPreps.filter((r) => r.productId === line.productId)) {
-      const prep = prepById.get(link.preparationId);
-      if (!prep) continue;
-      const prepScale = number(link.qtyRequired) * number(link.conversionFactor);
-      for (const recipe of recipes.filter(() => false)) { void recipe; }
-    }
   }
   const prepRecipeRows = await db.select().from(preparationRecipeItemsTable);
   for (const line of details) {
