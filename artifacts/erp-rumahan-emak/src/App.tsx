@@ -394,7 +394,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const saveRecipeForm = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); if (!recipeProduct) return;
     const form = new FormData(e.currentTarget);
-    const items = safeIngredients.map((i) => ({ ingredientId: i.id, qtyRequired: Number(form.get(`qty-${i.id}`)) || 0 })).filter((i) => i.qtyRequired > 0);
+    const items = safeIngredients.map((i) => ({ ingredientId: i.id, recipeUnit: String(form.get(`unit-${i.id}`) || i.unit), qtyRequired: Number(form.get(`qty-${i.id}`)) || 0 })).filter((i) => i.qtyRequired > 0);
     saveRecipe.mutate({ productId: recipeProduct.id, data: { items } }, { onSuccess: () => { refresh(); setRecipeProduct(null); setError(''); }, onError: (x) => setError(errText(x)) });
   };
   const handleDeleteProduct = async (id: number, name: string) => {
@@ -468,8 +468,8 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
     </Modal>}
     {recipeProduct && <Modal title={`Atur resep — ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}>
       <form className="form-stack" onSubmit={saveRecipeForm}>
-        <p className="modal-intro">Masukkan jumlah setiap bahan yang digunakan untuk membuat satu produk. Gunakan satuan yang sama dengan stok bahan, misalnya 4 ekor udang, 5 gram bawang putih, atau 10 ml minyak.</p>
-        {macroIngredients.length ? <div className="recipe-editor">{macroIngredients.map((i) => <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>{i.unit} digunakan per produk</small></div><FieldInput aria-label={`Jumlah ${i.name} per produk dalam ${i.unit}`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={recipe.find((r) => r.ingredientId === i.id)?.qtyRequired || ''} placeholder={`Jumlah (${i.unit})`} /></div>)}</div> : <Empty title="Belum ada bahan makro" text="Tambahkan bahan utama di Stok Bahan terlebih dahulu." />}
+        <p className="modal-intro">Masukkan jumlah bahan yang digunakan untuk satu produk. Satuan resep boleh berbeda dari satuan stok jika masih satu kelompok, misalnya stok ayam dalam kg tetapi resep menggunakan gram. Sistem akan mengonversinya otomatis.</p>
+        {macroIngredients.length ? <div className="recipe-editor">{macroIngredients.map((i) => { const saved = recipe.find((r) => r.ingredientId === i.id); const units = recipeUnitsFor(i.unit); const selectedUnit = saved?.recipeUnit && units.includes(saved.recipeUnit) ? saved.recipeUnit : i.unit; return <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>Stok: {i.unit} · digunakan per produk</small></div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><FieldSelect disabled={readOnly} aria-label={`Satuan resep untuk ${i.name}`} name={`unit-${i.id}`} defaultValue={selectedUnit}>{units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</FieldSelect><FieldInput disabled={readOnly} aria-label={`Jumlah ${i.name} per produk`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={saved?.qtyRequired || ''} placeholder="Jumlah" /></div></div>; })}</div> : <Empty title="Belum ada bahan makro" text="Tambahkan bahan utama di Stok Bahan terlebih dahulu." />}
         <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setRecipeProduct(null)}>Batal</Button><Button type="submit" disabled={saveRecipe.isPending || !macroIngredients.length}>{saveRecipe.isPending ? 'Menyimpan?' : 'Simpan resep'}</Button></div>
       </form>
     </Modal>}
