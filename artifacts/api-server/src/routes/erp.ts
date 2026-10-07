@@ -642,6 +642,45 @@ router.put(
   }),
 );
 
+router.get(
+  "/erp/price-trends",
+  safe(async (_req, res) => {
+    const rows = await db
+      .select({
+        ingredientId: purchaseDetailsTable.ingredientId,
+        ingredientName: ingredientsTable.name,
+        unit: ingredientsTable.unit,
+        date: purchasesTable.date,
+        supplierType: purchasesTable.supplierType,
+        quantity: purchaseDetailsTable.quantity,
+        totalCost: purchaseDetailsTable.totalCost,
+        unitCost: purchaseDetailsTable.unitCost,
+      })
+      .from(purchaseDetailsTable)
+      .innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id))
+      .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
+      .orderBy(desc(purchasesTable.date), desc(purchaseDetailsTable.id));
+    const history = new Map<number, Array<{ date: string; supplierType: string; quantity: number; totalCost: number; unitCost: number }>>();
+    for (const row of rows) {
+      const items = history.get(row.ingredientId) ?? [];
+      if (items.length < 12) {
+        items.push({ date: dateKey(row.date), supplierType: row.supplierType, quantity: number(row.quantity), totalCost: number(row.totalCost), unitCost: number(row.unitCost) });
+        history.set(row.ingredientId, items);
+      }
+    }
+    res.json([...history.entries()].map(([ingredientId, items]) => ({
+      ingredientId,
+      ingredientName: rows.find((row) => row.ingredientId === ingredientId)?.ingredientName ?? "",
+      unit: rows.find((row) => row.ingredientId === ingredientId)?.unit ?? "",
+      history: items,
+      latestPrice: items[0]?.unitCost ?? null,
+      previousPrice: items[1]?.unitCost ?? null,
+      changeAmount: items.length > 1 ? roundMoney(items[0].unitCost - items[1].unitCost) : null,
+      changePercent: items.length > 1 && items[1].unitCost > 0 ? roundMoney(((items[0].unitCost - items[1].unitCost) / items[1].unitCost) * 100) : null,
+    })));
+  }),
+);
+
 router.post(
   "/erp/purchases",
   safe(async (req, res) => {
