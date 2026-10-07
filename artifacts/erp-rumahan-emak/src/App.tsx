@@ -948,29 +948,182 @@ function FnbControlPage() {
   const [expenseDescription,setExpenseDescription]=useState('');
   const [expenseAmount,setExpenseAmount]=useState('');
   const [error,setError]=useState('');
-  const load=useCallback(async()=>{try{setError('');const r=await fetch(`/api/erp/fnb-report?startDate=${startDate}&endDate=${endDate}`,{headers:authHeaders()});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal memuat laporan F&B.');setReport(d);}catch(e){setError(errText(e));}},[startDate,endDate]);
+
+  const load=useCallback(async()=>{
+    try{
+      setError('');
+      const r=await fetch(`/api/erp/fnb-report?startDate=${startDate}&endDate=${endDate}`,{headers:authHeaders()});
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(d.error||'Gagal memuat laporan F&B.');
+      setReport(d);
+    }catch(e){setError(errText(e));}
+  },[startDate,endDate]);
+
   useEffect(()=>{void load();},[load]);
+
   const ingredients=stateQuery.data?.ingredients.filter(x=>x.stockType==='Makanan')??[];
-  const prepQuery=useState<Prep[]>([]); const preps=prepQuery[0]; const setPreps=prepQuery[1];
-  useEffect(()=>{void fetch('/api/erp/preparations',{headers:authHeaders()}).then(r=>r.json()).then(d=>setPreps(Array.isArray(d)?d:[])).catch(()=>{});},[]);
+  const prepQuery=useState<Prep[]>([]);
+  const preps=prepQuery[0];
+  const setPreps=prepQuery[1];
+
+  useEffect(()=>{
+    void fetch('/api/erp/preparations',{headers:authHeaders()})
+      .then(r=>r.json())
+      .then(d=>setPreps(Array.isArray(d)?d:[]))
+      .catch(()=>{});
+  },[]);
+
   const items=wasteType==='ingredient'?ingredients:preps;
-  const addWaste=async()=>{try{const r=await fetch('/api/erp/waste',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({date:endDate,itemType:wasteType,itemId:Number(wasteItem),quantity:Number(wasteQty),reason:wasteReason})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal mencatat waste.');setWasteQty('');await load();}catch(e){setError(errText(e));}};
-  const addExpense=async()=>{try{const r=await fetch('/api/erp/expenses',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({date:endDate,category:expenseCategory,description:expenseDescription,amount:Number(expenseAmount)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal mencatat biaya.');setExpenseDescription('');setExpenseAmount('');await load();}catch(e){setError(errText(e));}};
-  return <div className="page-stack">
-    <PageHeading kicker="KONTROL F&B" title="Food Cost & Profitabilitas" note="Pantau food cost aktual, food cost teoritis, waste, biaya operasional, dan menu paling menguntungkan." />
-    <Card><div className="form-grid"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={e=>setStartDate(e.target.value)}/></Field><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={e=>setEndDate(e.target.value)}/></Field></div></Card>
+
+  const addWaste=async()=>{
+    try{
+      const r=await fetch('/api/erp/waste',{
+        method:'POST',
+        headers:{...authHeaders(),'Content-Type':'application/json'},
+        body:JSON.stringify({date:endDate,itemType:wasteType,itemId:Number(wasteItem),quantity:Number(wasteQty),reason:wasteReason})
+      });
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(d.error||'Gagal mencatat waste.');
+      setWasteQty('');
+      setWasteItem('');
+      await load();
+    }catch(e){setError(errText(e));}
+  };
+
+  const addExpense=async()=>{
+    try{
+      const r=await fetch('/api/erp/expenses',{
+        method:'POST',
+        headers:{...authHeaders(),'Content-Type':'application/json'},
+        body:JSON.stringify({date:endDate,category:expenseCategory,description:expenseDescription,amount:Number(expenseAmount)})
+      });
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok)throw new Error(d.error||'Gagal mencatat biaya.');
+      setExpenseDescription('');
+      setExpenseAmount('');
+      await load();
+    }catch(e){setError(errText(e));}
+  };
+
+  const grossMargin = report && Number(report.revenue) > 0
+    ? (Number(report.grossProfit) / Number(report.revenue)) * 100
+    : 0;
+
+  return <div className="page-stack fnb-page">
+    <PageHeading
+      kicker="KONTROL F&B"
+      title="Kontrol F&B"
+      note="Pantau penjualan, food cost, waste, dan laba usaha dalam satu layar."
+    />
+
+    <Card className="fnb-filter-card">
+      <div className="fnb-filter-copy">
+        <span className="eyebrow">PERIODE LAPORAN</span>
+        <h2>Ringkasan usaha</h2>
+        <p>Pilih periode untuk melihat kondisi operasional dapur dan profitabilitas menu.</p>
+      </div>
+      <div className="fnb-filter-fields">
+        <Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={e=>setStartDate(e.target.value)}/></Field>
+        <span className="fnb-filter-arrow">→</span>
+        <Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={e=>setEndDate(e.target.value)}/></Field>
+        <div className="fnb-filter-status"><CalendarDays size={15}/><span>{dateLabel(startDate)} – {dateLabel(endDate)}</span></div>
+      </div>
+    </Card>
+
     {error&&<div className="error-panel"><AlertCircle size={20}/><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
-    {report&&<><div className="report-metrics">
-      <Card className="report-total"><span className="metric-label">PENJUALAN</span><strong>{money(report.revenue)}</strong><small>Pendapatan menu</small></Card>
-      <Card className="report-total"><span className="metric-label">FOOD COST AKTUAL</span><strong>{report.actualFoodCostPercentage}%</strong><small>{money(report.actualCogs)} COGS</small></Card>
-      <Card className="report-total"><span className="metric-label">FOOD COST TEORITIS</span><strong>{report.theoreticalFoodCostPercentage}%</strong><small>{money(report.theoreticalCogs)} biaya ideal</small></Card>
-      <Card className="report-total highlight"><span className="metric-label">LABA BERSIH OPERASIONAL</span><strong>{money(report.netProfit)}</strong><small>Setelah waste & biaya operasional</small></Card>
-    </div>
-    <Card><div className="card-heading"><div><span className="eyebrow">MENU PROFITABILITY</span><h2>Performa per menu</h2></div><span className="period-chip">Variance {money(report.foodCostVariance)}</span></div><div className="table-scroll"><table><thead><tr><th>MENU</th><th>TERJUAL</th><th>PENJUALAN</th><th>HPP</th><th>FOOD COST</th><th>LABA KOTOR</th></tr></thead><tbody>{report.menus.map((m:any)=><tr key={m.productId}><td><b>{m.productName}</b></td><td>{m.quantity}</td><td>{money(m.revenue)}</td><td>{money(m.actualCogs)}</td><td>{m.foodCostPercentage}%</td><td><b>{money(m.grossProfit)}</b></td></tr>)}</tbody></table></div></Card>
-    <Card><div className="card-heading"><div><span className="eyebrow">ACTUAL VS TEORITIS</span><h2>Variance penggunaan stok</h2></div><span className="period-chip">Aktual − teoritis</span></div><p className="helper-text">Variance positif berarti pemakaian aktual lebih tinggi dari yang seharusnya menurut penjualan dan resep. Produksi prep yang dibuat jauh sebelum penjualan bisa membuat angka periode terlihat berbeda.</p><div className="table-scroll"><table><thead><tr><th>ITEM</th><th>AKTUAL</th><th>TEORITIS</th><th>VARIANCE</th><th>DAMPAK BIAYA</th></tr></thead><tbody>{(report.inventoryVariance||[]).slice(0,15).map((v:any)=><tr key={v.itemType+'-'+v.itemId}><td><b>{v.itemName}</b><small className="muted">{v.itemType==='preparation'?'Prep':'Bahan'}</small></td><td>{v.actualQty} {v.unit}</td><td>{v.theoreticalQty} {v.unit}</td><td><b>{v.varianceQty > 0 ? '+' : ''}{v.varianceQty} {v.unit}</b></td><td>{money(v.varianceCost)}</td></tr>)}</tbody></table></div></Card>
-    <div className="content-grid"><Card><div className="card-heading"><div><span className="eyebrow">WASTE</span><h2>Catat bahan terbuang</h2></div></div><div className="form-grid"><Field label="Jenis"><select value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field><Field label="Item"><select value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field><Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={wasteQty} onChange={e=>setWasteQty(e.target.value)}/></Field><Field label="Alasan"><FieldInput value={wasteReason} onChange={e=>setWasteReason(e.target.value)}/></Field><button className="primary-button" type="button" onClick={()=>void addWaste()}><Trash2 size={16}/> Catat Waste</button></div><p className="helper-text">Waste langsung mengurangi stok dan nilainya masuk laporan. Ini dipisahkan dari susut/yield produksi.</p></Card>
-    <Card><div className="card-heading"><div><span className="eyebrow">BIAYA OPERASIONAL</span><h2>Catat biaya di luar bahan</h2></div></div><div className="form-grid"><Field label="Kategori"><FieldInput value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air, transport..." /></Field><Field label="Keterangan"><FieldInput value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)}/></Field><Field label="Nominal"><FieldInput type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)}/></Field><button className="primary-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={16}/> Simpan Biaya</button></div><p className="helper-text">Biaya operasional dipakai untuk menghitung laba bersih setelah laba kotor.</p></Card></div>
-    <Card><div className="card-heading"><div><span className="eyebrow">RINGKASAN KONTROL</span><h2>Waste & biaya</h2></div></div><div className="report-metrics"><div className="metric-box"><span>Waste</span><b>{money(report.wasteCost)}</b><small>{report.wasteCount} catatan</small></div><div className="metric-box"><span>Biaya operasional</span><b>{money(report.operatingExpenses)}</b><small>periode terpilih</small></div><div className="metric-box"><span>Variance food cost</span><b>{money(report.foodCostVariance)}</b><small>aktual − teoritis</small></div></div></Card>
+
+    {report&&<>
+      <section className="fnb-kpi-grid">
+        <Card className="fnb-kpi">
+          <span className="metric-label">PENJUALAN</span>
+          <strong>{money(report.revenue)}</strong>
+          <small>Pendapatan dari menu</small>
+        </Card>
+        <Card className="fnb-kpi">
+          <span className="metric-label">FOOD COST AKTUAL</span>
+          <strong>{report.actualFoodCostPercentage}%</strong>
+          <small>{money(report.actualCogs)} HPP aktual</small>
+        </Card>
+        <Card className="fnb-kpi">
+          <span className="metric-label">FOOD COST TEORITIS</span>
+          <strong>{report.theoreticalFoodCostPercentage}%</strong>
+          <small>{money(report.theoreticalCogs)} berdasarkan resep</small>
+        </Card>
+        <Card className="fnb-kpi fnb-kpi-primary">
+          <span className="metric-label">LABA BERSIH</span>
+          <strong>{money(report.netProfit)}</strong>
+          <small>{grossMargin.toFixed(1)}% margin kotor</small>
+        </Card>
+      </section>
+
+      <Card className="fnb-health-card">
+        <div className="fnb-section-heading">
+          <div><span className="eyebrow">KESEHATAN FOOD COST</span><h2>Aktual vs standar resep</h2></div>
+          <span className="period-chip">{money(report.foodCostVariance)} variance</span>
+        </div>
+        <div className="fnb-health-grid">
+          <div className="fnb-health-main">
+            <div className="fnb-health-values">
+              <div><span>Aktual</span><strong>{report.actualFoodCostPercentage}%</strong></div>
+              <div><span>Teoritis</span><strong>{report.theoreticalFoodCostPercentage}%</strong></div>
+              <div><span>Selisih biaya</span><strong>{money(report.foodCostVariance)}</strong></div>
+            </div>
+            <div className="fnb-health-track"><span style={{width:`${Math.min(100,Math.max(0,Number(report.actualFoodCostPercentage)))}%`}} /></div>
+            <p className="helper-text">Food cost aktual menunjukkan HPP yang benar-benar tercatat dari penjualan. Food cost teoritis menunjukkan biaya yang seharusnya terjadi berdasarkan resep.</p>
+          </div>
+          <div className="fnb-control-summary">
+            <div><span>Waste</span><strong>{money(report.wasteCost)}</strong><small>{report.wasteCount} catatan</small></div>
+            <div><span>Biaya operasional</span><strong>{money(report.operatingExpenses)}</strong><small>periode terpilih</small></div>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="fnb-section-heading">
+          <div><span className="eyebrow">PROFITABILITAS MENU</span><h2>Menu yang menghasilkan</h2><p>Bandingkan penjualan, HPP, dan laba kotor tiap menu.</p></div>
+        </div>
+        <div className="table-scroll fnb-table-wrap">
+          <table><thead><tr><th>MENU</th><th>TERJUAL</th><th>PENJUALAN</th><th>HPP</th><th>FOOD COST</th><th>LABA KOTOR</th></tr></thead>
+          <tbody>{report.menus.map((m:any)=><tr key={m.productId}><td><b>{m.productName}</b></td><td>{m.quantity}</td><td>{money(m.revenue)}</td><td>{money(m.actualCogs)}</td><td><span className="fnb-foodcost-pill">{m.foodCostPercentage}%</span></td><td><b>{money(m.grossProfit)}</b></td></tr>)}</tbody></table>
+        </div>
+      </Card>
+
+      <Card>
+        <div className="fnb-section-heading">
+          <div><span className="eyebrow">STOK & VARIANCE</span><h2>Apa yang lebih banyak terpakai?</h2><p>Bandingkan pemakaian aktual dengan kebutuhan menurut resep dan penjualan.</p></div>
+          <span className="period-chip">Aktual − teoritis</span>
+        </div>
+        <div className="table-scroll fnb-table-wrap">
+          <table><thead><tr><th>ITEM</th><th>AKTUAL</th><th>TEORITIS</th><th>SELISIH</th><th>DAMPAK BIAYA</th></tr></thead>
+          <tbody>{(report.inventoryVariance||[]).slice(0,15).map((v:any)=><tr key={v.itemType+'-'+v.itemId}><td><b>{v.itemName}</b><small className="muted">{v.itemType==='preparation'?'Prep':'Bahan'}</small></td><td>{v.actualQty} {v.unit}</td><td>{v.theoreticalQty} {v.unit}</td><td><span className={'fnb-variance-pill '+(Number(v.varianceQty)>0?'is-over':'is-ok')}>{Number(v.varianceQty)>0?'+':''}{v.varianceQty} {v.unit}</span></td><td>{money(v.varianceCost)}</td></tr>)}</tbody></table>
+        </div>
+        <p className="helper-text fnb-note">Variance positif berarti pemakaian aktual lebih tinggi dari yang seharusnya. Produksi prep yang dibuat jauh sebelum periode penjualan dapat membuat angka periode terlihat berbeda.</p>
+      </Card>
+
+      <div className="fnb-action-grid">
+        <Card className="fnb-action-card">
+          <div className="fnb-section-heading"><div><span className="eyebrow">WASTE</span><h2>Catat bahan terbuang</h2><p>Catat bahan atau prep yang tidak bisa digunakan lagi.</p></div></div>
+          <div className="fnb-form-grid">
+            <Field label="Jenis"><select className="input" value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field>
+            <Field label="Item"><select className="input" value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih item...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field>
+            <Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={wasteQty} onChange={e=>setWasteQty(e.target.value)} placeholder="0" /></Field>
+            <Field label="Alasan"><FieldInput value={wasteReason} onChange={e=>setWasteReason(e.target.value)} /></Field>
+          </div>
+          <button className="button button-primary fnb-action-button" type="button" onClick={()=>void addWaste()}><Trash2 size={15}/> Catat waste</button>
+          <p className="helper-text">Waste langsung mengurangi stok dan nilainya masuk ke laporan periode.</p>
+        </Card>
+
+        <Card className="fnb-action-card">
+          <div className="fnb-section-heading"><div><span className="eyebrow">BIAYA OPERASIONAL</span><h2>Catat biaya usaha</h2><p>Masukkan biaya di luar bahan untuk mendapatkan laba bersih.</p></div></div>
+          <div className="fnb-form-grid">
+            <Field label="Kategori"><FieldInput value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air..." /></Field>
+            <Field label="Keterangan"><FieldInput value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)} placeholder="Contoh: isi ulang gas" /></Field>
+            <Field label="Nominal"><FieldInput type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)} placeholder="Rp" /></Field>
+          </div>
+          <button className="button button-primary fnb-action-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={15}/> Simpan biaya</button>
+          <p className="helper-text">Biaya operasional mengurangi laba kotor untuk menghasilkan laba bersih.</p>
+        </Card>
+      </div>
     </>}
   </div>;
 }
