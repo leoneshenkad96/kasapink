@@ -246,7 +246,7 @@ const STOCK_CATEGORIES: Record<'Makanan' | 'Parfum', string[]> = {
 };
 
 const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
-  Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ikat', 'pack', 'box'],
+  Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ekor', 'ikat', 'pack', 'box'],
   Parfum: ['ml', 'liter', 'gram', 'kg', 'botol', 'pcs', 'pack'],
 };
 
@@ -468,8 +468,8 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
     </Modal>}
     {recipeProduct && <Modal title={`Resep bahan makro ? ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}>
       <form className="form-stack" onSubmit={saveRecipeForm}>
-        <p className="modal-intro">Masukkan jumlah bahan makro untuk membuat satu produk. Garam, micin, dan bahan mikro lainnya dicatat sebagai biaya operasional di luar resep.</p>
-        {macroIngredients.length ? <div className="recipe-editor">{macroIngredients.map((i) => <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>{i.unit} per produk</small></div><FieldInput aria-label={`Jumlah ${i.name}`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={recipe.find((r) => r.ingredientId === i.id)?.qtyRequired || ''} placeholder="0" /></div>)}</div> : <Empty title="Belum ada bahan makro" text="Tambahkan bahan utama di Stok Bahan terlebih dahulu." />}
+        <p className="modal-intro">Masukkan jumlah setiap bahan yang digunakan untuk membuat satu produk. Gunakan satuan yang sama dengan stok bahan, misalnya 4 ekor udang, 5 gram bawang putih, atau 10 ml minyak.</p>
+        {macroIngredients.length ? <div className="recipe-editor">{macroIngredients.map((i) => <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>{i.unit} digunakan per produk</small></div><FieldInput aria-label={`Jumlah ${i.name} per produk dalam ${i.unit}`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={recipe.find((r) => r.ingredientId === i.id)?.qtyRequired || ''} placeholder={`Jumlah (${i.unit})`} /></div>)}</div> : <Empty title="Belum ada bahan makro" text="Tambahkan bahan utama di Stok Bahan terlebih dahulu." />}
         <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setRecipeProduct(null)}>Batal</Button><Button type="submit" disabled={saveRecipe.isPending || !macroIngredients.length}>{saveRecipe.isPending ? 'Menyimpan?' : 'Simpan resep'}</Button></div>
       </form>
     </Modal>}
