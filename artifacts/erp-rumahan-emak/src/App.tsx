@@ -331,7 +331,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
     const data = {
       name: String(f.get('name')).trim(),
       sellingPrice: Number(f.get('sellingPrice')),
-      businessType: String(f.get('businessType')) as 'Makanan' | 'Parfum',
+      businessType,
       needsRecipe,
       stock: needsRecipe ? 0 : Number(f.get('stock') || 0),
       averageCost: needsRecipe ? 0 : Number(f.get('averageCost') || 0),
@@ -399,7 +399,7 @@ function ProductPage({ state, businessType = 'Makanan' }: { state: ErpState; bus
       <form className="form-stack" onSubmit={submitProduct}>
         <Field label="Nama produk"><FieldInput name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>
         <Field label="Harga jual per unit"><FieldInput name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field>
-        <Field label="Kelompok produk"><FieldSelect name="businessType" defaultValue={editing === 'new' ? businessType : editing.businessType}><option value="Makanan">Makanan</option><option value="Parfum">Parfum</option></FieldSelect></Field>
+
         <fieldset className="product-type-options">
           <legend>Jenis produk</legend>
           <label><input type="radio" name="productType" checked={!needsRecipe} onChange={() => { setNeedsRecipe(false); setAutoRecipe(false); }} /> Produk Jadi <small>Stok barang yang dibeli lalu dijual kembali.</small></label>
