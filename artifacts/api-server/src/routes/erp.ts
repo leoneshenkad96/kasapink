@@ -425,15 +425,15 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
-    if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock, parsed.data.openingUnitCost], res)) return;
+    if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock], res)) return;
     const [row] = await db
       .insert(ingredientsTable)
       .values({
         ...parsed.data,
         stock: String(parsed.data.stock),
         minStock: String(parsed.data.minStock),
-        lastPrice: String(roundMoney(parsed.data.openingUnitCost)),
-        averageCost: String(roundMoney(parsed.data.openingUnitCost)),
+        lastPrice: "0",
+        averageCost: "0",
       })
       .returning();
     res.status(201).json(CreateIngredientResponse.parse(asIngredient(row)));
