@@ -68,8 +68,9 @@ export const recipeItemsTable = pgTable(
       .notNull()
       .references(() => productsTable.id, { onDelete: "cascade" }),
     ingredientId: integer("ingredient_id")
-      .notNull()
       .references(() => ingredientsTable.id, { onDelete: "restrict" }),
+    preparationId: integer("preparation_id")
+      .references(() => preparationsTable.id, { onDelete: "restrict" }),
     qtyRequired: quantity("qty_required"),
     recipeUnit: text("recipe_unit").notNull(),
     conversionFactor: numeric("conversion_factor", { precision: 14, scale: 6 }).notNull().default("1"),
@@ -78,6 +79,10 @@ export const recipeItemsTable = pgTable(
     uniqueIndex("erp_recipe_product_ingredient_unique").on(
       table.productId,
       table.ingredientId,
+    ),
+    uniqueIndex("erp_recipe_product_preparation_unique").on(
+      table.productId,
+      table.preparationId,
     ),
   ],
 );
