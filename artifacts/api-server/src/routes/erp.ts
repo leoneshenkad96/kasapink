@@ -1,5 +1,4 @@
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
-import { z } from "zod";
 import {
   CreateIngredientBody,
   CreateIngredientResponse,
@@ -877,23 +876,59 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
 }));
 
 
-const WasteBody = z.object({
-  date: z.coerce.date(),
-  itemType: z.enum(["ingredient", "preparation"]),
-  itemId: z.number().int().positive(),
-  quantity: z.number().positive(),
-  reason: z.string().min(1).max(120),
-  note: z.string().max(500).optional(),
-});
-const ExpenseBody = z.object({
-  date: z.coerce.date(),
-  category: z.string().min(1).max(80),
-  description: z.string().min(1).max(200),
-  amount: z.number().positive(),
-});
+type WasteBodyData = {
+  date: Date;
+  itemType: "ingredient" | "preparation";
+  itemId: number;
+  quantity: number;
+  reason: string;
+  note?: string;
+};
+type ExpenseBodyData = {
+  date: Date;
+  category: string;
+  description: string;
+  amount: number;
+};
+type ValidationResult<T> = { success: true; data: T } | { success: false; error: { message: string } };
+
+function parseDateValue(value: unknown): Date | null {
+  const date = value instanceof Date ? value : new Date(String(value ?? ""));
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseWasteBody(input: unknown): ValidationResult<WasteBodyData> {
+  const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const date = parseDateValue(body.date);
+  const itemType = body.itemType;
+  const itemId = Number(body.itemId);
+  const quantity = Number(body.quantity);
+  const reason = typeof body.reason === "string" ? body.reason.trim() : "";
+  const note = body.note === undefined ? undefined : String(body.note);
+  if (!date) return { success: false, error: { message: "Tanggal waste tidak valid." } };
+  if (itemType !== "ingredient" && itemType !== "preparation") return { success: false, error: { message: "Jenis item waste tidak valid." } };
+  if (!Number.isSafeInteger(itemId) || itemId <= 0) return { success: false, error: { message: "ID item waste tidak valid." } };
+  if (!Number.isFinite(quantity) || quantity <= 0) return { success: false, error: { message: "Jumlah waste harus lebih besar dari 0." } };
+  if (!reason || reason.length > 120) return { success: false, error: { message: "Alasan waste wajib diisi dan maksimal 120 karakter." } };
+  if (note !== undefined && note.length > 500) return { success: false, error: { message: "Catatan waste maksimal 500 karakter." } };
+  return { success: true, data: { date, itemType, itemId, quantity, reason, note } };
+}
+
+function parseExpenseBody(input: unknown): ValidationResult<ExpenseBodyData> {
+  const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
+  const date = parseDateValue(body.date);
+  const category = typeof body.category === "string" ? body.category.trim() : "";
+  const description = typeof body.description === "string" ? body.description.trim() : "";
+  const amount = Number(body.amount);
+  if (!date) return { success: false, error: { message: "Tanggal biaya operasional tidak valid." } };
+  if (!category || category.length > 80) return { success: false, error: { message: "Kategori biaya wajib diisi dan maksimal 80 karakter." } };
+  if (!description || description.length > 200) return { success: false, error: { message: "Deskripsi biaya wajib diisi dan maksimal 200 karakter." } };
+  if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: { message: "Nominal biaya harus lebih besar dari 0." } };
+  return { success: true, data: { date, category, description, amount } };
+}
 
 router.post("/erp/waste", safe(async (req, res) => {
-  const parsed = WasteBody.safeParse(req.body);
+  const parsed = parseWasteBody(req.body);
   if (!parsed.success) return invalid(res, parsed.error.message);
   const result = await db.transaction(async (tx) => {
     let unit = "", unitCost = 0;
@@ -934,7 +969,7 @@ router.post("/erp/waste", safe(async (req, res) => {
 }));
 
 router.post("/erp/expenses", safe(async (req, res) => {
-  const parsed = ExpenseBody.safeParse(req.body);
+  const parsed = parseExpenseBody(req.body);
   if (!parsed.success) return invalid(res, parsed.error.message);
   const [row] = await db.insert(operatingExpensesTable).values({
     date: dateKey(parsed.data.date), category: parsed.data.category.trim(), description: parsed.data.description.trim(), amount: String(roundMoney(parsed.data.amount)),
