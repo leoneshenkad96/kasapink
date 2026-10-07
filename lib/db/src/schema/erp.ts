@@ -82,6 +82,74 @@ export const recipeItemsTable = pgTable(
   ],
 );
 
+
+export const preparationsTable = pgTable(
+  "erp_preparations",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    unit: text("unit").notNull(),
+    stock: quantity("stock"),
+    averageCost: money("average_cost"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("erp_preparations_name_unique").on(table.name)],
+);
+
+export const preparationRecipeItemsTable = pgTable(
+  "erp_preparation_recipe_items",
+  {
+    id: serial("id").primaryKey(),
+    preparationId: integer("preparation_id").notNull().references(() => preparationsTable.id, { onDelete: "cascade" }),
+    ingredientId: integer("ingredient_id").notNull().references(() => ingredientsTable.id, { onDelete: "restrict" }),
+    qtyRequired: quantity("qty_required"),
+    recipeUnit: text("recipe_unit").notNull(),
+    conversionFactor: numeric("conversion_factor", { precision: 14, scale: 6 }).notNull().default("1"),
+  },
+  (table) => [uniqueIndex("erp_prep_recipe_preparation_ingredient_unique").on(table.preparationId, table.ingredientId)],
+);
+
+export const preparationBatchesTable = pgTable(
+  "erp_preparation_batches",
+  {
+    id: serial("id").primaryKey(),
+    preparationId: integer("preparation_id").notNull().references(() => preparationsTable.id, { onDelete: "restrict" }),
+    batchNumber: text("batch_number").notNull(),
+    date: date("date", { mode: "string" }).notNull(),
+    targetQty: quantity("target_qty"),
+    actualQty: quantity("actual_qty"),
+    totalCost: money("total_cost"),
+    unitCost: money("unit_cost"),
+    yieldPercentage: numeric("yield_percentage", { precision: 8, scale: 3 }).notNull().default("0"),
+    status: text("status").notNull().default("PRODUCED"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    uniqueIndex("erp_preparation_batches_batch_number_unique").on(table.batchNumber),
+    index("erp_preparation_batches_preparation_date_idx").on(table.preparationId, table.date),
+  ],
+);
+
+export const preparationStockMovementsTable = pgTable(
+  "erp_preparation_stock_movements",
+  {
+    id: serial("id").primaryKey(),
+    date: date("date", { mode: "string" }).notNull(),
+    preparationId: integer("preparation_id").notNull().references(() => preparationsTable.id, { onDelete: "restrict" }),
+    movementType: text("movement_type").notNull(),
+    quantityDelta: numeric("quantity_delta", { precision: 14, scale: 3 }).notNull(),
+    stockBefore: quantity("stock_before"),
+    stockAfter: quantity("stock_after"),
+    unitCost: money("unit_cost"),
+    referenceId: integer("reference_id"),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("erp_prep_stock_movements_preparation_date_idx").on(table.preparationId, table.date)],
+);
+
 export const purchasesTable = pgTable(
   "erp_purchases",
   {
