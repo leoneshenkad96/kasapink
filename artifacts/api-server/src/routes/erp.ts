@@ -1,5 +1,4 @@
 import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
-import { z } from "zod";
 import {
   CreateIngredientBody,
   CreateIngredientResponse,
@@ -681,30 +680,37 @@ router.put(
 );
 
 
-const PrepBody = z.object({
-  name: z.string().min(1).max(120),
-  unit: z.string().min(1).max(30),
-  yieldQty: z.number().positive(),
-});
-const PrepRecipeBody = z.object({
-  items: z.array(z.object({
-    ingredientId: z.number().int().positive(),
-    qtyRequired: z.number().positive(),
-    recipeUnit: z.string().min(1).max(30),
-  })).max(100),
-});
-const ProductPrepBody = z.object({
-  items: z.array(z.object({
-    preparationId: z.number().int().positive(),
-    qtyRequired: z.number().positive(),
-    recipeUnit: z.string().min(1).max(30),
-  })).max(100),
-});
-const BatchBody = z.object({
-  date: z.coerce.date(),
-  targetQty: z.number().positive(),
-  actualQty: z.number().positive(),
-});
+type ParseResult<T> = { success: true; data: T } | { success: false; error: { message: string } };
+function recordBody(value: unknown): Record<string, unknown> | null {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : null;
+}
+function positiveNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+function stringValue(value: unknown): value is string {
+  return typeof value === "string" && value.trim().length > 0;
+}
+const PrepBody = { safeParse(input: unknown): ParseResult<{ name:string; unit:string; yieldQty:number }> {
+  const b=recordBody(input);
+  if (!b || !stringValue(b.name) || b.name.length>120 || !stringValue(b.unit) || b.unit.length>30 || !positiveNumber(b.yieldQty)) return {success:false,error:{message:"Nama, satuan, dan hasil standar prep wajib diisi dengan benar."}};
+  return {success:true,data:{name:b.name,unit:b.unit,yieldQty:b.yieldQty}};
+}};
+const PrepRecipeBody = { safeParse(input: unknown): ParseResult<{items:Array<{ingredientId:number;qtyRequired:number;recipeUnit:string}>}> {
+  const b=recordBody(input), items=b?.items;
+  if (!Array.isArray(items) || items.length>100 || items.some((x)=>{const v=recordBody(x);return !v||!Number.isSafeInteger(v.ingredientId)||v.ingredientId<=0||!positiveNumber(v.qtyRequired)||!stringValue(v.recipeUnit)||v.recipeUnit.length>30;})) return {success:false,error:{message:"Daftar resep prep tidak valid."}};
+  return {success:true,data:{items:items as Array<{ingredientId:number;qtyRequired:number;recipeUnit:string}>}};
+}};
+const ProductPrepBody = { safeParse(input: unknown): ParseResult<{items:Array<{preparationId:number;qtyRequired:number;recipeUnit:string}>}> {
+  const b=recordBody(input), items=b?.items;
+  if (!Array.isArray(items) || items.length>100 || items.some((x)=>{const v=recordBody(x);return !v||!Number.isSafeInteger(v.preparationId)||v.preparationId<=0||!positiveNumber(v.qtyRequired)||!stringValue(v.recipeUnit)||v.recipeUnit.length>30;})) return {success:false,error:{message:"Daftar komponen prep produk tidak valid."}};
+  return {success:true,data:{items:items as Array<{preparationId:number;qtyRequired:number;recipeUnit:string}>}};
+}};
+const BatchBody = { safeParse(input: unknown): ParseResult<{date:Date;targetQty:number;actualQty:number}> {
+  const b=recordBody(input), d=b?.date;
+  const date=new Date(String(d??""));
+  if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty)) return {success:false,error:{message:"Tanggal, target, dan hasil aktual produksi wajib valid."}};
+  return {success:true,data:{date,targetQty:b.targetQty,actualQty:b.actualQty}};
+}};
 
 router.get("/erp/preparations", safe(async (_req, res) => {
   const preps = await db.select().from(preparationsTable).where(eq(preparationsTable.active, true)).orderBy(asc(preparationsTable.name));
