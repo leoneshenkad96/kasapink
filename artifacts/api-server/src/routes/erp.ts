@@ -941,7 +941,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate) || !/^\\d{4}-\\d{2}-\\d{2}$/.test(endDate) || startDate > endDate) return invalid(res, "Rentang tanggal tidak valid.");
   const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
   const saleIds = sales.map((x) => x.id);
-  const [details, ingredients, recipes, productPreps, preps, waste, expenses] = await Promise.all([
+  const [details, ingredients, recipes, productPreps, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
     saleIds.length ? db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)) : Promise.resolve([]),
     db.select().from(ingredientsTable),
     db.select().from(recipeItemsTable),
@@ -949,6 +949,8 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     db.select().from(preparationsTable),
     db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
     db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
+    db.select().from(stockMovementsTable).where(and(gte(stockMovementsTable.date, startDate), lte(stockMovementsTable.date, endDate))),
+    db.select().from(preparationStockMovementsTable).where(and(gte(preparationStockMovementsTable.date, startDate), lte(preparationStockMovementsTable.date, endDate))),
   ]);
   const ingredientById = new Map(ingredients.map((x) => [x.id, x]));
   const prepById = new Map(preps.map((x) => [x.id, x]));
@@ -967,6 +969,59 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     row.theoreticalCogs += (ingCost + prepCost) * line.quantity;
     menuMap.set(line.productId,row);
   }
+  const theoreticalIngredient = new Map<number, number>();
+  for (const line of details) {
+    for (const recipe of recipes.filter((r) => r.productId === line.productId && r.ingredientId)) {
+      theoreticalIngredient.set(recipe.ingredientId!, (theoreticalIngredient.get(recipe.ingredientId!) ?? 0) + number(recipe.qtyRequired) * number(recipe.conversionFactor) * line.quantity);
+    }
+    for (const link of productPreps.filter((r) => r.productId === line.productId)) {
+      const prep = prepById.get(link.preparationId);
+      if (!prep) continue;
+      const prepScale = number(link.qtyRequired) * number(link.conversionFactor);
+      for (const recipe of recipes.filter(() => false)) { void recipe; }
+    }
+  }
+  const prepRecipeRows = await db.select().from(preparationRecipeItemsTable);
+  for (const line of details) {
+    for (const link of productPreps.filter((r) => r.productId === line.productId)) {
+      const prep = prepById.get(link.preparationId);
+      if (!prep || number(prep.yieldQty) <= 0) continue;
+      for (const recipe of prepRecipeRows.filter((r) => r.preparationId === link.preparationId)) {
+        const theoretical = number(recipe.qtyRequired) * number(recipe.conversionFactor) / number(prep.yieldQty) * number(link.qtyRequired) * number(link.conversionFactor) * line.quantity;
+        theoreticalIngredient.set(recipe.ingredientId, (theoreticalIngredient.get(recipe.ingredientId) ?? 0) + theoretical);
+      }
+    }
+  }
+  const actualIngredient = new Map<number, number>();
+  for (const m of ingredientMovements) {
+    if (["sale","prep_production","waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
+      actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + Math.abs(number(m.quantityDelta)));
+    }
+  }
+  const ingredientVariance = ingredients
+    .filter((x) => actualIngredient.has(x.id) || theoreticalIngredient.has(x.id))
+    .map((x) => {
+      const actual = actualIngredient.get(x.id) ?? 0;
+      const theoretical = theoreticalIngredient.get(x.id) ?? 0;
+      const variance = actual - theoretical;
+      return { itemType:"ingredient", itemId:x.id, itemName:x.name, unit:x.unit, actualQty:roundMoney(actual), theoreticalQty:roundMoney(theoretical), varianceQty:roundMoney(variance), varianceCost:roundMoney(variance * number(x.averageCost)) };
+    })
+    .sort((a,b)=>Math.abs(b.varianceCost)-Math.abs(a.varianceCost))
+    .slice(0,50);
+  const actualPrep = new Map<number, number>();
+  const theoreticalPrep = new Map<number, number>();
+  for (const m of prepMovements) {
+    if (["sale","waste"].includes(m.movementType) && number(m.quantityDelta) < 0) actualPrep.set(m.preparationId,(actualPrep.get(m.preparationId)??0)+Math.abs(number(m.quantityDelta)));
+  }
+  for (const line of details) for (const link of productPreps.filter((r)=>r.productId===line.productId)) {
+    const q=number(link.qtyRequired)*number(link.conversionFactor)*line.quantity;
+    theoreticalPrep.set(link.preparationId,(theoreticalPrep.get(link.preparationId)??0)+q);
+  }
+  const prepVariance = preps.filter((x)=>actualPrep.has(x.id)||theoreticalPrep.has(x.id)).map((x)=>{
+    const actual=actualPrep.get(x.id)??0, theoretical=theoreticalPrep.get(x.id)??0, variance=actual-theoretical;
+    return {itemType:"preparation",itemId:x.id,itemName:x.name,unit:x.unit,actualQty:roundMoney(actual),theoreticalQty:roundMoney(theoretical),varianceQty:roundMoney(variance),varianceCost:roundMoney(variance*number(x.averageCost))};
+  }).sort((a,b)=>Math.abs(b.varianceCost)-Math.abs(a.varianceCost)).slice(0,50);
+
   const revenue = roundMoney(sales.reduce((sum,x)=>sum+number(x.totalRevenue),0));
   const actualCogs = roundMoney(sales.reduce((sum,x)=>sum+number(x.totalCostOfGoodsSold),0));
   const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum,x)=>sum+x.theoreticalCogs,0));
@@ -980,6 +1035,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     foodCostVariance: roundMoney(actualCogs - theoreticalCogs),
     wasteCost, grossProfit, operatingExpenses: expenseTotal, netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
     wasteCount: waste.length,
+    inventoryVariance: [...ingredientVariance, ...prepVariance],
     menus: [...menuMap.values()].map((x)=>({ ...x, revenue:roundMoney(x.revenue), actualCogs:roundMoney(x.actualCogs), theoreticalCogs:roundMoney(x.theoreticalCogs), grossProfit:roundMoney(x.revenue-x.actualCogs), foodCostPercentage:x.revenue>0?roundMoney(x.actualCogs/x.revenue*100):0 })),
     waste: waste.map((x)=>({id:x.id,date:x.date,itemType:x.ingredientId?"ingredient":"preparation",itemId:x.ingredientId??x.preparationId,quantity:number(x.quantity),unit:x.unit,totalCost:number(x.totalCost),reason:x.reason,note:x.note})),
     expenses: expenses.map((x)=>({id:x.id,date:x.date,category:x.category,description:x.description,amount:number(x.amount)})),
