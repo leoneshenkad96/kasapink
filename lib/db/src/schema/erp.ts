@@ -164,6 +164,7 @@ export const productPreparationItemsTable = pgTable(
     preparationId: integer("preparation_id").notNull().references(() => preparationsTable.id, { onDelete: "restrict" }),
     qtyRequired: quantity("qty_required"),
     recipeUnit: text("recipe_unit").notNull(),
+    conversionFactor: numeric("conversion_factor", { precision: 14, scale: 6 }).notNull().default("1"),
   },
   (table) => [uniqueIndex("erp_product_preparation_unique").on(table.productId, table.preparationId)],
 );
