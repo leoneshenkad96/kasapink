@@ -24,7 +24,6 @@ export const ingredientsTable = pgTable(
     category: text("category").notNull(),
     stockType: text("stock_type").notNull().default("Makanan"),
     unit: text("unit").notNull(),
-    yieldQty: quantity("yield_qty"),
     stock: quantity("stock"),
     minStock: quantity("min_stock"),
     lastPrice: money("last_price"),
@@ -61,6 +60,22 @@ export const productsTable = pgTable(
   (table) => [uniqueIndex("erp_products_name_unique").on(table.name)],
 );
 
+export const preparationsTable = pgTable(
+  "erp_preparations",
+  {
+    id: serial("id").primaryKey(),
+    name: text("name").notNull(),
+    unit: text("unit").notNull(),
+    yieldQty: quantity("yield_qty"),
+    stock: quantity("stock"),
+    averageCost: money("average_cost"),
+    active: boolean("active").notNull().default(true),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+  },
+  (table) => [uniqueIndex("erp_preparations_name_unique").on(table.name)],
+);
+
 export const recipeItemsTable = pgTable(
   "erp_recipe_items",
   {
@@ -88,21 +103,6 @@ export const recipeItemsTable = pgTable(
   ],
 );
 
-
-export const preparationsTable = pgTable(
-  "erp_preparations",
-  {
-    id: serial("id").primaryKey(),
-    name: text("name").notNull(),
-    unit: text("unit").notNull(),
-    stock: quantity("stock"),
-    averageCost: money("average_cost"),
-    active: boolean("active").notNull().default(true),
-    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-  },
-  (table) => [uniqueIndex("erp_preparations_name_unique").on(table.name)],
-);
 
 export const preparationRecipeItemsTable = pgTable(
   "erp_preparation_recipe_items",
