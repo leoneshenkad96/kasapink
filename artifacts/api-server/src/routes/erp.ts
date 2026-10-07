@@ -1148,11 +1148,16 @@ router.delete(
       // Delete dependent tables first
       await tx.delete(salesDetailsTable).execute();
       await tx.delete(purchaseDetailsTable).execute();
+      await tx.delete(preparationStockMovementsTable).execute();
+      await tx.delete(productPreparationItemsTable).execute();
+      await tx.delete(preparationBatchesTable).execute();
+      await tx.delete(preparationRecipeItemsTable).execute();
       await tx.delete(stockMovementsTable).execute();
       await tx.delete(recipeItemsTable).execute();
       await tx.delete(purchasesTable).execute();
       await tx.delete(salesTable).execute();
       await tx.delete(productsTable).execute();
+      await tx.delete(preparationsTable).execute();
       await tx.delete(ingredientsTable).execute();
     });
     res.json({ message: "All ERP tables have been cleared" });
