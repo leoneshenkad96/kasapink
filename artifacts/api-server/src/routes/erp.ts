@@ -946,6 +946,21 @@ router.post(
         .returning();
 
       const details: Array<typeof purchaseDetailsTable.$inferInsert> = [];
+      const prepMovements: Array<typeof preparationStockMovementsTable.$inferInsert> = [];
+      for (const preparationId of requestedPreparationIds) {
+        const prep = preparationById.get(preparationId)!;
+        const oldStock = number(prep.stock);
+        const used = requiredByPreparation.get(preparationId)!;
+        const newStock = oldStock - used;
+        await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, preparationId));
+        prepMovements.push({
+          date: dateKey(parsed.data.date), preparationId, movementType: "sale",
+          quantityDelta: String(-used), stockBefore: String(oldStock), stockAfter: String(newStock),
+          unitCost: String(number(prep.averageCost)), referenceId: sale.id, note: "Penjualan",
+        });
+      }
+      if (prepMovements.length) await tx.insert(preparationStockMovementsTable).values(prepMovements);
+
       const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
       for (const line of purchaseLines) {
         const ingredient = byId.get(line.ingredientId);
@@ -1150,6 +1165,10 @@ router.post(
         .select()
         .from(recipeItemsTable)
         .where(inArray(recipeItemsTable.productId, productIds));
+      const productPrepRows = await tx
+        .select()
+        .from(productPreparationItemsTable)
+        .where(inArray(productPreparationItemsTable.productId, productIds));
       const recipesByProduct = new Map<number, typeof recipeRows>();
       for (const row of recipeRows) {
         const items = recipesByProduct.get(row.productId) ?? [];
@@ -1166,6 +1185,7 @@ router.post(
       }
 
       const requiredByIngredient = new Map<number, number>();
+      const requiredByPreparation = new Map<number, number>();
       for (const [productId, soldQuantity] of quantities) {
         const product = productRows.find((row) => row.id === productId)!;
         if (!product.needsRecipe) continue;
@@ -1177,6 +1197,31 @@ router.post(
           );
         }
       }
+      for (const [productId, soldQuantity] of quantities) {
+        const product = productRows.find((row) => row.id === productId)!;
+        if (!product.needsRecipe) continue;
+        for (const item of productPrepRows.filter((row) => row.productId === productId)) {
+          requiredByPreparation.set(
+            item.preparationId,
+            (requiredByPreparation.get(item.preparationId) ?? 0) + number(item.qtyRequired) * soldQuantity,
+          );
+        }
+      }
+
+      const requestedPreparationIds = [...requiredByPreparation.keys()].sort((a, b) => a - b);
+      const lockedPreparations = requestedPreparationIds.length
+        ? await tx.select().from(preparationsTable).where(inArray(preparationsTable.id, requestedPreparationIds)).orderBy(asc(preparationsTable.id)).for("update")
+        : [];
+      if (lockedPreparations.length !== requestedPreparationIds.length) throw new HttpError("Salah satu prep pada resep tidak ditemukan.", 409);
+      const preparationById = new Map(lockedPreparations.map((row) => [row.id, row]));
+      for (const preparationId of requestedPreparationIds) {
+        const prep = preparationById.get(preparationId)!;
+        const required = requiredByPreparation.get(preparationId) ?? 0;
+        if (number(prep.stock) + 1e-9 < required) {
+          warnings.push(`Stok prep ${prep.name} kurang: tersedia ${number(prep.stock)} ${prep.unit}, perlu ${required} ${prep.unit}.`);
+        }
+      }
+
       const requestedIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
       const lockedIngredients = requestedIngredientIds.length
         ? await tx
@@ -1226,10 +1271,14 @@ router.post(
         const recipe = recipesByProduct.get(productId) ?? [];
         const costOfGoodsSold = product.needsRecipe
           ? recipe.reduce((sum, item) => {
+              if (!item.ingredientId) return sum;
               const ingredient = ingredientById.get(item.ingredientId)!;
               if (isOperationalIngredient(ingredient.category)) return sum;
               return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(ingredient.averageCost);
-            }, 0)
+            }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
+              const prep = preparationById.get(item.preparationId);
+              return sum + (prep ? number(item.qtyRequired) * quantity * number(prep.averageCost) : 0);
+            }, 0))
           : number(product.averageCost) * quantity;
         return {
           productId,
