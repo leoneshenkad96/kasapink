@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import type { FormEvent } from "react";
-import { AlertCircle, Plus, Shield, Trash2, UserRound } from "lucide-react";
+import { AlertCircle, KeyRound, Plus, Shield, Trash2, UserRound } from "lucide-react";
 import PasswordInput from "../components/PasswordInput";
 
 type AppUser = { id: number; username: string; role: "admin" | "testing" | "user"; createdAt: string };
@@ -20,7 +20,10 @@ export default function UsersPage() {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [deletingUserId, setDeletingUserId] = useState<number | null>(null);
+  const [resettingUserId, setResettingUserId] = useState<number | null>(null);
   const [showForm, setShowForm] = useState(false);
+  const [passwordUser, setPasswordUser] = useState<AppUser | null>(null);
+  const [newPassword, setNewPassword] = useState("");
   const loggedInUserId = getLoggedInUserId();
 
   const loadUsers = useCallback(async () => {
@@ -68,6 +71,28 @@ export default function UsersPage() {
     }
   }
 
+  async function resetPassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!passwordUser) return;
+    setResettingUserId(passwordUser.id);
+    setError("");
+    try {
+      const response = await fetch(`/api/users/${passwordUser.id}/password`, {
+        method: "PUT",
+        headers: { ...headers(), "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Gagal mengganti password.");
+      setPasswordUser(null);
+      setNewPassword("");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengganti password.");
+    } finally {
+      setResettingUserId(null);
+    }
+  }
+
   async function deleteUser(user: AppUser) {
     if (!window.confirm(`Apakah Anda yakin ingin menghapus user ${user.username}?`)) return;
     setDeletingUserId(user.id);
@@ -104,11 +129,21 @@ export default function UsersPage() {
       </form>
     </section>}
 
+    {passwordUser && <section className="card table-card" style={{ marginBottom: 20 }}>
+      <div className="card-heading"><div><span className="eyebrow">RESET PASSWORD</span><h2>Ganti password</h2></div></div>
+      <form className="form-stack" onSubmit={resetPassword}>
+        <p style={{ margin: 0 }}>Atur password baru untuk <b>{passwordUser.username}</b>. Password lama tidak diperlukan.</p>
+        <label className="field"><span>Password baru</span><PasswordInput name="newPassword" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required minLength={8} maxLength={128} autoComplete="new-password" /></label>
+        {error && <div className="form-error"><AlertCircle size={16} />{error}</div>}
+        <div className="form-actions"><button type="button" className="button button-quiet" onClick={() => { setPasswordUser(null); setNewPassword(""); }}>Batal</button><button className="button button-primary" disabled={resettingUserId !== null}>{resettingUserId === passwordUser.id ? "Menyimpan…" : "Simpan password"}</button></div>
+      </form>
+    </section>}
+
     <section className="card table-card">
       <div className="card-heading"><div><span className="eyebrow">AKUN KASAPINK</span><h2>Daftar user</h2></div><span className="result-count">{users.length} user</span></div>
       {error && !showForm && <div className="form-error"><AlertCircle size={16} />{error}<button className="text-button" onClick={() => { setError(""); void loadUsers(); }}>Coba lagi</button></div>}
       {loading ? <div className="loading-grid"><div className="skeleton" /></div> : users.length ? <div className="table-scroll"><table><thead><tr><th>USERNAME</th><th>ROLE</th><th>DIBUAT</th><th>AKSI</th></tr></thead><tbody>
-        {users.map((user) => <tr key={user.id}><td><div className="table-name"><span className="ingredient-token"><UserRound size={16} /></span><b>{user.username}</b></div></td><td><span className={`status-pill ${user.role === "testing" ? "status-low" : "status-ok"}`}>{user.role}</span></td><td>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(user.createdAt))}</td><td>{user.id !== loggedInUserId && <button type="button" className="button button-quiet" onClick={() => void deleteUser(user)} disabled={deletingUserId !== null} aria-label={`Hapus user ${user.username}`} style={{ color: "#e11d48" }}>{deletingUserId === user.id ? "Menghapus…" : <><Trash2 size={15} /> Hapus</>}</button>}</td></tr>)}
+        {users.map((user) => <tr key={user.id}><td><div className="table-name"><span className="ingredient-token"><UserRound size={16} /></span><b>{user.username}</b></div></td><td><span className={`status-pill ${user.role === "testing" ? "status-low" : "status-ok"}`}>{user.role}</span></td><td>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(user.createdAt))}</td><td><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>{user.id !== loggedInUserId && <><button type="button" className="button button-quiet" onClick={() => { setError(""); setNewPassword(""); setPasswordUser(user); }} disabled={resettingUserId !== null || deletingUserId !== null} aria-label={`Ganti password user ${user.username}`}><KeyRound size={15} /> Password</button><button type="button" className="button button-quiet" onClick={() => void deleteUser(user)} disabled={deletingUserId !== null || resettingUserId !== null} aria-label={`Hapus user ${user.username}`} style={{ color: "#e11d48" }}>{deletingUserId === user.id ? "Menghapus…" : <><Trash2 size={15} /> Hapus</>}</button></>}</div></td></tr>)}
       </tbody></table></div> : <div className="empty-state"><span className="empty-icon"><UserRound size={20} /></span><b>Belum ada user</b><p>Buat user pertama untuk mulai mengelola akses.</p></div>}
     </section>
   </>;
