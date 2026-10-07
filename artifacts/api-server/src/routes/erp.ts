@@ -725,6 +725,7 @@ router.get("/erp/preparations", safe(async (_req, res) => {
     productName: productsTable.name,
     qtyRequired: productPreparationItemsTable.qtyRequired,
     recipeUnit: productPreparationItemsTable.recipeUnit,
+    conversionFactor: productPreparationItemsTable.conversionFactor,
   }).from(productPreparationItemsTable)
     .innerJoin(productsTable, eq(productPreparationItemsTable.productId, productsTable.id))
     .where(inArray(productPreparationItemsTable.preparationId, ids)) : [];
@@ -802,11 +803,11 @@ router.put("/erp/products/:productId/preparations", safe(async (req, res) => {
       const prep = map.get(item.preparationId)!;
       const factor = recipeConversionFactor(item.recipeUnit, prep.unit);
       if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok prep ${prep.unit} untuk ${prep.name}.`, 400);
-      if (factor !== 1) throw new HttpError("Untuk sementara satuan resep produk harus sama dengan satuan stok prep.", 400);
+
     }
     await tx.delete(productPreparationItemsTable).where(eq(productPreparationItemsTable.productId, productId));
     if (parsed.data.items.length) await tx.insert(productPreparationItemsTable).values(parsed.data.items.map((x) => ({
-      productId, preparationId: x.preparationId, qtyRequired: String(x.qtyRequired), recipeUnit: x.recipeUnit,
+      productId, preparationId: x.preparationId, qtyRequired: String(x.qtyRequired), recipeUnit: x.recipeUnit, conversionFactor: String(recipeConversionFactor(x.recipeUnit, map.get(x.preparationId)!.unit)),
     })));
     return parsed.data.items;
   });
@@ -1350,7 +1351,7 @@ router.post(
         for (const item of productPrepRows.filter((row) => row.productId === productId)) {
           requiredByPreparation.set(
             item.preparationId,
-            (requiredByPreparation.get(item.preparationId) ?? 0) + number(item.qtyRequired) * soldQuantity,
+            (requiredByPreparation.get(item.preparationId) ?? 0) + number(item.qtyRequired) * number(item.conversionFactor) * soldQuantity,
           );
         }
       }
@@ -1424,7 +1425,7 @@ router.post(
               return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(ingredient.averageCost);
             }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
               const prep = preparationById.get(item.preparationId);
-              return sum + (prep ? number(item.qtyRequired) * quantity * number(prep.averageCost) : 0);
+              return sum + (prep ? number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(prep.averageCost) : 0);
             }, 0))
           : number(product.averageCost) * quantity;
         return {
