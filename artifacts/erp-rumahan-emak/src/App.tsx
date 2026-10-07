@@ -586,6 +586,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [newUnit, setNewUnit] = useState('kg');
   const [newYieldQty, setNewYieldQty] = useState('1');
   const [selectedPrep, setSelectedPrep] = useState<number | null>(null);
+  const [showCreateForm, setShowCreateForm] = useState(false);
   const [recipeDraft, setRecipeDraft] = useState<Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }>>([]);
   const [targetQty, setTargetQty] = useState('');
   const [actualQty, setActualQty] = useState('');
@@ -601,6 +602,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       const data = await r.json().catch(() => []);
       if (!r.ok) throw new Error(data.error || 'Gagal memuat data prep.');
       setPreps(data);
+      setSelectedPrep((current) => current ?? data[0]?.id ?? null);
     } catch (e) {
       setError(errText(e));
     } finally {
@@ -636,6 +638,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || 'Gagal membuat prep.');
       setNewName('');
+      setShowCreateForm(false);
       await load();
       setSelectedPrep(data.id);
     } catch (e) {
@@ -722,7 +725,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       kicker="PRODUKSI & PERSIAPAN"
       title="Stok Prep"
       note="Kelola bahan olahan yang dibuat dalam batch sebelum dipakai oleh produk jualan."
-      action={!readOnly ? <button className="button button-primary" type="button" onClick={() => document.getElementById('prep-master-form')?.scrollIntoView({ behavior: 'smooth', block: 'center' })}><Plus size={15} /> Buat prep</button> : undefined}
+      action={!readOnly ? <button className="button button-primary" type="button" onClick={() => setShowCreateForm((open) => !open)}><Plus size={15} /> {showCreateForm ? 'Tutup' : 'Buat prep'}</button> : undefined}
     />
 
     {error && <div className="error-panel"><AlertCircle size={20} /><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
@@ -778,7 +781,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       </div> : <Card><Empty title="Belum ada stok prep" text="Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi." /></Card>}
     </section>
 
-    {!readOnly && <Card className="prep-create-card" id="prep-master-form">
+    {!readOnly && showCreateForm && <Card className="prep-create-card prep-create-card-open" id="prep-master-form">
       <div className="prep-create-copy">
         <span className="eyebrow">MASTER PREP</span>
         <h2>Buat jenis prep baru</h2>
@@ -863,7 +866,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
           </div>
         </div>
       </Card>
-    </section> : <Card className="prep-empty-selection"><Empty title="Pilih stok prep untuk mengelola" text="Klik salah satu kartu di atas untuk melihat resep, membuat batch, dan melihat riwayat produksi." /></Card>}
+    </section> : null}
 
     <Card className="prep-product-card">
       <div className="prep-product-header">
