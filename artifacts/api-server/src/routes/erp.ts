@@ -176,7 +176,7 @@ async function ensureSeedData(): Promise<void> {
     .from(productsTable)
     .where(eq(productsTable.name, "Kerupuk Bungkus"));
   const matang = await db
-    .select({ ingredientId: ingredientsTable.id })
+    .select({ ingredientId: ingredientsTable.id, unit: ingredientsTable.unit })
     .from(ingredientsTable)
     .where(eq(ingredientsTable.name, "Kerupuk Matang (Pabrik)"));
 
