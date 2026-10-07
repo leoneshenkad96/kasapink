@@ -615,6 +615,10 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const ingredients = stateQuery.data?.ingredients.filter((x) => x.stockType === 'Makanan') ?? [];
   const products = stateQuery.data?.products.filter((x) => x.businessType === 'Makanan') ?? [];
   const prep = preps.find((x) => x.id === selectedPrep) ?? null;
+  const selectedProduct = products.find((x) => x.id === Number(productId)) ?? null;
+  const productionYield = Number(targetQty) > 0 && Number(actualQty) > 0
+    ? (Number(actualQty) / Number(targetQty)) * 100
+    : null;
 
   useEffect(() => {
     if (!prep) return;
@@ -846,14 +850,23 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
               <div><span className="eyebrow">PRODUKSI BATCH</span><h3>Tambah stok prep</h3></div>
               <span className="batch-badge">Produksi</span>
             </div>
-            <p className="prep-panel-copy">Catat berapa yang direncanakan dan berapa hasil nyata. Sistem akan menghitung biaya dan yield batch.</p>
+            <p className="prep-panel-copy">Catat hasil masak yang benar-benar masuk stok. Target membantu melihat susut atau kelebihan hasil batch.</p>
+            <div className="prep-production-summary">
+              <div><span>Prep yang dibuat</span><strong>{prep.name}</strong></div>
+              <div><span>Hasil standar</span><strong>{prep.yieldQty} {prep.unit}</strong></div>
+              <div><span>HPP terakhir</span><strong>{money(prep.averageCost)}/{prep.unit}</strong></div>
+            </div>
             <div className="prep-production-form">
-              <Field label="Tanggal"><FieldInput type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></Field>
-              <Field label="Target"><FieldInput type="number" min="0.001" step="0.001" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder={prep.unit} /></Field>
-              <Field label="Hasil aktual"><FieldInput type="number" min="0.001" step="0.001" value={actualQty} onChange={(e) => setActualQty(e.target.value)} placeholder={prep.unit} /></Field>
+              <Field label="Tanggal produksi"><FieldInput type="date" value={batchDate} onChange={(e) => setBatchDate(e.target.value)} /></Field>
+              <Field label="Target hasil"><FieldInput type="number" min="0.001" step="0.001" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder={String(prep.yieldQty)} /></Field>
+              <Field label="Hasil jadi"><FieldInput type="number" min="0.001" step="0.001" value={actualQty} onChange={(e) => setActualQty(e.target.value)} placeholder={prep.unit} /></Field>
               {!readOnly && <button className="button button-primary production-submit" type="button" onClick={() => void produce()}><CookingPot size={15} /> Catat produksi</button>}
             </div>
-            <div className="prep-production-note"><AlertCircle size={15} /><span>Produksi memakai resep di sebelah kiri. Pastikan resep sudah disimpan sebelum membuat batch.</span></div>
+            {productionYield !== null && <div className={'prep-yield-preview ' + (productionYield < 100 ? 'is-below' : 'is-above')}>
+              <div><span>Yield batch</span><strong>{productionYield.toFixed(1)}%</strong></div>
+              <small>{Number(actualQty) < Number(targetQty) ? 'Ada susut ' + Math.abs(Number(targetQty) - Number(actualQty)).toFixed(3) + ' ' + prep.unit : Number(actualQty) > Number(targetQty) ? 'Hasil lebih ' + Math.abs(Number(actualQty) - Number(targetQty)).toFixed(3) + ' ' + prep.unit : 'Hasil sesuai target.'}</small>
+            </div>}
+            <div className="prep-production-note"><AlertCircle size={15} /><span>Pastikan resep di sebelah kiri sudah disimpan. Sistem akan mengurangi bahan baku dan menambah stok sebesar hasil jadi.</span></div>
 
             {prep.batches.length > 0 && <div className="prep-history">
               <div className="prep-history-head"><span className="eyebrow">RIWAYAT</span><b>Batch terakhir</b></div>
@@ -872,29 +885,51 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
     <Card className="prep-product-card">
       <div className="prep-product-header">
         <div>
-          <span className="eyebrow">INTEGRASI PRODUK</span>
-          <h2>Hubungkan prep ke produk jualan</h2>
-          <p>Saat produk terjual, stok prep yang dipakai akan otomatis berkurang dan masuk ke HPP.</p>
+          <span className="eyebrow">PAKAIAN PER MENU</span>
+          <h2>Atur prep untuk produk jualan</h2>
+          <p>Tentukan prep yang ikut terpakai setiap kali menu terjual. Pemakaian otomatis mengurangi stok prep dan masuk ke HPP.</p>
         </div>
-        <span className="prep-product-step">Langkah terakhir</span>
+        <span className="prep-product-step">HPP menu</span>
       </div>
       <div className="prep-product-body">
-        <Field label="Produk"><FieldSelect value={productId} onChange={(e) => void loadProductPrep(e.target.value)} disabled={readOnly}><option value="">Pilih produk makanan...</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</FieldSelect></Field>
-        {productId ? <div className="prep-product-editor">
-          {productPrepDraft.length ? productPrepDraft.map((line, i) => <div className="prep-product-row" key={i}>
-            <Field label="Prep"><FieldSelect value={line.preparationId} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, preparationId: Number(e.target.value) } : v))} disabled={readOnly}>{preps.map((p) => <option key={p.id} value={p.id}>{p.name} ({p.unit})</option>)}</FieldSelect></Field>
-            <Field label="Pemakaian per produk"><FieldInput type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} disabled={readOnly} /></Field>
-            <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
-            {!readOnly && <button className="icon-button" type="button" aria-label="Hapus komponen prep" onClick={() => setProductPrepDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
-          </div>) : <Empty title="Belum ada prep untuk produk ini" text="Tambahkan komponen prep yang akan dipakai setiap kali produk terjual." />}
-          {!readOnly && <div className="prep-panel-actions">
-            <button className="button button-secondary" type="button" onClick={() => {
-              const p = preps[0];
-              if (p) setProductPrepDraft((x) => [...x, { preparationId: p.id, qtyRequired: 1, recipeUnit: p.unit }]);
-            }}><Plus size={15} /> Tambah prep</button>
-            <button className="button button-primary" type="button" onClick={() => void saveProductPrep()}><Check size={15} /> Simpan hubungan</button>
+        <div className="prep-product-picker">
+          <Field label="Pilih menu"><FieldSelect value={productId} onChange={(e) => void loadProductPrep(e.target.value)} disabled={readOnly}><option value="">Pilih produk makanan...</option>{products.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</FieldSelect></Field>
+          {selectedProduct && <div className="prep-product-summary">
+            <div><span>Harga jual</span><strong>{money(selectedProduct.sellingPrice)}</strong></div>
+            <div><span>Komponen prep</span><strong>{productPrepDraft.length} item</strong></div>
           </div>}
-        </div> : <div className="prep-product-empty"><CookingPot size={18} /><b>Pilih produk terlebih dahulu</b><span>Setelah dipilih, tentukan prep dan jumlah pemakaian per produk.</span></div>}
+        </div>
+        {productId ? <div className="prep-product-editor">
+          {productPrepDraft.length ? <>
+            <div className="prep-product-list">
+              {productPrepDraft.map((line, i) => {
+                const linkedPrep = preps.find((p) => p.id === line.preparationId);
+                const sameUnit = linkedPrep ? line.recipeUnit.toLowerCase() === linkedPrep.unit.toLowerCase() : false;
+                const lineCost = sameUnit && linkedPrep ? Number(line.qtyRequired) * Number(linkedPrep.averageCost) : null;
+                return <div className="prep-product-row" key={i}>
+                  <div className="prep-product-line-main">
+                    <span className="prep-row-number">{i + 1}</span>
+                    <div>
+                      <b>{linkedPrep?.name || 'Prep tidak ditemukan'}</b>
+                      <small>Stok tersedia {linkedPrep?.stock ?? 0} {linkedPrep?.unit || line.recipeUnit}</small>
+                    </div>
+                  </div>
+                  <Field label="Pemakaian per porsi"><FieldInput type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} disabled={readOnly} /></Field>
+                  <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setProductPrepDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
+                  <div className="prep-product-line-cost">{lineCost !== null ? <><span>HPP prep</span><strong>{money(lineCost)}</strong></> : <><span>HPP prep</span><small>Konversi</small></>}</div>
+                  {!readOnly && <button className="icon-button" type="button" aria-label="Hapus prep dari produk" onClick={() => setProductPrepDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
+                </div>;
+              })}
+            </div>
+            {!readOnly && <div className="prep-panel-actions">
+              <button className="button button-secondary" type="button" onClick={() => {
+                const p = preps[0];
+                if (p) setProductPrepDraft((x) => [...x, { preparationId: p.id, qtyRequired: 1, recipeUnit: p.unit }]);
+              }}><Plus size={15} /> Tambah prep</button>
+              <button className="button button-primary" type="button" onClick={() => void saveProductPrep()}><Check size={15} /> Simpan pemakaian</button>
+            </div>}
+          </> : <Empty title="Belum ada prep untuk menu ini" text="Tambahkan prep yang benar-benar dipakai saat satu porsi/menu terjual." />}
+        </div> : <div className="prep-product-empty"><CookingPot size={18} /><b>Pilih menu terlebih dahulu</b><span>Setelah dipilih, masukkan prep dan jumlah yang dipakai untuk satu porsi.</span></div>}
       </div>
     </Card>
   </div>;
