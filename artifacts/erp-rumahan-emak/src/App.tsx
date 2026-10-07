@@ -33,6 +33,7 @@ const navItems = [
   { href: '/belanja', label: 'Catat Belanja', icon: ShoppingBasket },
   { href: '/penjualan', label: 'Catat Penjualan', icon: ReceiptText },
   { href: '/prep', label: 'Produksi / Prep', icon: CookingPot },
+  { href: '/kontrol-fnb', label: 'Kontrol F&B', icon: TrendingUp },
   { href: '/opname', label: 'Stok Opname', icon: ClipboardList },
   { href: '/laporan', label: 'Laporan', icon: FileText },
   { href: '/users', label: 'Manajemen User', icon: Shield, adminOnly: true },
@@ -681,6 +682,46 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   </div>;
 }
 
+
+function FnbControlPage() {
+  const stateQuery = useGetErpState();
+  const [startDate,setStartDate]=useState(today());
+  const [endDate,setEndDate]=useState(today());
+  const [report,setReport]=useState<any>(null);
+  const [wasteType,setWasteType]=useState<'ingredient'|'preparation'>('ingredient');
+  const [wasteItem,setWasteItem]=useState('');
+  const [wasteQty,setWasteQty]=useState('');
+  const [wasteReason,setWasteReason]=useState('Basi / rusak');
+  const [expenseCategory,setExpenseCategory]=useState('Gas');
+  const [expenseDescription,setExpenseDescription]=useState('');
+  const [expenseAmount,setExpenseAmount]=useState('');
+  const [error,setError]=useState('');
+  const load=useCallback(async()=>{try{setError('');const r=await fetch(`/api/erp/fnb-report?startDate=${startDate}&endDate=${endDate}`,{headers:authHeaders()});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal memuat laporan F&B.');setReport(d);}catch(e){setError(errText(e));}},[startDate,endDate]);
+  useEffect(()=>{void load();},[load]);
+  const ingredients=stateQuery.data?.ingredients.filter(x=>x.stockType==='Makanan')??[];
+  const prepQuery=useState<Prep[]>([]); const preps=prepQuery[0]; const setPreps=prepQuery[1];
+  useEffect(()=>{void fetch('/api/erp/preparations',{headers:authHeaders()}).then(r=>r.json()).then(d=>setPreps(Array.isArray(d)?d:[])).catch(()=>{});},[]);
+  const items=wasteType==='ingredient'?ingredients:preps;
+  const addWaste=async()=>{try{const r=await fetch('/api/erp/waste',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({date:endDate,itemType:wasteType,itemId:Number(wasteItem),quantity:Number(wasteQty),reason:wasteReason})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal mencatat waste.');setWasteQty('');await load();}catch(e){setError(errText(e));}};
+  const addExpense=async()=>{try{const r=await fetch('/api/erp/expenses',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({date:endDate,category:expenseCategory,description:expenseDescription,amount:Number(expenseAmount)})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Gagal mencatat biaya.');setExpenseDescription('');setExpenseAmount('');await load();}catch(e){setError(errText(e));}};
+  return <div className="page-stack">
+    <PageHeader eyebrow="KONTROL F&B" title="Food Cost & Profitabilitas" description="Pantau food cost aktual, food cost teoritis, waste, biaya operasional, dan menu paling menguntungkan." />
+    <Card><div className="form-grid"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={e=>setStartDate(e.target.value)}/></Field><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={e=>setEndDate(e.target.value)}/></Field></div></Card>
+    {error&&<div className="error-panel"><AlertCircle size={20}/><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
+    {report&&<><div className="report-metrics">
+      <Card className="report-total"><span className="metric-label">PENJUALAN</span><strong>{money(report.revenue)}</strong><small>Pendapatan menu</small></Card>
+      <Card className="report-total"><span className="metric-label">FOOD COST AKTUAL</span><strong>{report.actualFoodCostPercentage}%</strong><small>{money(report.actualCogs)} COGS</small></Card>
+      <Card className="report-total"><span className="metric-label">FOOD COST TEORITIS</span><strong>{report.theoreticalFoodCostPercentage}%</strong><small>{money(report.theoreticalCogs)} biaya ideal</small></Card>
+      <Card className="report-total highlight"><span className="metric-label">LABA BERSIH OPERASIONAL</span><strong>{money(report.netProfit)}</strong><small>Setelah waste & biaya operasional</small></Card>
+    </div>
+    <Card><div className="card-heading"><div><span className="eyebrow">MENU PROFITABILITY</span><h2>Performa per menu</h2></div><span className="period-chip">Variance {money(report.foodCostVariance)}</span></div><div className="table-scroll"><table><thead><tr><th>MENU</th><th>TERJUAL</th><th>PENJUALAN</th><th>HPP</th><th>FOOD COST</th><th>LABA KOTOR</th></tr></thead><tbody>{report.menus.map((m:any)=><tr key={m.productId}><td><b>{m.productName}</b></td><td>{m.quantity}</td><td>{money(m.revenue)}</td><td>{money(m.actualCogs)}</td><td>{m.foodCostPercentage}%</td><td><b>{money(m.grossProfit)}</b></td></tr>)}</tbody></table></div></Card>
+    <div className="content-grid"><Card><div className="card-heading"><div><span className="eyebrow">WASTE</span><h2>Catat bahan terbuang</h2></div></div><div className="form-grid"><Field label="Jenis"><select value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field><Field label="Item"><select value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field><Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={wasteQty} onChange={e=>setWasteQty(e.target.value)}/></Field><Field label="Alasan"><FieldInput value={wasteReason} onChange={e=>setWasteReason(e.target.value)}/></Field><button className="primary-button" type="button" onClick={()=>void addWaste()}><Trash2 size={16}/> Catat Waste</button></div><p className="helper-text">Waste langsung mengurangi stok dan nilainya masuk laporan. Ini dipisahkan dari susut/yield produksi.</p></Card>
+    <Card><div className="card-heading"><div><span className="eyebrow">BIAYA OPERASIONAL</span><h2>Catat biaya di luar bahan</h2></div></div><div className="form-grid"><Field label="Kategori"><FieldInput value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air, transport..." /></Field><Field label="Keterangan"><FieldInput value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)}/></Field><Field label="Nominal"><FieldInput type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)}/></Field><button className="primary-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={16}/> Simpan Biaya</button></div><p className="helper-text">Biaya operasional dipakai untuk menghitung laba bersih setelah laba kotor.</p></Card></div>
+    <Card><div className="card-heading"><div><span className="eyebrow">RINGKASAN KONTROL</span><h2>Waste & biaya</h2></div></div><div className="report-metrics"><div className="metric-box"><span>Waste</span><b>{money(report.wasteCost)}</b><small>{report.wasteCount} catatan</small></div><div className="metric-box"><span>Biaya operasional</span><b>{money(report.operatingExpenses)}</b><small>periode terpilih</small></div><div className="metric-box"><span>Variance food cost</span><b>{money(report.foodCostVariance)}</b><small>aktual − teoritis</small></div></div></Card>
+    </>}
+  </div>;
+}
+
 function AppContent({ onLogout, role }: { onLogout: () => void; role: UserRole }) {
   const query = useGetErpState();
   const health = useHealthCheck();
@@ -698,6 +739,7 @@ function AppContent({ onLogout, role }: { onLogout: () => void; role: UserRole }
     <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={role === 'testing'} />} />
     <Route path="/prep" component={() => <PrepPage readOnly={role === 'testing'} />} />
+    <Route path="/kontrol-fnb" component={() => <FnbControlPage />} />
     <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} />} />
     <Route path="/laporan" component={ReportPage} />
     <Route path="/users" component={() => role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
