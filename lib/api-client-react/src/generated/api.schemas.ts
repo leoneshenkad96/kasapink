@@ -72,7 +72,6 @@ export interface IngredientInput {
   /** @minimum 0 */
   minStock: number;
   /** @minimum 0 */
-  openingUnitCost: number;
 }
 
 export type IngredientUpdateStockType = typeof IngredientUpdateStockType[keyof typeof IngredientUpdateStockType];
