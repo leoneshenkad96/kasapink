@@ -60,7 +60,7 @@ router.post("/setup/admin", async (req, res) => {
 router.post("/login", async (req, res) => {
   const username = typeof req.body.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body.password === "string" ? req.body.password : "";
-  if (!username || !password) return res.status(400).json({ error: "Username dan password wajib diisi." });
+  if (!username || !password || username.length > 80 || password.length > 128) return res.status(400).json({ error: "Username dan password wajib diisi." });
 
   const [user] = await db.select().from(usersTable).where(eq(usersTable.username, username));
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
@@ -80,7 +80,7 @@ router.post("/logout", (_req, res) => res.status(204).end());
 router.put("/users/change-password", verifyToken, async (req: AuthRequest, res) => {
   const oldPassword = typeof req.body.oldPassword === "string" ? req.body.oldPassword : "";
   const newPassword = typeof req.body.newPassword === "string" ? req.body.newPassword : "";
-  if (!oldPassword || newPassword.length < 8) {
+  if (!oldPassword || oldPassword.length > 128 || newPassword.length < 8 || newPassword.length > 128) {
     return res.status(400).json({ error: "Password lama wajib diisi dan password baru minimal 8 karakter." });
   }
 
@@ -130,7 +130,7 @@ router.post("/users", verifyToken, checkRole("admin"), async (req, res) => {
   const username = typeof req.body.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body.password === "string" ? req.body.password : "";
   const role = req.body.role;
-  if (!username || username.length > 80 || password.length < 8 || !["admin", "testing", "user"].includes(role)) {
+  if (!username || username.length > 80 || password.length < 8 || password.length > 128 || !["admin", "testing", "user"].includes(role)) {
     return res.status(400).json({ error: "Username wajib diisi, password minimal 8 karakter, dan role harus admin/testing/user." });
   }
   const passwordHash = await bcrypt.hash(password, 12);

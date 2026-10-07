@@ -35,7 +35,7 @@ import {
   stockMovementsTable,
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
-import { requireOperationalRole, verifyToken } from "../lib/auth";
+import { checkRole, requireOperationalRole, verifyToken } from "../lib/auth";
 
 const router: IRouter = Router();
 router.use(verifyToken, requireOperationalRole("admin", "user"));
@@ -65,6 +65,22 @@ function safe(handler: (req: Request, res: Response) => Promise<void>): RequestH
 
 function invalid(res: Response, message: string): void {
   res.status(400).json({ error: message });
+}
+
+function requireMaxItems(items: unknown[], max: number, res: Response): boolean {
+  if (items.length > max) {
+    invalid(res, `Maksimal ${max} item per transaksi.`);
+    return false;
+  }
+  return true;
+}
+
+function requireFiniteNumbers(values: Array<number>, res: Response): boolean {
+  if (values.some((value) => !Number.isFinite(value))) {
+    invalid(res, "Nilai angka harus berupa angka terbatas yang valid.");
+    return false;
+  }
+  return true;
 }
 
 function number(value: string | number | null | undefined): number {
@@ -409,6 +425,7 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock, parsed.data.openingUnitCost], res)) return;
     const [row] = await db
       .insert(ingredientsTable)
       .values({
@@ -440,6 +457,7 @@ router.patch(
       invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
       return;
     }
+    if (!requireFiniteNumbers([body.data.minStock ?? 0], res)) return;
     const update: {
       name?: string;
       category?: string;
@@ -474,6 +492,7 @@ router.post(
       invalid(res, "Auto-resep hanya dapat dipakai pada Produk Olahan.");
       return;
     }
+    if (!requireFiniteNumbers([parsed.data.sellingPrice, parsed.data.stock, parsed.data.averageCost], res)) return;
     const row = await db.transaction(async (tx) => {
       if (parsed.data.autoRecipeIngredientId !== undefined) {
         const [ingredient] = await tx
@@ -526,6 +545,11 @@ router.patch(
       invalid(res, "Isi setidaknya satu kolom yang ingin diubah.");
       return;
     }
+    if (!requireFiniteNumbers([
+      body.data.sellingPrice ?? 0,
+      body.data.stock ?? 0,
+      body.data.averageCost ?? 0,
+    ], res)) return;
     const update: {
       name?: string;
       sellingPrice?: string;
@@ -563,6 +587,8 @@ router.put(
       invalid(res, body.error.message);
       return;
     }
+    if (!requireMaxItems(body.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(body.data.items.flatMap((item) => [item.ingredientId, item.qtyRequired]), res)) return;
     const ids = body.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Bahan yang sama hanya boleh ditambahkan satu kali ke resep.");
@@ -624,8 +650,20 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireMaxItems(parsed.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.ingredientId, item.quantity, item.totalCost]), res)) return;
     const lines = parsed.data.items;
-    const ingredientIds = [...new Set(lines.map((line) => line.ingredientId))].sort((a, b) => a - b);
+    const aggregated = new Map<number, { quantity: number; totalCost: number }>();
+    for (const line of lines) {
+      const current = aggregated.get(line.ingredientId) ?? { quantity: 0, totalCost: 0 };
+      current.quantity += line.quantity;
+      current.totalCost += line.totalCost;
+      aggregated.set(line.ingredientId, current);
+    }
+    const purchaseLines = [...aggregated.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([ingredientId, values]) => ({ ingredientId, ...values }));
+    const ingredientIds = purchaseLines.map((line) => line.ingredientId);
     const result = await db.transaction(async (tx) => {
       const locked = await tx
         .select()
@@ -637,7 +675,7 @@ router.post(
         throw new HttpError("Ada bahan belanja yang tidak ditemukan.", 400);
       }
       const byId = new Map(locked.map((row) => [row.id, row]));
-      const totalCost = roundMoney(lines.reduce((sum, line) => sum + line.totalCost, 0));
+      const totalCost = roundMoney(purchaseLines.reduce((sum, line) => sum + line.totalCost, 0));
       const [purchase] = await tx
         .insert(purchasesTable)
         .values({
@@ -649,7 +687,7 @@ router.post(
 
       const details: Array<typeof purchaseDetailsTable.$inferInsert> = [];
       const movements: Array<typeof stockMovementsTable.$inferInsert> = [];
-      for (const line of lines) {
+      for (const line of purchaseLines) {
         const ingredient = byId.get(line.ingredientId);
         if (!ingredient) throw new HttpError("Bahan belanja tidak ditemukan.", 400);
         const oldStock = number(ingredient.stock);
@@ -700,7 +738,7 @@ router.post(
         date: purchase.date,
         supplierType: purchase.supplierType,
         totalCost,
-        items: lines.map((line) => {
+        items: purchaseLines.map((line) => {
           const ingredient = byId.get(line.ingredientId)!;
           return {
             ingredientId: line.ingredientId,
@@ -724,28 +762,88 @@ router.post(
 // Delete a sales record (catat penjualan)
 router.delete(
   "/erp/sales/:saleId",
+  checkRole("admin"),
   safe(async (req, res) => {
     const { saleId } = req.params as { saleId: string };
     const idNum = Number(saleId);
-    if (Number.isNaN(idNum)) {
-      invalid(res, "Invalid sale ID.");
+    if (!/^\d+$/.test(saleId) || !Number.isSafeInteger(idNum) || idNum <= 0) {
+      invalid(res, "ID penjualan tidak valid.");
       return;
     }
-    const [row] = await db
-      .delete(salesTable)
-      .where(eq(salesTable.id, idNum))
-      .returning();
-    if (!row) throw new HttpError("Penjualan tidak ditemukan.", 404);
-    // Also delete related salesDetails rows
-    await db.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum)).execute();
-    res.json({ message: "Sale record deleted" });
-  })
+
+    const result = await db.transaction(async (tx) => {
+      const [sale] = await tx
+        .select()
+        .from(salesTable)
+        .where(eq(salesTable.id, idNum))
+        .for("update");
+      if (!sale) throw new HttpError("Penjualan tidak ditemukan.", 404);
+
+      const details = await tx
+        .select()
+        .from(salesDetailsTable)
+        .where(eq(salesDetailsTable.salesId, idNum));
+
+      for (const line of details) {
+        const [product] = await tx
+          .select()
+          .from(productsTable)
+          .where(eq(productsTable.id, line.productId))
+          .for("update");
+
+        if (product && !product.needsRecipe) {
+          await tx.update(productsTable)
+            .set({ stock: String(number(product.stock) + line.quantity) })
+            .where(eq(productsTable.id, product.id));
+        }
+      }
+
+      const movements = await tx
+        .select()
+        .from(stockMovementsTable)
+        .where(and(
+          eq(stockMovementsTable.referenceId, idNum),
+          eq(stockMovementsTable.movementType, "sale"),
+        ));
+
+      for (const movement of movements) {
+        const [ingredient] = await tx
+          .select()
+          .from(ingredientsTable)
+          .where(eq(ingredientsTable.id, movement.ingredientId))
+          .for("update");
+        if (!ingredient) continue;
+
+        const restored = -number(movement.quantityDelta);
+        await tx.update(ingredientsTable)
+          .set({ stock: String(number(ingredient.stock) + restored) })
+          .where(eq(ingredientsTable.id, ingredient.id));
+      }
+
+      await tx.delete(stockMovementsTable)
+        .where(and(
+          eq(stockMovementsTable.referenceId, idNum),
+          eq(stockMovementsTable.movementType, "sale"),
+        ));
+      await tx.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum));
+      await tx.delete(salesTable).where(eq(salesTable.id, idNum));
+
+      return { id: idNum };
+    });
+
+    res.json({ message: "Sale record deleted", id: result.id });
+  }),
 );
 
 // Delete ALL ERP tables (dangerous – use with caution)
 router.delete(
   "/erp/clear-all",
-  safe(async (req, res) => {
+  checkRole("admin"),
+  safe(async (_req, res) => {
+    if (process.env.ALLOW_DANGEROUS_CLEAR_ALL !== "true") {
+      res.status(404).json({ error: "Endpoint tidak tersedia." });
+      return;
+    }
     // Perform deletions in order respecting foreign key constraints
     await db.transaction(async (tx) => {
       // Delete dependent tables first
@@ -771,6 +869,8 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireMaxItems(parsed.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.productId, item.quantity]), res)) return;
     const quantities = new Map<number, number>();
     for (const line of parsed.data.items) {
       quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
@@ -959,6 +1059,8 @@ router.post(
       invalid(res, parsed.error.message);
       return;
     }
+    if (!requireMaxItems(parsed.data.items, 100, res)) return;
+    if (!requireFiniteNumbers(parsed.data.items.map((item) => item.countedStock), res)) return;
     const ids = parsed.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Setiap bahan hanya boleh dicatat satu kali.");
@@ -1014,8 +1116,9 @@ router.post(
 router.delete(
   "/erp/ingredients/:ingredientId",
   safe(async (req, res) => {
-    const id = Number(req.params.ingredientId);
-    if (!Number.isFinite(id)) {
+    const rawId = req.params.ingredientId;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID bahan tidak valid.");
       return;
     }
@@ -1031,7 +1134,7 @@ router.delete(
         throw new HttpError("Bahan tidak ditemukan.", 404);
       }
       const remainingStock = number(ingredient.stock);
-      if (remainingStock > 1e-9) {
+      if (Math.abs(remainingStock) > 1e-9) {
         throw new HttpError(
           `Bahan masih memiliki stok ${remainingStock} ${ingredient.unit}. Habiskan atau sesuaikan stok melalui stok opname sebelum menghapus.`,
           409,
@@ -1081,8 +1184,9 @@ router.delete(
 router.delete(
   "/erp/products/:productId",
   safe(async (req, res) => {
-    const id = Number(req.params.productId);
-    if (!Number.isFinite(id)) {
+    const rawId = req.params.productId;
+    const id = Number(rawId);
+    if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID produk tidak valid.");
       return;
     }
@@ -1096,6 +1200,10 @@ router.delete(
         .for("update");
       if (!product) {
         throw new HttpError("Produk tidak ditemukan.", 404);
+      }
+
+      if (Math.abs(number(product.stock)) > 1e-9) {
+        throw new HttpError("Produk masih memiliki stok. Habiskan atau sesuaikan stok sebelum menghapus.", 409);
       }
 
       // 2. Cek apakah masih ada riwayat penjualan (salesDetailsTable)

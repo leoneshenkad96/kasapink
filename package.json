@@ -5,7 +5,8 @@
   "scripts": {
     "build": "pnpm --filter @workspace/erp-rumahan-emak run build && node ./scripts/build-vercel-api.mjs",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "test:security": "node ./scripts/security-api-test.mjs"
   },
   "private": true,
   "dependencies": {
@@ -16,9 +17,10 @@
     "cross-env": "^10.1.0",
     "drizzle-orm": "catalog:",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
+    "helmet": "^8.3.0",
     "pino": "^9.14.0",
     "pino-http": "^10.5.0",
-
     "express-session": "^1.18.0",
     "cookie-parser": "^1.4.6",
     "bcryptjs": "^2.4.3"
