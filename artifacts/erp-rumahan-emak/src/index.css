@@ -759,3 +759,89 @@
   .prep-yield-preview { align-items: flex-start; flex-direction: column; }
   .prep-yield-preview small { text-align: left; }
 }
+
+
+/* F&B Control — owner-friendly daily control room */
+.fnb-page { display: grid; gap: 16px; }
+.fnb-filter-card {
+  display: grid;
+  grid-template-columns: minmax(230px, .85fr) minmax(0, 1.6fr);
+  gap: 22px;
+  align-items: end;
+  padding: 17px 20px;
+}
+.fnb-filter-copy h2 { margin: 4px 0; font: 500 20px/1.2 var(--app-font-serif); }
+.fnb-filter-copy p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 9px; line-height: 1.5; }
+.fnb-filter-fields {
+  display: grid;
+  grid-template-columns: minmax(140px, 1fr) 20px minmax(140px, 1fr) auto;
+  gap: 8px;
+  align-items: end;
+}
+.fnb-filter-arrow { display: grid; place-items: center; height: 34px; color: hsl(var(--muted-foreground)); font-size: 13px; }
+.fnb-filter-status {
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  border-radius: 8px;
+  background: hsl(var(--muted) / .55);
+  color: hsl(var(--muted-foreground));
+  font-size: 8px;
+  white-space: nowrap;
+}
+.fnb-kpi-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.fnb-kpi { min-height: 112px; padding: 15px 14px; display: flex; flex-direction: column; justify-content: center; }
+.fnb-kpi strong { margin: 5px 0 3px; font-size: 20px; letter-spacing: -.5px; }
+.fnb-kpi small { color: hsl(var(--muted-foreground)); font-size: 8px; }
+.fnb-kpi-primary { background: hsl(151 27% 25%); color: hsl(43 40% 95%); border-color: hsl(151 27% 25%); }
+.fnb-kpi-primary .metric-label { color: hsl(43 25% 84% / .7); }
+.fnb-kpi-primary small { color: hsl(43 25% 84% / .7); }
+
+.fnb-section-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 14px; }
+.fnb-section-heading h2 { margin: 4px 0 3px; font: 500 20px/1.2 var(--app-font-serif); }
+.fnb-section-heading p { margin: 0; color: hsl(var(--muted-foreground)); font-size: 9px; line-height: 1.5; }
+.fnb-health-card { padding: 19px 20px; }
+.fnb-health-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(220px, .7fr); gap: 18px; align-items: center; }
+.fnb-health-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 12px; }
+.fnb-health-values > div { padding: 10px 11px; border: 1px solid hsl(var(--border)); border-radius: 9px; }
+.fnb-health-values span { display: block; color: hsl(var(--muted-foreground)); font-size: 8px; }
+.fnb-health-values strong { display: block; margin-top: 3px; font-size: 13px; }
+.fnb-health-track { height: 8px; overflow: hidden; border-radius: 20px; background: hsl(var(--muted)); }
+.fnb-health-track span { display: block; height: 100%; border-radius: inherit; background: hsl(var(--primary)); transition: width .25s; }
+.fnb-control-summary { display: grid; gap: 8px; }
+.fnb-control-summary > div { padding: 10px 12px; border-radius: 9px; background: hsl(var(--muted) / .55); }
+.fnb-control-summary span { display: block; color: hsl(var(--muted-foreground)); font-size: 8px; }
+.fnb-control-summary strong { display: inline-block; margin-top: 3px; font-size: 13px; }
+.fnb-control-summary small { margin-left: 6px; color: hsl(var(--muted-foreground)); font-size: 8px; }
+.fnb-table-wrap table { min-width: 720px; }
+.fnb-foodcost-pill, .fnb-variance-pill {
+  display: inline-flex; padding: 4px 7px; border-radius: 20px; font-size: 8px; font-weight: 700;
+}
+.fnb-foodcost-pill { background: hsl(145 31% 91%); color: hsl(var(--primary)); }
+.fnb-variance-pill.is-ok { background: hsl(145 31% 91%); color: hsl(var(--primary)); }
+.fnb-variance-pill.is-over { background: hsl(45 100% 94%); color: hsl(32 77% 29%); }
+.fnb-table-wrap .muted { display: block; margin-top: 3px; color: hsl(var(--muted-foreground)); font-size: 8px; }
+.fnb-note { margin: 12px 0 0; }
+.fnb-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.fnb-action-card { padding: 18px 20px; }
+.fnb-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+.fnb-form-grid .field:nth-child(3) { grid-column: 1 / -1; }
+.fnb-action-button { margin-top: 12px; width: 100%; }
+.fnb-action-card .helper-text { margin-bottom: 0; }
+
+@media (max-width: 1080px) {
+  .fnb-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .fnb-filter-card { grid-template-columns: 1fr; }
+  .fnb-health-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 767px) {
+  .fnb-kpi-grid, .fnb-action-grid { grid-template-columns: 1fr; }
+  .fnb-filter-fields { grid-template-columns: 1fr 18px 1fr; }
+  .fnb-filter-status { grid-column: 1 / -1; }
+  .fnb-health-values { grid-template-columns: 1fr; }
+  .fnb-form-grid { grid-template-columns: 1fr; }
+  .fnb-form-grid .field:nth-child(3) { grid-column: auto; }
+  .fnb-section-heading { flex-direction: column; }
+}
