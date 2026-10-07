@@ -660,6 +660,7 @@ router.put(
           ingredientName: ingredientsTable.name,
           unit: ingredientsTable.unit,
           qtyRequired: recipeItemsTable.qtyRequired,
+          recipeUnit: recipeItemsTable.recipeUnit,
         })
         .from(recipeItemsTable)
         .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
