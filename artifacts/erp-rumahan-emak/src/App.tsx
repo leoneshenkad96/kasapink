@@ -762,6 +762,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
           return <button
             key={p.id}
             type="button"
+            aria-pressed={selectedPrep === p.id}
             className={'prep-stock-card ' + (selectedPrep === p.id ? 'is-selected' : '')}
             onClick={() => setSelectedPrep(p.id)}
           >
