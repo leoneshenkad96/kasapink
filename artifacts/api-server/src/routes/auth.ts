@@ -109,6 +109,29 @@ router.get("/users", verifyToken, checkRole("admin"), async (_req, res) => {
   res.json(users);
 });
 
+router.put("/users/:id/password", verifyToken, checkRole("admin"), async (req: AuthRequest, res) => {
+  const userIdParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
+  const userId = Number(userIdParam);
+  const newPassword = typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+  if (!/^\d+$/.test(userIdParam) || !Number.isSafeInteger(userId) || userId <= 0) {
+    return res.status(400).json({ error: "ID user tidak valid." });
+  }
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    return res.status(400).json({ error: "Password baru minimal 8 karakter." });
+  }
+  if (userId === req.authUser!.id) {
+    return res.status(400).json({ error: "Untuk mengganti password sendiri, gunakan menu Password." });
+  }
+
+  const passwordHash = await bcrypt.hash(newPassword, 12);
+  const [updatedUser] = await db.update(usersTable)
+    .set({ passwordHash })
+    .where(eq(usersTable.id, userId))
+    .returning({ id: usersTable.id });
+  if (!updatedUser) return res.status(404).json({ error: "User tidak ditemukan." });
+  return res.json({ id: updatedUser.id, message: "Password user berhasil diganti." });
+});
+
 router.delete("/users/:id", verifyToken, checkRole("admin"), async (req: AuthRequest, res) => {
   const userIdParam = Array.isArray(req.params.id) ? req.params.id[0] : req.params.id;
   const userId = Number(userIdParam);
