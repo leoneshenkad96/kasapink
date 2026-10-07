@@ -1493,7 +1493,7 @@ router.post(
           note: `Penjualan #${sale.id}`,
         });
       }
-      await tx.insert(stockMovementsTable).values(movements);
+      if (movements.length) await tx.insert(stockMovementsTable).values(movements);
       return {
         id: sale.id,
         date: sale.date,
