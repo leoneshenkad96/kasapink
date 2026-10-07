@@ -684,6 +684,7 @@ router.put(
 const PrepBody = z.object({
   name: z.string().min(1).max(120),
   unit: z.string().min(1).max(30),
+  yieldQty: z.number().positive(),
 });
 const PrepRecipeBody = z.object({
   items: z.array(z.object({
@@ -733,7 +734,7 @@ router.get("/erp/preparations", safe(async (_req, res) => {
     .where(inArray(preparationBatchesTable.preparationId, ids))
     .orderBy(desc(preparationBatchesTable.date), desc(preparationBatchesTable.id)).limit(50) : [];
   res.json(preps.map((p) => ({
-    id: p.id, name: p.name, unit: p.unit, stock: number(p.stock), averageCost: number(p.averageCost), active: p.active,
+    id: p.id, name: p.name, unit: p.unit, yieldQty: number(p.yieldQty), stock: number(p.stock), averageCost: number(p.averageCost), active: p.active,
     recipe: recipeRows.filter((r) => r.preparationId === p.id).map((r) => ({
       ingredientId: r.ingredientId, ingredientName: r.ingredientName, ingredientUnit: r.ingredientUnit,
       qtyRequired: number(r.qtyRequired), recipeUnit: r.recipeUnit, conversionFactor: number(r.conversionFactor),
@@ -752,9 +753,9 @@ router.post("/erp/preparations", safe(async (req, res) => {
   const parsed = PrepBody.safeParse(req.body);
   if (!parsed.success) return invalid(res, parsed.error.message);
   const [row] = await db.insert(preparationsTable).values({
-    name: parsed.data.name.trim(), unit: parsed.data.unit.trim(), stock: "0", averageCost: "0",
+    name: parsed.data.name.trim(), unit: parsed.data.unit.trim(), yieldQty: String(parsed.data.yieldQty), stock: "0", averageCost: "0",
   }).returning();
-  res.status(201).json({ id: row.id, name: row.name, unit: row.unit, stock: 0, averageCost: 0, active: row.active });
+  res.status(201).json({ id: row.id, name: row.name, unit: row.unit, yieldQty: number(row.yieldQty), stock: 0, averageCost: 0, active: row.active });
 }));
 
 router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
@@ -829,9 +830,11 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     if (locked.length !== ingredientIds.length) throw new HttpError("Bahan prep tidak lengkap.", 409);
     const byId = new Map(locked.map((r) => [r.id, r]));
     let totalCost = 0;
+    const scale = parsed.data.targetQty / number(prep.yieldQty);
+    if (!Number.isFinite(scale) || scale <= 0) throw new HttpError("Hasil standar prep tidak valid.", 400);
     for (const line of recipe) {
       const ing = byId.get(line.ingredientId)!;
-      const used = number(line.qtyRequired) * number(line.conversionFactor);
+      const used = number(line.qtyRequired) * number(line.conversionFactor) * scale;
       totalCost += used * number(ing.averageCost);
       const newStock = number(ing.stock) - used;
       await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, ing.id));
