@@ -168,6 +168,38 @@ export const productPreparationItemsTable = pgTable(
   (table) => [uniqueIndex("erp_product_preparation_unique").on(table.productId, table.preparationId)],
 );
 
+
+export const wasteTable = pgTable(
+  "erp_waste",
+  {
+    id: serial("id").primaryKey(),
+    date: date("date", { mode: "string" }).notNull(),
+    ingredientId: integer("ingredient_id").references(() => ingredientsTable.id, { onDelete: "restrict" }),
+    preparationId: integer("preparation_id").references(() => preparationsTable.id, { onDelete: "restrict" }),
+    quantity: quantity("quantity"),
+    unit: text("unit").notNull(),
+    unitCost: money("unit_cost"),
+    totalCost: money("total_cost"),
+    reason: text("reason").notNull(),
+    note: text("note"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("erp_waste_date_idx").on(table.date)],
+);
+
+export const operatingExpensesTable = pgTable(
+  "erp_operating_expenses",
+  {
+    id: serial("id").primaryKey(),
+    date: date("date", { mode: "string" }).notNull(),
+    category: text("category").notNull(),
+    description: text("description").notNull(),
+    amount: money("amount"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("erp_operating_expenses_date_idx").on(table.date)],
+);
+
 export const purchasesTable = pgTable(
   "erp_purchases",
   {
