@@ -314,8 +314,9 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
     }
     const stockTypeValue = stockType;
     const minStock = Number(f.get('minStock')), stock = Number(f.get('stock'));
+    const openingUnitCost = Number(f.get('openingUnitCost'));
     const success = () => { refresh(); setModal(null); setError(''); setNameError(''); setFormDirty(false); setUnsavedChanges(false); };
-    if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
+    if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock, openingUnitCost } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
     else if (modal) update.mutate({ ingredientId: modal.id, data: { name, category, stockType: stockTypeValue, unit, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
   };
 
@@ -344,6 +345,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
       <Field label="Kategori"><FieldSelect disabled={readOnly} name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan"><FieldSelect disabled={readOnly} name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput disabled={readOnly} name="stock" type="number" min="0" step="any" defaultValue="" placeholder="Masukkan jumlah stok" required /></Field>}
+      {modal === 'new' && <Field label="Biaya per satuan stok awal"><FieldInput disabled={readOnly} name="openingUnitCost" type="number" min="0" step="any" defaultValue="0" placeholder="Masukkan biaya per satuan" required /><small className="form-hint">Dipakai sebagai HPP awal bahan.</small></Field>}
       <Field label="Batas minimum"><FieldInput disabled={readOnly} name="minStock" type="number" min="0" step="any" defaultValue={modal === 'new' ? '' : modal.minStock} placeholder="Masukkan batas minimum" required /></Field>
       <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={closeStockModal}>Batal</Button><Button type="submit" disabled={readOnly || create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan bahan'}</Button></div>
     </form></Modal>}
@@ -875,7 +877,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
                       <small>Stok saat ini {ingredient?.stock ?? 0} {ingredient?.unit || line.recipeUnit}</small>
                     </div>
                   </div>
-                  <Field label="Jumlah"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={line.qtyRequired} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
+                  <Field label="Jumlah"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
                   <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
                   {!readOnly && <button className="icon-button" type="button" aria-label="Hapus bahan" onClick={() => setRecipeDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
                 </div>;
