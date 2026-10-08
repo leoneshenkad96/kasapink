@@ -9,17 +9,29 @@ let _db: ReturnType<typeof drizzle> | null = null;
 
 export function getPool(): pg.Pool {
   if (!_pool) {
-    if (!process.env.DATABASE_URL) {
+    const databaseUrl = process.env.DATABASE_URL;
+
+    if (!databaseUrl) {
       throw new Error(
         "DATABASE_URL must be set. Did you forget to provision a database?",
       );
     }
+
+    const isLocalDatabase =
+      databaseUrl.includes("localhost") ||
+      databaseUrl.includes("127.0.0.1");
+
     _pool = new Pool({
-      connectionString: process.env.DATABASE_URL,
-      ssl: { rejectUnauthorized: true },
-      enableChannelBinding: true,
+      connectionString: databaseUrl,
+      ...(isLocalDatabase
+        ? {}
+        : {
+            ssl: { rejectUnauthorized: true },
+            enableChannelBinding: true,
+          }),
     });
   }
+
   return _pool;
 }
 

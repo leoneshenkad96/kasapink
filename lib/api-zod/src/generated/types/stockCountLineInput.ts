@@ -6,8 +6,14 @@
  * OpenAPI spec version: 0.1.0
  */
 
-export interface StockCountLineInput {
-  ingredientId: number;
-  /** @minimum 0 */
+export type StockCountLineInput = (unknown & {
+  /** @minimum 1 */
+  ingredientId?: number;
+  /** @minimum 1 */
+  preparationId?: number;
+  /**
+     * Physical stock quantity, up to three decimal places.
+     * @minimum 0
+     */
   countedStock: number;
-}
+});

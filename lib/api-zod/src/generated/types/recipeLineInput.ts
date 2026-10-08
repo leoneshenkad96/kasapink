@@ -8,7 +8,11 @@
 
 export interface RecipeLineInput {
   ingredientId: number;
+  /**
+     * @minLength 1
+     * @maxLength 30
+     */
+  recipeUnit: string;
   /** @exclusiveMinimum 0 */
   qtyRequired: number;
-  recipeUnit: string;
 }

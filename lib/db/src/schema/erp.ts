@@ -143,6 +143,7 @@ export const preparationStockMovementsTable = pgTable(
     stockBefore: quantity("stock_before"),
     stockAfter: quantity("stock_after"),
     unitCost: money("unit_cost"),
+    varianceValue: numeric("variance_value", { precision: 14, scale: 2 }),
     referenceId: integer("reference_id"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -268,6 +269,7 @@ export const stockMovementsTable = pgTable(
     stockBefore: quantity("stock_before"),
     stockAfter: quantity("stock_after"),
     unitCost: money("unit_cost"),
+    varianceValue: numeric("variance_value", { precision: 14, scale: 2 }),
     referenceId: integer("reference_id"),
     note: text("note"),
     createdAt: timestamp("created_at", { withTimezone: true })

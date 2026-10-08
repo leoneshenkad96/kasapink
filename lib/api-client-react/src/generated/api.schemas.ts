@@ -72,6 +72,7 @@ export interface IngredientInput {
   /** @minimum 0 */
   minStock: number;
   /** @minimum 0 */
+  openingUnitCost: number;
 }
 
 export type IngredientUpdateStockType = typeof IngredientUpdateStockType[keyof typeof IngredientUpdateStockType];
@@ -173,15 +174,19 @@ export interface RecipeItem {
   ingredientId: number;
   ingredientName: string;
   unit: string;
-  qtyRequired: number;
   recipeUnit: string;
+  qtyRequired: number;
 }
 
 export interface RecipeLineInput {
   ingredientId: number;
+  /**
+     * @minLength 1
+     * @maxLength 30
+     */
+  recipeUnit: string;
   /** @exclusiveMinimum 0 */
   qtyRequired: number;
-  recipeUnit: string;
 }
 
 export interface RecipeInput {
@@ -255,16 +260,174 @@ export interface Sale {
   items: SaleLine[];
 }
 
-export interface StockCountLineInput {
-  ingredientId: number;
-  /** @minimum 0 */
+export type StockCountLineInput = (unknown & {
+  /** @minimum 1 */
+  ingredientId?: number;
+  /** @minimum 1 */
+  preparationId?: number;
+  /**
+     * Physical stock quantity, up to three decimal places.
+     * @minimum 0
+     */
   countedStock: number;
-}
+});
 
 export interface StockCountInput {
   date: string;
-  /** @minItems 1 */
+  /**
+     * @minItems 1
+     * @maxItems 100
+     */
   items: StockCountLineInput[];
+}
+
+export type StockCountResponseItemItemType = typeof StockCountResponseItemItemType[keyof typeof StockCountResponseItemItemType];
+
+
+export const StockCountResponseItemItemType = {
+  ingredient: 'ingredient',
+  preparation: 'preparation',
+} as const;
+
+export type StockCountResponseItemStockType = typeof StockCountResponseItemStockType[keyof typeof StockCountResponseItemStockType];
+
+
+export const StockCountResponseItemStockType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
+export interface StockCountResponseItem {
+  id: number;
+  itemType: StockCountResponseItemItemType;
+  itemId: number;
+  date: string;
+  name: string;
+  unit: string;
+  stock: number;
+  stockBefore: number;
+  countedStock: number;
+  stockAfter: number;
+  quantityDelta: number;
+  varianceQty: number;
+  unitCost: number;
+  varianceValue: number;
+  category?: string;
+  stockType?: StockCountResponseItemStockType;
+  minStock?: number;
+  lastPrice?: number;
+  averageCost?: number;
+  yieldQty?: number;
+  active?: boolean;
+}
+
+export type RecipeUsageVarianceItemType = typeof RecipeUsageVarianceItemType[keyof typeof RecipeUsageVarianceItemType];
+
+
+export const RecipeUsageVarianceItemType = {
+  ingredient: 'ingredient',
+  preparation: 'preparation',
+} as const;
+
+export interface RecipeUsageVariance {
+  itemType: RecipeUsageVarianceItemType;
+  itemId: number;
+  itemName: string;
+  unit: string;
+  actualQty: number;
+  theoreticalQty: number;
+  varianceQty: number;
+  varianceCost: number;
+}
+
+export type StockOpnameVarianceItemType = typeof StockOpnameVarianceItemType[keyof typeof StockOpnameVarianceItemType];
+
+
+export const StockOpnameVarianceItemType = {
+  ingredient: 'ingredient',
+  preparation: 'preparation',
+} as const;
+
+export interface StockOpnameVariance {
+  movementId: number;
+  itemType: StockOpnameVarianceItemType;
+  itemId: number;
+  itemName: string;
+  date: string;
+  unit: string;
+  systemStock: number;
+  physicalStock: number;
+  varianceQty: number;
+  /** @nullable */
+  unitCost: number | null;
+  /** @nullable */
+  varianceValue: number | null;
+}
+
+export type FnbReportMenusItem = {
+  productId: number;
+  productName: string;
+  quantity: number;
+  revenue: number;
+  actualCogs: number;
+  theoreticalCogs: number;
+  grossProfit: number;
+  foodCostPercentage: number;
+};
+
+export type FnbReportWasteItemItemType = typeof FnbReportWasteItemItemType[keyof typeof FnbReportWasteItemItemType];
+
+
+export const FnbReportWasteItemItemType = {
+  ingredient: 'ingredient',
+  preparation: 'preparation',
+} as const;
+
+export type FnbReportWasteItem = {
+  id: number;
+  date: string;
+  itemType: FnbReportWasteItemItemType;
+  itemId: number;
+  quantity: number;
+  unit: string;
+  totalCost: number;
+  reason: string;
+  /** @nullable */
+  note: string | null;
+};
+
+export type FnbReportExpensesItem = {
+  id: number;
+  date: string;
+  category: string;
+  description: string;
+  amount: number;
+};
+
+export interface FnbReport {
+  startDate: string;
+  endDate: string;
+  revenue: number;
+  actualCogs: number;
+  theoreticalCogs: number;
+  actualFoodCostPercentage: number;
+  theoreticalFoodCostPercentage: number;
+  foodCostVariance: number;
+  wasteCost: number;
+  grossProfit: number;
+  operatingExpenses: number;
+  netProfit: number;
+  wasteCount: number;
+  recipeUsageVariance: RecipeUsageVariance[];
+  /**
+     * Legacy alias for recipeUsageVariance.
+     * @deprecated
+     */
+  inventoryVariance: RecipeUsageVariance[];
+  stockOpnameVariance: StockOpnameVariance[];
+  menus: FnbReportMenusItem[];
+  waste: FnbReportWasteItem[];
+  expenses: FnbReportExpensesItem[];
 }
 
 export interface DailyFinance {
@@ -296,6 +459,11 @@ export interface ErpState {
 }
 
 export type GetFinanceReportParams = {
+startDate: string;
+endDate: string;
+};
+
+export type GetFnbReportParams = {
 startDate: string;
 endDate: string;
 };

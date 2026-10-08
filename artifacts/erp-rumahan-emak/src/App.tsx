@@ -188,7 +188,7 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
 function PageHeading({ kicker, title, note, action }: { kicker: string; title: string; note: string; action?: React.ReactNode }) {
   return <div className="page-heading"><div><div className="eyebrow">{kicker}</div><h1>{title}</h1><p>{note}</p></div>{action && <div className="heading-action">{action}</div>}</div>;
 }
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) { return <section className={`card ${className}`}>{children}</section>; }
+function Card({ children, className = '', ...props }: React.ComponentProps<'section'>) { return <section className={`card ${className}`} {...props}>{children}</section>; }
 function LoadingPanel() { return <div className="loading-grid"><div className="skeleton big" /><div className="skeleton" /><div className="skeleton" /></div>; }
 function ErrorPanel({ message, retry }: { message: string; retry: () => void }) { return <div className="error-panel"><AlertCircle size={22} /><div><b>Data belum dapat dimuat</b><p>{message}</p><button className="text-button" onClick={retry}>Coba muat kembali</button></div></div>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><span className="empty-icon"><Boxes size={20} /></span><b>{title}</b><p>{text}</p></div>; }
@@ -259,6 +259,12 @@ const recipeUnitFactor = (recipeUnit: string, stockUnit: string) => {
   const a = RECIPE_UNIT_GROUPS[recipeUnit], b = RECIPE_UNIT_GROUPS[stockUnit];
   return a && b && a.group === b.group ? a.factor / b.factor : 1;
 };
+const recipeUnitsFor = (stockUnit: string) => {
+  const group = RECIPE_UNIT_GROUPS[stockUnit]?.group;
+  return group
+    ? Object.keys(RECIPE_UNIT_GROUPS).filter((unit) => RECIPE_UNIT_GROUPS[unit].group === group)
+    : [stockUnit];
+};
 
 const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
   Makanan: ['kg', 'gram', 'liter', 'ml', 'butir', 'pcs', 'ekor', 'potong', 'ikat', 'pack', 'box'],
@@ -314,8 +320,9 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
     }
     const stockTypeValue = stockType;
     const minStock = Number(f.get('minStock')), stock = Number(f.get('stock'));
+    const openingUnitCost = Number(f.get('openingUnitCost'));
     const success = () => { refresh(); setModal(null); setError(''); setNameError(''); setFormDirty(false); setUnsavedChanges(false); };
-    if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
+    if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock, openingUnitCost } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
     else if (modal) update.mutate({ ingredientId: modal.id, data: { name, category, stockType: stockTypeValue, unit, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
   };
 
@@ -344,6 +351,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
       <Field label="Kategori"><FieldSelect disabled={readOnly} name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan"><FieldSelect disabled={readOnly} name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput disabled={readOnly} name="stock" type="number" min="0" step="any" defaultValue="" placeholder="Masukkan jumlah stok" required /></Field>}
+      {modal === 'new' && <Field label="Biaya per satuan stok awal"><FieldInput disabled={readOnly} name="openingUnitCost" type="number" min="0" step="any" defaultValue="0" placeholder="Masukkan biaya per satuan" required /><small className="form-hint">Dipakai sebagai HPP awal bahan.</small></Field>}
       <Field label="Batas minimum"><FieldInput disabled={readOnly} name="minStock" type="number" min="0" step="any" defaultValue={modal === 'new' ? '' : modal.minStock} placeholder="Masukkan batas minimum" required /></Field>
       <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={closeStockModal}>Batal</Button><Button type="submit" disabled={readOnly || create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan bahan'}</Button></div>
     </form></Modal>}
@@ -525,7 +533,7 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
   const total = lines.reduce((n, l) => n + (safeProducts.find((p) => p.id === l.productId)?.sellingPrice || 0) * (Number(l.quantity) || 0), 0);
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone(''); setWarnings([]);
-    mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && l.quantity > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
+    mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && Number(l.quantity) > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
       onSuccess: (sale) => { refresh(); setUnsavedChanges(false); setDone(`Penjualan ${money(sale.totalRevenue)} berhasil dicatat.`); setWarnings(sale.warnings || []); setLines([{ productId: availableProducts[0]?.id || 0, quantity: '' }]); },
       onError: (x) => setError(errText(x)),
     });
@@ -544,14 +552,60 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
   </>;
 }
 
-function StockCountPage({ ingredients = [] }: { ingredients?: Ingredient[] }) {
-  const safeIngredients = ingredients || [];
-  const [date, setDate] = useState(today()), [counts, setCounts] = useState<Record<number, string>>({}), [error, setError] = useState(''), [done, setDone] = useState('');
+type StockCountPreparation = { id: number; name: string; unit: string; stock: number; averageCost: number };
+
+function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: Ingredient[]; readOnly?: boolean }) {
+  const [preparations, setPreparations] = useState<StockCountPreparation[]>([]);
+  const [date, setDate] = useState(today());
+  const [counts, setCounts] = useState<Record<string, string>>({});
+  const [error, setError] = useState('');
+  const [done, setDone] = useState('');
   const mutation = useRecordStockCount(), refresh = useRefresh();
-  const submit = (e: React.FormEvent) => { e.preventDefault(); setError(''); setDone(''); mutation.mutate({ data: { date, items: safeIngredients.map((i) => ({ ingredientId: i.id, countedStock: Number(counts[i.id] ?? i.stock) })) } }, { onSuccess: () => { refresh(); setDone('Stok fisik berhasil disimpan dan saldo stok diperbarui.'); setCounts({}); }, onError: (x) => setError(errText(x)) }); };
-  return <><PageHeading kicker="PENYESUAIAN PERSEDIAAN" title="Stok Opname" note="Cocokkan catatan dengan jumlah bahan yang benar-benar ada." />
-    <Card className="table-card"><div className="opname-intro"><div><span className="eyebrow">HITUNG FISIK</span><h2>Jumlah bahan di dapur</h2><p>Isi jumlah aktual. Kolom kosong akan memakai jumlah stok saat ini.</p></div><Field label="Tanggal opname"><FieldInput type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field></div>
-      {safeIngredients.length ? <form onSubmit={submit}><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>CATATAN SISTEM</th><th>JUMLAH FISIK</th><th>SELISIH</th></tr></thead><tbody>{safeIngredients.map((i) => { const value = counts[i.id] === undefined ? i.stock : Number(counts[i.id]); const delta = value - i.stock; return <tr key={i.id}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1)}</span><b>{i.name}</b></div></td><td>{i.stock} {i.unit}</td><td><div className="count-input"><FieldInput aria-label={`Jumlah fisik ${i.name}`} type="number" min="0" step="any" value={counts[i.id] ?? ''} placeholder={String(i.stock)} onChange={(e) => setCounts({ ...counts, [i.id]: e.target.value })} /><span>{i.unit}</span></div></td><td><span className={delta < 0 ? 'negative' : delta > 0 ? 'positive' : 'muted'}>{delta > 0 ? '+' : ''}{delta} {i.unit}</span></td></tr>; })}</tbody></table></div><div className="opname-footer"><FormError text={error} />{done && <div className="success-message"><Check size={16} />{done}</div>}<Button type="submit" disabled={mutation.isPending}>{mutation.isPending ? 'Menyimpan…' : 'Simpan hasil opname'}</Button></div></form> : <Empty title="Belum ada bahan untuk dihitung" text="Tambahkan bahan di menu stok terlebih dahulu." />}
+
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/erp/preparations', { headers: authHeaders() })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Gagal memuat stok preparation.');
+        const data = await response.json();
+        if (active) setPreparations(Array.isArray(data) ? data : []);
+      })
+      .catch((reason) => { if (active) setError(errText(reason)); });
+    return () => { active = false; };
+  }, []);
+
+  const rows = [
+    ...ingredients.map((item) => ({ key: `ingredient:${item.id}`, itemType: 'ingredient' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
+    ...preparations.map((item) => ({ key: `preparation:${item.id}`, itemType: 'preparation' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
+  ];
+  const countedRows = rows.filter((row) => counts[row.key] !== undefined && counts[row.key].trim() !== '');
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault(); setError(''); setDone('');
+    if (readOnly) return;
+    if (!countedRows.length) { setError('Masukkan jumlah fisik minimal untuk satu item.'); return; }
+    mutation.mutate({ data: { date, items: countedRows.map((row) => row.itemType === 'ingredient'
+      ? { ingredientId: row.id, countedStock: Number(counts[row.key]) }
+      : { preparationId: row.id, countedStock: Number(counts[row.key]) }) } }, {
+      onSuccess: () => { refresh(); setDone('Hasil opname dan adjustment stok berhasil disimpan.'); setCounts({}); },
+      onError: (reason) => setError(errText(reason)),
+    });
+  };
+
+  return <><PageHeading kicker="PENYESUAIAN PERSEDIAAN" title="Stok Opname" note="Catat stok fisik bahan dan preparation. Selisih dihitung dari stok fisik dikurangi stok sistem." />
+    <Card className="table-card"><div className="opname-intro"><div><span className="eyebrow">HITUNG FISIK</span><h2>Stok aktual</h2><p>Kolom kosong tidak dikirim dan tidak mengubah stok item tersebut.</p></div><Field label="Tanggal opname"><FieldInput disabled={readOnly} type="date" value={date} onChange={(e) => setDate(e.target.value)} /></Field></div>
+      {rows.length ? <form onSubmit={submit}><div className="table-scroll"><table><thead><tr><th>ITEM</th><th>JENIS</th><th>STOK SISTEM</th><th>STOK FISIK</th><th>VARIANCE QTY</th></tr></thead><tbody>{rows.map((row) => {
+        const entered = counts[row.key] !== undefined && counts[row.key].trim() !== '';
+        const physical = entered ? Number(counts[row.key]) : null;
+        const delta = physical === null ? null : physical - row.stock;
+        return <tr key={row.key}>
+          <td><div className="table-name"><span className="ingredient-token">{row.name.slice(0, 1)}</span><b>{row.name}</b></div></td>
+          <td>{row.itemType === 'ingredient' ? 'Bahan' : 'Preparation'}</td>
+          <td>{row.stock} {row.unit}</td>
+          <td><div className="count-input"><FieldInput disabled={readOnly} aria-label={`Stok fisik ${row.name}`} type="number" min="0" step="0.001" value={counts[row.key] ?? ''} placeholder={String(row.stock)} onChange={(e) => setCounts({ ...counts, [row.key]: e.target.value })} /><span>{row.unit}</span></div></td>
+          <td><span className={delta === null ? 'muted' : delta < 0 ? 'negative' : delta > 0 ? 'positive' : 'muted'}>{delta === null ? '—' : `${delta > 0 ? '+' : ''}${Number(delta.toFixed(3))} ${row.unit}`}</span></td>
+        </tr>;
+      })}</tbody></table></div><div className="opname-footer"><FormError text={error} />{done && <div className="success-message"><Check size={16} />{done}</div>}<Button type="submit" disabled={readOnly || mutation.isPending || !countedRows.length}>{mutation.isPending ? 'Menyimpan…' : 'Simpan hasil opname'}</Button></div></form> : <Empty title="Belum ada stok untuk dihitung" text="Tambahkan bahan atau preparation terlebih dahulu." />}
     </Card>
   </>;
 }
@@ -795,7 +849,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       <div className="prep-create-form">
         <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Contoh: Ayam Suwir" /></Field>
         <Field label="Satuan stok"><FieldInput value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="kg, gram, pcs" /></Field>
-        <Field label="Hasil standar"><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 5" hint="Hasil satu kali resep/batch." /></Field>
+        <Field label="Hasil standar" hint="Hasil satu kali resep/batch."><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 5" /></Field>
         <div className="prep-create-submit"><button className="button button-primary" type="button" onClick={() => void savePrep()}><Plus size={15} /> Buat prep</button></div>
       </div>
     </Card>}
@@ -829,7 +883,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
                       <small>Stok saat ini {ingredient?.stock ?? 0} {ingredient?.unit || line.recipeUnit}</small>
                     </div>
                   </div>
-                  <Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={line.qtyRequired} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
+                  <Field label="Jumlah"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
                   <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
                   {!readOnly && <button className="icon-button" type="button" aria-label="Hapus bahan" onClick={() => setRecipeDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
                 </div>;
@@ -935,7 +989,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   </div>;
 }
 
-function FnbControlPage() {
+function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
   const stateQuery = useGetErpState();
   const [startDate,setStartDate]=useState(today());
   const [endDate,setEndDate]=useState(today());
@@ -1059,10 +1113,10 @@ function FnbControlPage() {
 
       <Card className="fnb-section-card">
         <div className="fnb-section-head">
-          <div><span className="eyebrow">VARIANCE STOK</span><h2>Apa yang boros?</h2><p>Item dengan pemakaian aktual di atas kebutuhan resep.</p></div>
+          <div><span className="eyebrow">RECIPE USAGE VARIANCE</span><h2>Pemakaian aktual vs teoritis</h2><p>Selisih actual usage dikurangi theoretical usage dari resep dan penjualan.</p></div>
           <span className="fnb-count">Aktual − teoritis</span>
         </div>
-        <div className="fnb-variance-list">{(report.inventoryVariance||[]).slice(0,10).map((v:any)=><div className="fnb-variance-row" key={v.itemType+'-'+v.itemId}>
+        <div className="fnb-variance-list">{(report.recipeUsageVariance||[]).slice(0,10).map((v:any)=><div className="fnb-variance-row" key={v.itemType+'-'+v.itemId}>
           <div><b>{v.itemName}</b><small>{v.itemType==='preparation'?'Prep':'Bahan'} · {v.unit}</small></div>
           <span>{v.actualQty}</span><span>{v.theoreticalQty}</span>
           <strong className={Number(v.varianceQty)>0?'is-warning':'is-ok'}>{Number(v.varianceQty)>0?'+':''}{v.varianceQty} {v.unit}</strong>
@@ -1072,26 +1126,38 @@ function FnbControlPage() {
         <p className="helper-text fnb-note">Variance positif berarti pemakaian aktual lebih tinggi dari kebutuhan resep. Prep yang dibuat sebelum periode juga bisa memengaruhi angka ini.</p>
       </Card>
 
+      <Card className="fnb-section-card">
+        <div className="fnb-section-head">
+          <div><span className="eyebrow">STOCK OPNAME VARIANCE</span><h2>Stok fisik vs sistem</h2><p>Selisih dan nilai rupiah diambil dari adjustment saat opname.</p></div>
+          <span className="fnb-count">Fisik − sistem</span>
+        </div>
+        {(report.stockOpnameVariance||[]).length ? <div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>ITEM</th><th>STOK SISTEM</th><th>STOK FISIK</th><th>VARIANCE QTY</th><th>HPP SAAT OPNAME</th><th>VARIANCE RUPIAH</th></tr></thead><tbody>{report.stockOpnameVariance.map((v:any)=><tr key={`${v.itemType}-${v.itemId}-${v.movementId}`}>
+          <td>{dateLabel(v.date)}</td><td><b>{v.itemName}</b><small className="muted">{v.itemType==='preparation'?'Preparation':'Ingredient'} · {v.unit}</small></td>
+          <td>{v.systemStock} {v.unit}</td><td>{v.physicalStock} {v.unit}</td><td>{Number(v.varianceQty)>0?'+':''}{v.varianceQty} {v.unit}</td>
+          <td>{v.unitCost == null ? '—' : money(v.unitCost)}</td><td>{v.varianceValue == null ? '—' : money(v.varianceValue)}</td>
+        </tr>)}</tbody></table></div> : <Empty title="Belum ada hasil opname pada periode ini" text="Hasil opname akan tampil sesuai tanggal adjustment." />}
+      </Card>
+
       <div className="fnb-action-grid">
         <Card className="fnb-action-card">
           <div className="fnb-action-head"><div className="fnb-action-icon"><Trash2 size={17}/></div><div><span className="eyebrow">WASTE</span><h2>Catat yang terbuang</h2><p>Bahan atau prep yang sudah tidak bisa digunakan.</p></div></div>
           <div className="fnb-form-grid">
-            <Field label="Jenis"><select className="input" value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field>
-            <Field label="Item"><select className="input" value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih item...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field>
+            <Field label="Jenis"><select disabled={readOnly} className="input" value={wasteType} onChange={e=>{setWasteType(e.target.value as any);setWasteItem('')}}><option value="ingredient">Bahan</option><option value="preparation">Prep</option></select></Field>
+            <Field label="Item"><select disabled={readOnly} className="input" value={wasteItem} onChange={e=>setWasteItem(e.target.value)}><option value="">Pilih item...</option>{items.map((x:any)=><option key={x.id} value={x.id}>{x.name} ({x.unit})</option>)}</select></Field>
             <Field label="Jumlah"><FieldInput type="number" min="0.001" step="0.001" value={wasteQty} onChange={e=>setWasteQty(e.target.value)} placeholder="0" /></Field>
-            <Field label="Alasan"><FieldInput value={wasteReason} onChange={e=>setWasteReason(e.target.value)} /></Field>
+            <Field label="Alasan"><FieldInput disabled={readOnly} value={wasteReason} onChange={e=>setWasteReason(e.target.value)} /></Field>
           </div>
-          <button className="button button-primary fnb-action-button" type="button" onClick={()=>void addWaste()}><Trash2 size={15}/> Catat waste</button>
+          <button disabled={readOnly} className="button button-primary fnb-action-button" type="button" onClick={()=>void addWaste()}><Trash2 size={15}/> Catat waste</button>
         </Card>
 
         <Card className="fnb-action-card">
           <div className="fnb-action-head"><div className="fnb-action-icon"><ReceiptText size={17}/></div><div><span className="eyebrow">BIAYA USAHA</span><h2>Catat pengeluaran</h2><p>Gas, listrik, air, transport, dan biaya di luar bahan.</p></div></div>
           <div className="fnb-form-grid">
-            <Field label="Kategori"><FieldInput value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air..." /></Field>
-            <Field label="Keterangan"><FieldInput value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)} placeholder="Contoh: isi ulang gas" /></Field>
-            <Field label="Nominal"><FieldInput type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)} placeholder="0" /></Field>
+            <Field label="Kategori"><FieldInput disabled={readOnly} value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air..." /></Field>
+            <Field label="Keterangan"><FieldInput disabled={readOnly} value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)} placeholder="Contoh: isi ulang gas" /></Field>
+            <Field label="Nominal"><FieldInput disabled={readOnly} type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)} placeholder="0" /></Field>
           </div>
-          <button className="button button-primary fnb-action-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={15}/> Simpan pengeluaran</button>
+          <button disabled={readOnly} className="button button-primary fnb-action-button" type="button" onClick={()=>void addExpense()}><ReceiptText size={15}/> Simpan pengeluaran</button>
         </Card>
       </div>
     </>}
@@ -1107,16 +1173,16 @@ function AppContent({ onLogout, role }: { onLogout: () => void; role: UserRole }
   return <Shell connected={health.isSuccess} onLogout={onLogout} role={role}><ErrorBoundary resetKey="routes"><Switch>
     <Route path="/" component={() => <Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />} />
     <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" />} />
+    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={role === 'testing'} />} />
     <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={role === 'testing'} />} />
     <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" />} />
+    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={role === 'testing'} />} />
     <Route path="/produk/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={role === 'testing'} />} />
     <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
     <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={role === 'testing'} />} />
     <Route path="/prep" component={() => <PrepPage readOnly={role === 'testing'} />} />
-    <Route path="/kontrol-fnb" component={() => <FnbControlPage />} />
-    <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} />} />
+    <Route path="/kontrol-fnb" component={() => <FnbControlPage readOnly={role === 'testing'} />} />
+    <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
     <Route path="/laporan" component={ReportPage} />
     <Route path="/users" component={() => role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
 
