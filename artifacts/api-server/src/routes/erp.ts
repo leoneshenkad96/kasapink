@@ -198,6 +198,7 @@ async function ensureSeedData(): Promise<void> {
         productId: kerupuk[0].productId,
         ingredientId: matang[0].ingredientId,
         qtyRequired: "1",
+        recipeUnit: matang[0].unit,
       })
       .onConflictDoNothing();
   }
@@ -693,6 +694,9 @@ function recordBody(value: unknown): Record<string, unknown> | null {
 function positiveNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
+function positiveInteger(value: unknown): value is number {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
 function stringValue(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -706,14 +710,14 @@ const PrepBody = {
 const PrepRecipeBody = {
   safeParse(input: unknown): ParseResult<{ items: Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }> }> {
     const b = recordBody(input), items = b?.items;
-    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !Number.isSafeInteger(v.ingredientId) || v.ingredientId <= 0 || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
+    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !positiveInteger(v.ingredientId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
     return { success: true, data: { items: items as Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }> } };
   }
 };
 const ProductPrepBody = {
   safeParse(input: unknown): ParseResult<{ items: Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }> }> {
     const b = recordBody(input), items = b?.items;
-    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !Number.isSafeInteger(v.preparationId) || v.preparationId <= 0 || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
+    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !positiveInteger(v.preparationId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
     return { success: true, data: { items: items as Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }> } };
   }
 };
@@ -1259,37 +1263,6 @@ router.post(
         });
       }
       await tx.insert(purchaseDetailsTable).values(details);
-      const prepMovements: Array<typeof preparationStockMovementsTable.$inferInsert> = [];
-
-      for (const preparationId of requestedPreparationIds) {
-        const prep = preparationById.get(preparationId)!;
-        const used = requiredByPreparation.get(preparationId) ?? 0;
-        const oldStock = number(prep.stock);
-        const newStock = oldStock - used;
-
-        await tx
-          .update(preparationsTable)
-          .set({ stock: String(newStock) })
-          .where(eq(preparationsTable.id, preparationId));
-
-        prepMovements.push({
-          date: dateKey(parsed.data.date),
-          preparationId,
-          movementType: "sale",
-          quantityDelta: String(-used),
-          stockBefore: String(oldStock),
-          stockAfter: String(newStock),
-          unitCost: String(number(prep.averageCost)),
-          referenceId: sale.id,
-          note: `Penjualan #${sale.id}`,
-        });
-      }
-
-      if (prepMovements.length) {
-        await tx
-          .insert(preparationStockMovementsTable)
-          .values(prepMovements);
-      }
       if (movements.length) await tx.insert(stockMovementsTable).values(movements);
       return {
         id: purchase.id,
@@ -1822,7 +1795,7 @@ router.post(
 router.delete(
   "/erp/ingredients/:ingredientId",
   safe(async (req, res) => {
-    const rawId = req.params.ingredientId;
+    const rawId = typeof req.params.ingredientId === "string" ? req.params.ingredientId : "";
     const id = Number(rawId);
     if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID bahan tidak valid.");
@@ -1890,7 +1863,7 @@ router.delete(
 router.delete(
   "/erp/products/:productId",
   safe(async (req, res) => {
-    const rawId = req.params.productId;
+    const rawId = typeof req.params.productId === "string" ? req.params.productId : "";
     const id = Number(rawId);
     if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID produk tidak valid.");

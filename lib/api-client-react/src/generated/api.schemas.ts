@@ -174,11 +174,17 @@ export interface RecipeItem {
   ingredientId: number;
   ingredientName: string;
   unit: string;
+  recipeUnit: string;
   qtyRequired: number;
 }
 
 export interface RecipeLineInput {
   ingredientId: number;
+  /**
+     * @minLength 1
+     * @maxLength 30
+     */
+  recipeUnit: string;
   /** @exclusiveMinimum 0 */
   qtyRequired: number;
 }

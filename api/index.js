@@ -50847,6 +50847,7 @@ var GetErpStateResponse = objectType({
     "ingredientId": numberType().int(),
     "ingredientName": stringType(),
     "unit": stringType(),
+    "recipeUnit": stringType(),
     "qtyRequired": numberType()
   })),
   "recentPurchases": arrayType(objectType({
@@ -51010,10 +51011,12 @@ var UpdateProductResponse = objectType({
 var SaveProductRecipeParams = objectType({
   "productId": coerce.number().int()
 });
+var saveProductRecipeBodyItemsItemRecipeUnitMax = 30;
 var saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 var SaveProductRecipeBody = objectType({
   "items": arrayType(objectType({
     "ingredientId": numberType().int(),
+    "recipeUnit": stringType().min(1).max(saveProductRecipeBodyItemsItemRecipeUnitMax),
     "qtyRequired": numberType().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
   }))
 });
@@ -51022,6 +51025,7 @@ var SaveProductRecipeResponseItem = objectType({
   "ingredientId": numberType().int(),
   "ingredientName": stringType(),
   "unit": stringType(),
+  "recipeUnit": stringType(),
   "qtyRequired": numberType()
 });
 var SaveProductRecipeResponse = arrayType(SaveProductRecipeResponseItem);
@@ -51305,10 +51309,12 @@ var LegacyUpdateProductResponse = objectType({
 var LegacySaveProductRecipeParams = objectType({
   "productId": coerce.number().int()
 });
+var legacySaveProductRecipeBodyItemsItemRecipeUnitMax = 30;
 var legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 var LegacySaveProductRecipeBody = objectType({
   "items": arrayType(objectType({
     "ingredientId": numberType().int(),
+    "recipeUnit": stringType().min(1).max(legacySaveProductRecipeBodyItemsItemRecipeUnitMax),
     "qtyRequired": numberType().gt(legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
   }))
 });
@@ -51317,6 +51323,7 @@ var LegacySaveProductRecipeResponseItem = objectType({
   "ingredientId": numberType().int(),
   "ingredientName": stringType(),
   "unit": stringType(),
+  "recipeUnit": stringType(),
   "qtyRequired": numberType()
 });
 var LegacySaveProductRecipeResponse = arrayType(LegacySaveProductRecipeResponseItem);
@@ -51643,16 +51650,16 @@ router2.get(
         unitCost: number(line2.unitCost)
       }))
     }));
-    const recentSales = saleHeaders.map((sale2) => {
-      const totalRevenue = number(sale2.totalRevenue);
-      const totalCostOfGoodsSold = number(sale2.totalCostOfGoodsSold);
+    const recentSales = saleHeaders.map((sale) => {
+      const totalRevenue = number(sale.totalRevenue);
+      const totalCostOfGoodsSold = number(sale.totalCostOfGoodsSold);
       return {
-        id: sale2.id,
-        date: sale2.date,
+        id: sale.id,
+        date: sale.date,
         totalRevenue,
         totalCostOfGoodsSold,
         grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
-        items: saleLines.filter((line2) => line2.salesId === sale2.id).map((line2) => ({
+        items: saleLines.filter((line2) => line2.salesId === sale.id).map((line2) => ({
           productId: line2.productId,
           productName: line2.productName,
           quantity: line2.quantity,
@@ -51685,9 +51692,9 @@ router2.get(
         ...purchase,
         date: dateKey(purchase.date)
       })),
-      recentSales: validated.recentSales.map((sale2) => ({
-        ...sale2,
-        date: dateKey(sale2.date)
+      recentSales: validated.recentSales.map((sale) => ({
+        ...sale,
+        date: dateKey(sale.date)
       })),
       today: { ...validated.today, date: dateKey(validated.today.date) }
     });
@@ -51908,6 +51915,9 @@ function recordBody(value) {
 function positiveNumber(value) {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
+function positiveInteger(value) {
+  return typeof value === "number" && Number.isSafeInteger(value) && value > 0;
+}
 function stringValue(value) {
   return typeof value === "string" && value.trim().length > 0;
 }
@@ -51923,7 +51933,7 @@ var PrepRecipeBody = {
     const b = recordBody(input), items = b?.items;
     if (!Array.isArray(items) || items.length > 100 || items.some((x) => {
       const v = recordBody(x);
-      return !v || !Number.isSafeInteger(v.ingredientId) || v.ingredientId <= 0 || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30;
+      return !v || !positiveInteger(v.ingredientId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30;
     })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
     return { success: true, data: { items } };
   }
@@ -51933,7 +51943,7 @@ var ProductPrepBody = {
     const b = recordBody(input), items = b?.items;
     if (!Array.isArray(items) || items.length > 100 || items.some((x) => {
       const v = recordBody(x);
-      return !v || !Number.isSafeInteger(v.preparationId) || v.preparationId <= 0 || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30;
+      return !v || !positiveInteger(v.preparationId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30;
     })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
     return { success: true, data: { items } };
   }
@@ -52511,28 +52521,6 @@ router2.post(
         });
       }
       await tx.insert(purchaseDetailsTable).values(details);
-      const prepMovements = [];
-      for (const preparationId of requestedPreparationIds) {
-        const prep = preparationById.get(preparationId);
-        const used = requiredByPreparation.get(preparationId) ?? 0;
-        const oldStock = number(prep.stock);
-        const newStock = oldStock - used;
-        await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, preparationId));
-        prepMovements.push({
-          date: dateKey(parsed.data.date),
-          preparationId,
-          movementType: "sale",
-          quantityDelta: String(-used),
-          stockBefore: String(oldStock),
-          stockAfter: String(newStock),
-          unitCost: String(number(prep.averageCost)),
-          referenceId: sale.id,
-          note: `Penjualan #${sale.id}`
-        });
-      }
-      if (prepMovements.length) {
-        await tx.insert(preparationStockMovementsTable).values(prepMovements);
-      }
       if (movements.length) await tx.insert(stockMovementsTable).values(movements);
       return {
         id: purchase.id,
@@ -52567,8 +52555,8 @@ router2.delete(
       return;
     }
     const result = await db.transaction(async (tx) => {
-      const [sale2] = await tx.select().from(salesTable).where(eq(salesTable.id, idNum)).for("update");
-      if (!sale2) throw new HttpError("Penjualan tidak ditemukan.", 404);
+      const [sale] = await tx.select().from(salesTable).where(eq(salesTable.id, idNum)).for("update");
+      if (!sale) throw new HttpError("Penjualan tidak ditemukan.", 404);
       const details = await tx.select().from(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum));
       for (const line2 of details) {
         const [product] = await tx.select().from(productsTable).where(eq(productsTable.id, line2.productId)).for("update");
@@ -52673,7 +52661,7 @@ router2.post(
         warnings.push(`Resep belum diatur untuk ${name}; transaksi tetap dicatat tanpa pemotongan bahan.`);
       }
       const requiredByIngredient = /* @__PURE__ */ new Map();
-      const requiredByPreparation2 = /* @__PURE__ */ new Map();
+      const requiredByPreparation = /* @__PURE__ */ new Map();
       for (const [productId, soldQuantity] of quantities) {
         const product = productRows.find((row) => row.id === productId);
         if (!product.needsRecipe) continue;
@@ -52689,19 +52677,19 @@ router2.post(
         const product = productRows.find((row) => row.id === productId);
         if (!product.needsRecipe) continue;
         for (const item of productPrepRows.filter((row) => row.productId === productId)) {
-          requiredByPreparation2.set(
+          requiredByPreparation.set(
             item.preparationId,
-            (requiredByPreparation2.get(item.preparationId) ?? 0) + number(item.qtyRequired) * number(item.conversionFactor) * soldQuantity
+            (requiredByPreparation.get(item.preparationId) ?? 0) + number(item.qtyRequired) * number(item.conversionFactor) * soldQuantity
           );
         }
       }
-      const requestedPreparationIds2 = [...requiredByPreparation2.keys()].sort((a, b) => a - b);
-      const lockedPreparations = requestedPreparationIds2.length ? await tx.select().from(preparationsTable).where(inArray(preparationsTable.id, requestedPreparationIds2)).orderBy(asc(preparationsTable.id)).for("update") : [];
-      if (lockedPreparations.length !== requestedPreparationIds2.length) throw new HttpError("Salah satu prep pada resep tidak ditemukan.", 409);
-      const preparationById2 = new Map(lockedPreparations.map((row) => [row.id, row]));
-      for (const preparationId of requestedPreparationIds2) {
-        const prep = preparationById2.get(preparationId);
-        const required = requiredByPreparation2.get(preparationId) ?? 0;
+      const requestedPreparationIds = [...requiredByPreparation.keys()].sort((a, b) => a - b);
+      const lockedPreparations = requestedPreparationIds.length ? await tx.select().from(preparationsTable).where(inArray(preparationsTable.id, requestedPreparationIds)).orderBy(asc(preparationsTable.id)).for("update") : [];
+      if (lockedPreparations.length !== requestedPreparationIds.length) throw new HttpError("Salah satu prep pada resep tidak ditemukan.", 409);
+      const preparationById = new Map(lockedPreparations.map((row) => [row.id, row]));
+      for (const preparationId of requestedPreparationIds) {
+        const prep = preparationById.get(preparationId);
+        const required = requiredByPreparation.get(preparationId) ?? 0;
         if (number(prep.stock) + 1e-9 < required) {
           warnings.push(`Stok prep ${prep.name} kurang: tersedia ${number(prep.stock)} ${prep.unit}, perlu ${required} ${prep.unit}.`);
         }
@@ -52749,7 +52737,7 @@ router2.post(
           if (isOperationalIngredient(ingredient.category)) return sum;
           return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity2 * number(ingredient.averageCost);
         }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
-          const prep = preparationById2.get(item.preparationId);
+          const prep = preparationById.get(item.preparationId);
           return sum + (prep ? number(item.qtyRequired) * number(item.conversionFactor) * quantity2 * number(prep.averageCost) : 0);
         }, 0)) : number(product.averageCost) * quantity2;
         return {
@@ -52765,14 +52753,14 @@ router2.post(
       const totalCostOfGoodsSold = roundMoney(
         saleLines.reduce((sum, line2) => sum + line2.costOfGoodsSold, 0)
       );
-      const [sale2] = await tx.insert(salesTable).values({
+      const [sale] = await tx.insert(salesTable).values({
         date: dateKey(parsed.data.date),
         totalRevenue: String(totalRevenue),
         totalCostOfGoodsSold: String(totalCostOfGoodsSold)
       }).returning();
       await tx.insert(salesDetailsTable).values(
         saleLines.map((line2) => ({
-          salesId: sale2.id,
+          salesId: sale.id,
           productId: line2.productId,
           productName: line2.productName,
           quantity: line2.quantity,
@@ -52788,9 +52776,9 @@ router2.post(
         }
       }
       const prepMovements = [];
-      for (const preparationId of requestedPreparationIds2) {
-        const prep = preparationById2.get(preparationId);
-        const used = requiredByPreparation2.get(preparationId) ?? 0;
+      for (const preparationId of requestedPreparationIds) {
+        const prep = preparationById.get(preparationId);
+        const used = requiredByPreparation.get(preparationId) ?? 0;
         const oldStock = number(prep.stock);
         const newStock = oldStock - used;
         await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, preparationId));
@@ -52802,8 +52790,8 @@ router2.post(
           stockBefore: String(oldStock),
           stockAfter: String(newStock),
           unitCost: String(number(prep.averageCost)),
-          referenceId: sale2.id,
-          note: `Penjualan #${sale2.id}`
+          referenceId: sale.id,
+          note: `Penjualan #${sale.id}`
         });
       }
       if (prepMovements.length) {
@@ -52824,14 +52812,14 @@ router2.post(
           stockBefore: String(oldStock),
           stockAfter: String(newStock),
           unitCost: String(number(ingredient.averageCost)),
-          referenceId: sale2.id,
-          note: `Penjualan #${sale2.id}`
+          referenceId: sale.id,
+          note: `Penjualan #${sale.id}`
         });
       }
       if (movements.length) await tx.insert(stockMovementsTable).values(movements);
       return {
-        id: sale2.id,
-        date: sale2.date,
+        id: sale.id,
+        date: sale.date,
         totalRevenue,
         totalCostOfGoodsSold,
         grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
@@ -52881,7 +52869,7 @@ router2.post(
         throw new HttpError("Ada bahan atau preparation yang tidak ditemukan.", 400);
       }
       const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
-      const preparationById2 = new Map(lockedPreparations.map((row) => [row.id, row]));
+      const preparationById = new Map(lockedPreparations.map((row) => [row.id, row]));
       const ingredientMovements = [];
       const preparationMovements = [];
       const rows = [];
@@ -52920,7 +52908,7 @@ router2.post(
             varianceValue
           });
         } else {
-          const preparation = preparationById2.get(item.preparationId);
+          const preparation = preparationById.get(item.preparationId);
           const stockBefore = number(preparation.stock);
           const varianceQty = roundQuantity(item.countedStock - stockBefore);
           const unitCost = number(preparation.averageCost);
@@ -52968,7 +52956,7 @@ router2.post(
 router2.delete(
   "/erp/ingredients/:ingredientId",
   safe(async (req, res) => {
-    const rawId = req.params.ingredientId;
+    const rawId = typeof req.params.ingredientId === "string" ? req.params.ingredientId : "";
     const id = Number(rawId);
     if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID bahan tidak valid.");
@@ -53006,7 +52994,7 @@ router2.delete(
 router2.delete(
   "/erp/products/:productId",
   safe(async (req, res) => {
-    const rawId = req.params.productId;
+    const rawId = typeof req.params.productId === "string" ? req.params.productId : "";
     const id = Number(rawId);
     if (!/^\d+$/.test(rawId) || !Number.isSafeInteger(id) || id <= 0) {
       invalid(res, "ID produk tidak valid.");

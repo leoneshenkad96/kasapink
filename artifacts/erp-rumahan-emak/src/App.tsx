@@ -188,7 +188,7 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
 function PageHeading({ kicker, title, note, action }: { kicker: string; title: string; note: string; action?: React.ReactNode }) {
   return <div className="page-heading"><div><div className="eyebrow">{kicker}</div><h1>{title}</h1><p>{note}</p></div>{action && <div className="heading-action">{action}</div>}</div>;
 }
-function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) { return <section className={`card ${className}`}>{children}</section>; }
+function Card({ children, className = '', ...props }: React.ComponentProps<'section'>) { return <section className={`card ${className}`} {...props}>{children}</section>; }
 function LoadingPanel() { return <div className="loading-grid"><div className="skeleton big" /><div className="skeleton" /><div className="skeleton" /></div>; }
 function ErrorPanel({ message, retry }: { message: string; retry: () => void }) { return <div className="error-panel"><AlertCircle size={22} /><div><b>Data belum dapat dimuat</b><p>{message}</p><button className="text-button" onClick={retry}>Coba muat kembali</button></div></div>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><span className="empty-icon"><Boxes size={20} /></span><b>{title}</b><p>{text}</p></div>; }
@@ -258,6 +258,12 @@ const recipeUnitFactor = (recipeUnit: string, stockUnit: string) => {
   if (recipeUnit === stockUnit) return 1;
   const a = RECIPE_UNIT_GROUPS[recipeUnit], b = RECIPE_UNIT_GROUPS[stockUnit];
   return a && b && a.group === b.group ? a.factor / b.factor : 1;
+};
+const recipeUnitsFor = (stockUnit: string) => {
+  const group = RECIPE_UNIT_GROUPS[stockUnit]?.group;
+  return group
+    ? Object.keys(RECIPE_UNIT_GROUPS).filter((unit) => RECIPE_UNIT_GROUPS[unit].group === group)
+    : [stockUnit];
 };
 
 const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
@@ -527,7 +533,7 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
   const total = lines.reduce((n, l) => n + (safeProducts.find((p) => p.id === l.productId)?.sellingPrice || 0) * (Number(l.quantity) || 0), 0);
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone(''); setWarnings([]);
-    mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && l.quantity > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
+    mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && Number(l.quantity) > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
       onSuccess: (sale) => { refresh(); setUnsavedChanges(false); setDone(`Penjualan ${money(sale.totalRevenue)} berhasil dicatat.`); setWarnings(sale.warnings || []); setLines([{ productId: availableProducts[0]?.id || 0, quantity: '' }]); },
       onError: (x) => setError(errText(x)),
     });
@@ -843,7 +849,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       <div className="prep-create-form">
         <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Contoh: Ayam Suwir" /></Field>
         <Field label="Satuan stok"><FieldInput value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="kg, gram, pcs" /></Field>
-        <Field label="Hasil standar"><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 5" hint="Hasil satu kali resep/batch." /></Field>
+        <Field label="Hasil standar" hint="Hasil satu kali resep/batch."><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 5" /></Field>
         <div className="prep-create-submit"><button className="button button-primary" type="button" onClick={() => void savePrep()}><Plus size={15} /> Buat prep</button></div>
       </div>
     </Card>}

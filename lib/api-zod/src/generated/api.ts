@@ -46,6 +46,7 @@ export const GetErpStateResponse = zod.object({
   "ingredientId": zod.number().int(),
   "ingredientName": zod.string(),
   "unit": zod.string(),
+  "recipeUnit": zod.string(),
   "qtyRequired": zod.number()
 })),
   "recentPurchases": zod.array(zod.object({
@@ -274,6 +275,8 @@ export const SaveProductRecipeParams = zod.object({
   "productId": zod.coerce.number().int()
 })
 
+export const saveProductRecipeBodyItemsItemRecipeUnitMax = 30;
+
 export const saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 
 
@@ -281,6 +284,7 @@ export const saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 export const SaveProductRecipeBody = zod.object({
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
+  "recipeUnit": zod.string().min(1).max(saveProductRecipeBodyItemsItemRecipeUnitMax),
   "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
 }))
 })
@@ -290,6 +294,7 @@ export const SaveProductRecipeResponseItem = zod.object({
   "ingredientId": zod.number().int(),
   "ingredientName": zod.string(),
   "unit": zod.string(),
+  "recipeUnit": zod.string(),
   "qtyRequired": zod.number()
 })
 export const SaveProductRecipeResponse = zod.array(SaveProductRecipeResponseItem)
@@ -681,6 +686,8 @@ export const LegacySaveProductRecipeParams = zod.object({
   "productId": zod.coerce.number().int()
 })
 
+export const legacySaveProductRecipeBodyItemsItemRecipeUnitMax = 30;
+
 export const legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 
 
@@ -688,6 +695,7 @@ export const legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
 export const LegacySaveProductRecipeBody = zod.object({
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
+  "recipeUnit": zod.string().min(1).max(legacySaveProductRecipeBodyItemsItemRecipeUnitMax),
   "qtyRequired": zod.number().gt(legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
 }))
 })
@@ -697,6 +705,7 @@ export const LegacySaveProductRecipeResponseItem = zod.object({
   "ingredientId": zod.number().int(),
   "ingredientName": zod.string(),
   "unit": zod.string(),
+  "recipeUnit": zod.string(),
   "qtyRequired": zod.number()
 })
 export const LegacySaveProductRecipeResponse = zod.array(LegacySaveProductRecipeResponseItem)

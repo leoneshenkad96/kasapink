@@ -11,5 +11,6 @@ export interface RecipeItem {
   ingredientId: number;
   ingredientName: string;
   unit: string;
+  recipeUnit: string;
   qtyRequired: number;
 }
