@@ -103,6 +103,10 @@ function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
+function roundQuantity(value: number): number {
+  return Math.round((value + Number.EPSILON) * 1000) / 1000;
+}
+
 function dateKey(value: Date | string): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
 }
@@ -1764,7 +1768,7 @@ router.post(
         if (item.ingredientId !== undefined) {
           const ingredient = ingredientById.get(item.ingredientId)!;
           const stockBefore = number(ingredient.stock);
-          const varianceQty = item.countedStock - stockBefore;
+          const varianceQty = roundQuantity(item.countedStock - stockBefore);
           const unitCost = number(ingredient.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(ingredientsTable)
@@ -1784,7 +1788,7 @@ router.post(
         } else {
           const preparation = preparationById.get(item.preparationId!)!;
           const stockBefore = number(preparation.stock);
-          const varianceQty = item.countedStock - stockBefore;
+          const varianceQty = roundQuantity(item.countedStock - stockBefore);
           const unitCost = number(preparation.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(preparationsTable)

@@ -51484,6 +51484,9 @@ function isOperationalIngredient(category) {
 function roundMoney(value) {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
+function roundQuantity(value) {
+  return Math.round((value + Number.EPSILON) * 1e3) / 1e3;
+}
 function dateKey(value) {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
 }
@@ -52887,7 +52890,7 @@ router2.post(
         if (item.ingredientId !== void 0) {
           const ingredient = ingredientById.get(item.ingredientId);
           const stockBefore = number(ingredient.stock);
-          const varianceQty = item.countedStock - stockBefore;
+          const varianceQty = roundQuantity(item.countedStock - stockBefore);
           const unitCost = number(ingredient.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(ingredientsTable).set({ stock: String(item.countedStock) }).where(eq(ingredientsTable.id, item.ingredientId)).returning();
@@ -52919,7 +52922,7 @@ router2.post(
         } else {
           const preparation = preparationById2.get(item.preparationId);
           const stockBefore = number(preparation.stock);
-          const varianceQty = item.countedStock - stockBefore;
+          const varianceQty = roundQuantity(item.countedStock - stockBefore);
           const unitCost = number(preparation.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(preparationsTable).set({ stock: String(item.countedStock) }).where(eq(preparationsTable.id, item.preparationId)).returning();
