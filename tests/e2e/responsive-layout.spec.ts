@@ -52,7 +52,45 @@ for (const viewport of [
     }
 
     await expect(page.getByLabel('Jenis laporan export')).toBeVisible();
+    await expect(page.locator('.range-separator')).toHaveCount(0);
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
     expect(hasHorizontalOverflow).toBe(false);
+
+    if (viewport.name === 'iphone-16-pro') {
+      const intro = await page.locator('.report-filter > div:first-child').boundingBox();
+      const dates = await page.locator('.report-filter .date-range').boundingBox();
+      const exports = await page.locator('.report-export-actions').boundingBox();
+      expect(intro && dates && exports).toBeTruthy();
+      expect(dates!.y - (intro!.y + intro!.height)).toBeLessThanOrEqual(24);
+      expect(exports!.y - (dates!.y + dates!.height)).toBeLessThanOrEqual(28);
+    }
+  });
+}
+
+for (const viewport of [
+  { name: 'desktop', width: 1440, height: 1000 },
+  { name: 'tablet', width: 820, height: 1180 },
+  { name: 'mobile', width: 393, height: 852 },
+]) {
+  test(`primary workspace routes do not overflow at ${viewport.name}`, async ({ page }) => {
+    await page.setViewportSize({ width: viewport.width, height: viewport.height });
+    await mockAdminSession(page);
+    const routes = [
+      ['/', 'Dashboard'],
+      ['/stok/makanan', 'Stok Bahan'],
+      ['/produk/makanan', 'Produk & Resep'],
+      ['/belanja', 'Catat belanja'],
+      ['/penjualan', 'Catat penjualan'],
+      ['/opname', 'Stock opname'],
+      ['/laporan', 'Laporan keuangan'],
+      ['/users', 'Manajemen user'],
+    ] as const;
+
+    for (const [path, heading] of routes) {
+      await page.goto(path);
+      await expect(page.getByRole('heading', { name: heading }).first()).toBeVisible();
+      const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
+      expect(hasHorizontalOverflow, `${path} overflows at ${viewport.name}`).toBe(false);
+    }
   });
 }
