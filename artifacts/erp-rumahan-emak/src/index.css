@@ -1253,7 +1253,7 @@ body { background:#f2bfd2; }
 .sidebar { background:#f8e7ed; border-color:#f2bfd2; }
 .brand-mark { background:#f2bfd2; color:#613248; box-shadow:0 8px 16px rgba(242,191,210,.34); }
 .nav-link:hover, .nav-link.is-active, .nav-group-heading:hover, .nav-group-active > .nav-group-heading, .nav-sub-link:hover, .nav-sub-link.is-active { background:#fdcee0; color:#613248; }
-.nav-link.is-active svg, .nav-group-active > .nav-group-heading svg { color:#f2bfd2; }
+.nav-link.is-active svg, .nav-group-active > .nav-group-heading svg { color:#613248; background:transparent; }
 .user-avatar { background:#f2bfd2; color:#613248; }
 .button-primary, .category-pill.is-active { background:#f2bfd2; border-color:#f2bfd2; color:#613248; }
 .button-primary:hover:not(:disabled) { background:#fdcee0; }
@@ -1275,4 +1275,10 @@ body { background:#f2bfd2; }
 .side-caption, .side-footer, .nav-group-chevron, .connection-off, .connection-off i { color:#613248; }
 .connection-off i { background:#f2bfd2; }
 .login-input::placeholder { color:#613248; }
-@media (max-width:767px) { body { background:#f9f5f6; } }
+@media (max-width:767px) {
+  body { background:#f9f5f6; }
+  .sidebar { height:100dvh; max-height:100dvh; box-sizing:border-box; overflow-y:auto; overscroll-behavior:contain; }
+  .side-nav { flex:0 0 auto; }
+  .sidebar-note { margin-top:24px; }
+  .side-footer { padding-bottom:4px; }
+}
