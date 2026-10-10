@@ -60,6 +60,30 @@ paths:
               schema:
                 $ref: "#/components/schemas/FinanceReport"
   /erp/ingredients:
+    get:
+      operationId: listIngredients
+      tags: [erp]
+      summary: List ingredients with server-side search and pagination
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: stockType, schema: { type: string, enum: [Makanan, Parfum] } }
+        - { in: query, name: lowStock, schema: { type: boolean } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { in: query, name: offset, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Paginated ingredient list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Ingredient" }
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
     post:
       operationId: createIngredient
       tags: [erp]
@@ -471,6 +495,13 @@ components:
       properties:
         error: { type: string }
       required: [error]
+    Pagination:
+      type: object
+      properties:
+        limit: { type: integer }
+        offset: { type: integer }
+        total: { type: integer }
+      required: [limit, offset, total]
     Ingredient:
       type: object
       properties:

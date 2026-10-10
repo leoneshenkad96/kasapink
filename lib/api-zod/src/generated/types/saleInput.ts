@@ -9,6 +9,8 @@ import type { SaleLineInput } from './saleLineInput';
 
 export interface SaleInput {
   date: Date;
+  /** Admin-only override for insufficient stock */
+  allowNegativeStock?: boolean;
   /** @minItems 1 */
   items: SaleLineInput[];
 }

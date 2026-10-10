@@ -155,6 +155,11 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   });
   assert.equal(ingredient.status, 201);
   const ingredientId = ingredient.body.id;
+  const ingredientPage = await request("/erp/ingredients?stockType=Makanan&search=Tepung&limit=1&offset=0", token);
+  assert.equal(ingredientPage.status, 200);
+  assert.equal(ingredientPage.body.items[0].id, ingredientId);
+  assert.equal(ingredientPage.body.pagination.limit, 1);
+  assert.ok(ingredientPage.body.pagination.total >= 1);
 
   const product = await request("/erp/products", token, "POST", {
     name: "Roti Integration",
@@ -265,6 +270,10 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   const auditLog = await request("/erp/audit-log", token);
   assert.equal(auditLog.status, 200);
   assert.ok(auditLog.body.items.length >= 1);
+  const auditPage = await request("/erp/audit-log?limit=1&offset=0", token);
+  assert.equal(auditPage.status, 200);
+  assert.equal(auditPage.body.pagination.limit, 1);
+  assert.ok(auditPage.body.pagination.total >= 1);
   for (const format of ["csv", "xls", "pdf"]) {
     const reportExport = await requestRaw(`/erp/report-export?type=finance&format=${format}&startDate=2026-10-10&endDate=2026-10-10`, token);
     assert.equal(reportExport.status, 200);

@@ -37,6 +37,8 @@ import type {
   IngredientUpdate,
   LegacyGetFinanceReportParams,
   LegacyHealthStatus,
+  ListIngredients200,
+  ListIngredientsParams,
   Product,
   ProductInput,
   ProductUpdate,
@@ -376,6 +378,114 @@ export function useGetFinanceReport<TData = Awaited<ReturnType<typeof getFinance
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
 
   const queryOptions = getGetFinanceReportQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
+
+export const getListIngredientsUrl = (params?: ListIngredientsParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/erp/ingredients?${stringifiedParams}` : `/api/erp/ingredients`
+}
+
+/**
+ * @summary List ingredients with server-side search and pagination
+ */
+export const listIngredients = async (params?: ListIngredientsParams, options?: Parameters<typeof customFetch>[1]): Promise<ListIngredients200> => {
+
+  return customFetch<ListIngredients200>(getListIngredientsUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListIngredientsQueryKey = (params?: ListIngredientsParams,) => {
+    return [
+    `/api/erp/ingredients`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListIngredientsQueryOptions = <TData = Awaited<ReturnType<typeof listIngredients>>, TError = ErrorType<unknown>>(params?: ListIngredientsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIngredients>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListIngredientsQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listIngredients>>> = ({ signal }) => listIngredients(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listIngredients>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListIngredientsQueryResult = NonNullable<Awaited<ReturnType<typeof listIngredients>>>
+export type ListIngredientsQueryError = ErrorType<unknown>
+
+
+export function useListIngredients<TData = Awaited<ReturnType<typeof listIngredients>>, TError = ErrorType<unknown>>(
+ params: undefined |  ListIngredientsParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIngredients>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listIngredients>>,
+          TError,
+          Awaited<ReturnType<typeof listIngredients>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListIngredients<TData = Awaited<ReturnType<typeof listIngredients>>, TError = ErrorType<unknown>>(
+ params?: ListIngredientsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIngredients>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listIngredients>>,
+          TError,
+          Awaited<ReturnType<typeof listIngredients>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListIngredients<TData = Awaited<ReturnType<typeof listIngredients>>, TError = ErrorType<unknown>>(
+ params?: ListIngredientsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIngredients>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List ingredients with server-side search and pagination
+ */
+
+export function useListIngredients<TData = Awaited<ReturnType<typeof listIngredients>>, TError = ErrorType<unknown>>(
+ params?: ListIngredientsParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listIngredients>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListIngredientsQueryOptions(params,options)
 
   const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
 

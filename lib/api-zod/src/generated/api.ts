@@ -116,6 +116,45 @@ export const GetFinanceReportResponse = zod.object({
 
 
 /**
+ * @summary List ingredients with server-side search and pagination
+ */
+export const listIngredientsQueryLimitDefault = 50;
+export const listIngredientsQueryLimitMax = 200;
+
+export const listIngredientsQueryOffsetDefault = 0;
+export const listIngredientsQueryOffsetMin = 0;
+
+
+
+export const ListIngredientsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
+  "lowStock": zod.coerce.boolean().optional(),
+  "limit": zod.coerce.number().int().min(1).max(listIngredientsQueryLimitMax).default(listIngredientsQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(listIngredientsQueryOffsetMin).default(listIngredientsQueryOffsetDefault)
+})
+
+export const ListIngredientsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "category": zod.string(),
+  "stockType": zod.enum(['Makanan', 'Parfum']),
+  "unit": zod.string(),
+  "stock": zod.number(),
+  "minStock": zod.number(),
+  "lastPrice": zod.number(),
+  "averageCost": zod.number()
+})),
+  "pagination": zod.object({
+  "limit": zod.number().int(),
+  "offset": zod.number().int(),
+  "total": zod.number().int()
+})
+})
+
+
+/**
  * @summary Add an ingredient or stock item
  */
 export const createIngredientBodyNameMax = 120;
@@ -347,7 +386,7 @@ export const RecordPurchaseResponse = zod.object({
 
 export const RecordSaleBody = zod.object({
   "date": zod.coerce.date(),
-  "allowNegativeStock": zod.boolean().optional(),
+  "allowNegativeStock": zod.boolean().optional().describe('Admin-only override for insufficient stock'),
   "items": zod.array(zod.object({
   "productId": zod.number().int(),
   "quantity": zod.number().int().min(1)
@@ -759,7 +798,7 @@ export const LegacyRecordPurchaseResponse = zod.object({
 
 export const LegacyRecordSaleBody = zod.object({
   "date": zod.coerce.date(),
-  "allowNegativeStock": zod.boolean().optional(),
+  "allowNegativeStock": zod.boolean().optional().describe('Admin-only override for insufficient stock'),
   "items": zod.array(zod.object({
   "productId": zod.number().int(),
   "quantity": zod.number().int().min(1)

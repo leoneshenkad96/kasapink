@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte, inArray, lte } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or } from "drizzle-orm";
 import {
   CreateIngredientBody,
   CreateIngredientResponse,
@@ -516,8 +516,12 @@ router.get(
   checkRole("admin"),
   safe(async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
-    const rows = await db.select().from(auditLogTable).orderBy(desc(auditLogTable.createdAt)).limit(limit);
-    res.json({ items: rows });
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const [rows, totalRows] = await Promise.all([
+      db.select().from(auditLogTable).orderBy(desc(auditLogTable.createdAt)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(auditLogTable),
+    ]);
+    res.json({ items: rows, pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
   }),
 );
 
@@ -563,6 +567,28 @@ router.get(
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.csv"`);
     res.send(`\ufeff${toCsv(table)}`);
+  }),
+);
+
+router.get(
+  "/erp/ingredients",
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const search = String(req.query.search ?? "").trim();
+    const stockType = String(req.query.stockType ?? "").trim();
+    const lowStock = String(req.query.lowStock ?? "") === "true";
+    const filters = [
+      search ? or(ilike(ingredientsTable.name, `%${search}%`), ilike(ingredientsTable.category, `%${search}%`)) : undefined,
+      stockType === "Makanan" || stockType === "Parfum" ? eq(ingredientsTable.stockType, stockType) : undefined,
+      lowStock ? lte(ingredientsTable.stock, ingredientsTable.minStock) : undefined,
+    ].filter(Boolean);
+    const where = filters.length ? and(...filters) : undefined;
+    const [rows, totalRows] = await Promise.all([
+      db.select().from(ingredientsTable).where(where).orderBy(asc(ingredientsTable.name)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(ingredientsTable).where(where),
+    ]);
+    res.json({ items: rows.map(asIngredient), pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
   }),
 );
 
@@ -792,7 +818,7 @@ router.put(
       const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable)
         .where(and(eq(recipeVersionsTable.scope, "product"), eq(recipeVersionsTable.parentId, params.data.productId)))
         .orderBy(desc(recipeVersionsTable.version)).limit(1);
-      await tx.insert(recipeVersionsTable).values({ scope: "product", parentId: params.data.productId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: req.authUser?.id });
+      await tx.insert(recipeVersionsTable).values({ scope: "product", parentId: params.data.productId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: (req as AuthRequest).authUser?.id });
       res.locals.auditBefore = beforeRecipe;
       res.locals.auditAfter = recipeRows;
       return tx
@@ -938,7 +964,7 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
     const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable)
       .where(and(eq(recipeVersionsTable.scope, "preparation"), eq(recipeVersionsTable.parentId, preparationId)))
       .orderBy(desc(recipeVersionsTable.version)).limit(1);
-    await tx.insert(recipeVersionsTable).values({ scope: "preparation", parentId: preparationId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: req.authUser?.id });
+    await tx.insert(recipeVersionsTable).values({ scope: "preparation", parentId: preparationId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: (req as AuthRequest).authUser?.id });
     res.locals.auditBefore = beforeRecipe;
     res.locals.auditAfter = recipeRows;
     return recipeRows;
@@ -1693,7 +1719,7 @@ router.post(
         }
       }
 
-      if (negativeStockWarnings.length && req.authUser?.role !== "admin") {
+      if (negativeStockWarnings.length && (req as AuthRequest).authUser?.role !== "admin") {
         throw new HttpError("Stok tidak cukup. Hanya admin yang dapat melanjutkan transaksi stok negatif.", 409);
       }
       if (negativeStockWarnings.length) warnings.push("Override stok negatif disetujui oleh admin.");

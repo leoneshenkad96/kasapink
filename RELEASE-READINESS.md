@@ -83,6 +83,8 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Delete-sale integration coverage verifies direct product stock restoration and deletion audit capture.
 - [x] Audit schema now supports before/after data and reason; recipe changes, role changes, and sale deletion populate the extended fields.
 - [x] Backup freshness check is available through `pnpm backup:check`.
+- [x] Ingredient and audit-log APIs now support bounded server-side pagination; ingredient search, stock type, and low-stock filters are queryable without loading the full table.
 - [ ] Playwright/Cypress browser automation is not yet installed; current browser verification remains manual/local smoke coverage.
-- [ ] Full server-side pagination for every large data table and production alerting still require a separate performance/operations pass.
+- [ ] Server-side pagination still needs to be wired into every large frontend table (the shared state endpoint remains intentionally compatible and bounded for dashboard use).
+- [ ] Production alerting still requires a deployment-specific monitoring target and credentials; no external monitoring was changed.
 - [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette is already locked.

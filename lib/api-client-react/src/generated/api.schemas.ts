@@ -25,6 +25,12 @@ export interface Error {
   error: string;
 }
 
+export interface Pagination {
+  limit: number;
+  offset: number;
+  total: number;
+}
+
 export type IngredientStockType = typeof IngredientStockType[keyof typeof IngredientStockType];
 
 
@@ -237,6 +243,8 @@ export interface SaleLineInput {
 
 export interface SaleInput {
   date: string;
+  /** Admin-only override for insufficient stock */
+  allowNegativeStock?: boolean;
   /** @minItems 1 */
   items: SaleLineInput[];
 }
@@ -461,6 +469,34 @@ export interface ErpState {
 export type GetFinanceReportParams = {
 startDate: string;
 endDate: string;
+};
+
+export type ListIngredientsParams = {
+search?: string;
+stockType?: ListIngredientsStockType;
+lowStock?: boolean;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListIngredientsStockType = typeof ListIngredientsStockType[keyof typeof ListIngredientsStockType];
+
+
+export const ListIngredientsStockType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
+export type ListIngredients200 = {
+  items: Ingredient[];
+  pagination: Pagination;
 };
 
 export type GetFnbReportParams = {
