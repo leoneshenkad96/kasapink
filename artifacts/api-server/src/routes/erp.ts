@@ -400,6 +400,7 @@ router.get(
         ingredientId: row.ingredientId,
         ingredientName: row.ingredientName,
         unit: row.unit,
+        recipeUnit: row.recipeUnit,
         qtyRequired: number(row.qtyRequired),
       })),
       recentPurchases,

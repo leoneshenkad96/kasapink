@@ -46718,12 +46718,22 @@ function getSecret(res) {
   if (res) res.status(503).json({ error: "JWT_SECRET belum dikonfigurasi dengan benar." });
   return null;
 }
+function sessionRevision(user, secret) {
+  return (0, import_node_crypto2.createHmac)("sha256", secret).update(JSON.stringify([user.id, user.passwordHash, user.updatedAt.toISOString()])).digest("base64url");
+}
 function createToken(user, res) {
   const secret = getSecret(res);
   if (!secret) return null;
   const now = Math.floor(Date.now() / 1e3);
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = base64url(JSON.stringify({ ...user, iat: now, exp: now + 60 * 60 }));
+  const payload = base64url(JSON.stringify({
+    id: user.id,
+    username: user.username,
+    role: user.role,
+    revision: sessionRevision(user, secret),
+    iat: now,
+    exp: now + 60 * 60
+  }));
   const content = `${header}.${payload}`;
   return `${content}.${(0, import_node_crypto2.createHmac)("sha256", secret).update(content).digest("base64url")}`;
 }
@@ -46744,8 +46754,8 @@ function verifyTokenValue(token) {
   try {
     const jwtHeader = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
     const data = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
-    if (jwtHeader.alg !== "HS256" || !Number.isSafeInteger(data.id) || !data.username || !["admin", "testing", "user"].includes(data.role) || !Number.isInteger(data.iat) || data.exp <= Math.floor(Date.now() / 1e3)) return null;
-    return { id: data.id, username: data.username, role: data.role };
+    if (jwtHeader.alg !== "HS256" || !Number.isSafeInteger(data.id) || data.id <= 0 || typeof data.username !== "string" || !data.username || !["admin", "testing", "user"].includes(data.role) || !Number.isInteger(data.iat) || data.iat > Math.floor(Date.now() / 1e3) || !Number.isInteger(data.exp) || data.exp <= data.iat || typeof data.revision !== "string" || data.exp <= Math.floor(Date.now() / 1e3)) return null;
+    return data;
   } catch {
     return null;
   }
@@ -46759,12 +46769,19 @@ async function verifyToken(req, res, next) {
     res.status(401).json({ error: "Sesi tidak valid atau sudah berakhir. Silakan login kembali." });
     return;
   }
-  const [currentUser] = await db.select({ id: usersTable.id, username: usersTable.username, role: usersTable.role }).from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
-  if (!currentUser || currentUser.username !== user.username || currentUser.role !== user.role) {
+  const [currentUser] = await db.select({
+    id: usersTable.id,
+    username: usersTable.username,
+    role: usersTable.role,
+    passwordHash: usersTable.passwordHash,
+    updatedAt: usersTable.updatedAt
+  }).from(usersTable).where(eq(usersTable.id, user.id)).limit(1);
+  if (!currentUser || currentUser.username !== user.username || currentUser.role !== user.role || sessionRevision(currentUser, getSecret()) !== user.revision) {
     res.status(401).json({ error: "Sesi tidak lagi berlaku. Silakan login kembali." });
     return;
   }
-  req.authUser = currentUser;
+  req.authUser = { id: currentUser.id, username: currentUser.username, role: currentUser.role };
+  req.authUpdatedAt = currentUser.updatedAt;
   next();
 }
 function checkRole(...roles) {
@@ -46792,6 +46809,11 @@ function requireOperationalRole(...roles) {
 
 // artifacts/api-server/src/routes/auth.ts
 var router = (0, import_express.Router)();
+var nextSessionRevision = () => sql`greatest(date_trunc('milliseconds', clock_timestamp()), ${usersTable.updatedAt} + interval '1 millisecond')`;
+var currentSession = (req) => and(
+  eq(usersTable.id, req.authUser.id),
+  sql`date_trunc('milliseconds', ${usersTable.updatedAt}) = ${req.authUpdatedAt.toISOString()}::timestamptz`
+);
 var publicUser = (user) => ({
   id: user.id,
   username: user.username,
@@ -46817,7 +46839,7 @@ router.post("/setup/admin", async (req, res) => {
   if (!setupToken || !constantTimeEqual(suppliedToken, setupToken)) {
     return res.status(403).json({ error: "Token setup admin salah atau belum diatur." });
   }
-  if (!username || username.length > 80 || password.length < 8) {
+  if (!username || username.length > 80 || password.length < 8 || password.length > 128) {
     return res.status(400).json({ error: "Username wajib diisi dan password minimal 8 karakter." });
   }
   const passwordHash = await import_bcryptjs.default.hash(password, 12);
@@ -46825,7 +46847,13 @@ router.post("/setup/admin", async (req, res) => {
     await tx.execute(sql`SELECT pg_advisory_xact_lock(73452891)`);
     const [result] = await tx.select({ total: count() }).from(usersTable);
     if (Number(result.total) > 0) return null;
-    const [created] = await tx.insert(usersTable).values({ username, passwordHash, role: "admin" }).returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role });
+    const [created] = await tx.insert(usersTable).values({ username, passwordHash, role: "admin" }).returning({
+      id: usersTable.id,
+      username: usersTable.username,
+      role: usersTable.role,
+      passwordHash: usersTable.passwordHash,
+      updatedAt: usersTable.updatedAt
+    });
     return created;
   });
   if (!user) return res.status(409).json({ error: "Admin sudah dibuat. Silakan login." });
@@ -46841,14 +46869,17 @@ router.post("/login", async (req, res) => {
   if (!user || !await import_bcryptjs.default.compare(password, user.passwordHash)) {
     return res.status(401).json({ error: "Username atau password salah." });
   }
-  const token = createToken(publicUser(user), res);
+  const token = createToken(user, res);
   if (!token) return;
   return res.json({ token, user: publicUser(user) });
 });
 router.get("/me", verifyToken, (req, res) => {
   res.json({ user: req.authUser });
 });
-router.post("/logout", (_req, res) => res.status(204).end());
+router.post("/logout", verifyToken, async (req, res) => {
+  await db.update(usersTable).set({ updatedAt: nextSessionRevision() }).where(currentSession(req));
+  return res.status(204).end();
+});
 router.put("/users/change-password", verifyToken, async (req, res) => {
   const oldPassword = typeof req.body.oldPassword === "string" ? req.body.oldPassword : "";
   const newPassword = typeof req.body.newPassword === "string" ? req.body.newPassword : "";
@@ -46864,8 +46895,11 @@ router.put("/users/change-password", verifyToken, async (req, res) => {
     return res.status(400).json({ error: "Password baru harus berbeda dari password lama." });
   }
   const passwordHash = await import_bcryptjs.default.hash(newPassword, 12);
-  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, req.authUser.id));
-  return res.json({ message: "Password berhasil diganti." });
+  const [updatedUser] = await db.update(usersTable).set({ passwordHash, updatedAt: nextSessionRevision() }).where(and(currentSession(req), eq(usersTable.passwordHash, user.passwordHash))).returning();
+  if (!updatedUser) return res.status(409).json({ error: "Akun sudah berubah. Silakan login kembali." });
+  const token = createToken(updatedUser, res);
+  if (!token) return;
+  return res.json({ token, message: "Password berhasil diganti. Sesi di perangkat lain telah diakhiri." });
 });
 router.get("/users", verifyToken, checkRole("admin"), async (_req, res) => {
   const users = await db.select({
@@ -46893,7 +46927,10 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req, res) => {
   if (userId === req.authUser.id && role !== "admin") {
     return res.status(400).json({ error: "Role akun admin yang sedang digunakan tidak dapat diturunkan." });
   }
-  const values = { role };
+  const values = {
+    role,
+    updatedAt: nextSessionRevision()
+  };
   if (newPassword) values.passwordHash = await import_bcryptjs.default.hash(newPassword, 12);
   const [updatedUser] = await db.update(usersTable).set(values).where(eq(usersTable.id, userId)).returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
   if (!updatedUser) return res.status(404).json({ error: "User tidak ditemukan." });
@@ -51678,6 +51715,7 @@ router2.get(
         ingredientId: row.ingredientId,
         ingredientName: row.ingredientName,
         unit: row.unit,
+        recipeUnit: row.recipeUnit,
         qtyRequired: number(row.qtyRequired)
       })),
       recentPurchases,

@@ -1,129 +1,228 @@
 # Panduan Penggunaan Kasapink ERP
 
-Kasapink ERP membantu mencatat persediaan bahan, resep produk, belanja, penjualan, stok fisik, dan ringkasan keuangan usaha.
+**Panduan operasional untuk pemilik dan tim usaha**
 
-## 1. Masuk dan navigasi
+Versi aplikasi: 8 Oktober 2026
 
-1. Buka aplikasi Kasapink ERP.
-2. Masukkan password akses yang diberikan oleh pengelola, lalu pilih **Masuk ke Sistem**.
-3. Gunakan menu di sisi kiri untuk berpindah halaman. Di ponsel, ketuk tombol menu di kiri atas.
-4. Tombol **Kunci** mengakhiri akses pada perangkat tersebut. Aplikasi juga mengunci otomatis setelah 20 menit tanpa aktivitas. Jika semua tab ditutup, hitungan tetap berjalan; setelah 20 menit tidak aktif, Anda akan diminta masuk lagi saat membuka aplikasi.
+Kasapink ERP membantu mencatat bahan, produk, resep, persiapan masak (prep), pembelian, penjualan, stok fisik, waste, biaya operasional, dan laporan usaha. Panduan ini mengikuti menu yang tersedia di aplikasi saat tanggal di atas. Tampilan dapat sedikit berubah saat aplikasi diperbarui.
 
-## 2. Urutan awal penggunaan
+## Daftar isi
 
-Agar transaksi dan laporan dihitung dengan benar, siapkan data dengan urutan berikut:
+1. Masuk, navigasi, dan hak akses
+2. Urutan menyiapkan aplikasi
+3. Ringkasan
+4. Stok Bahan
+5. Produk & Resep
+6. Catat Belanja
+7. Produksi / Prep
+8. Catat Penjualan
+9. Stok Opname
+10. Kontrol F&B
+11. Laporan keuangan
+12. Manajemen User
+13. Tips dan pemecahan masalah
+14. Istilah dan cara hitung
 
-1. **Stok Bahan:** masukkan semua bahan, satuan, stok awal, biaya per satuan stok awal, dan batas minimum.
-2. **Produk & Resep:** masukkan produk dan harga jual, kemudian atur jumlah setiap bahan untuk membuat satu produk.
-3. **Catat Belanja:** catat pembelian bahan agar saldo stok dan biaya bahan diperbarui.
-4. **Catat Penjualan:** catat produk yang terjual. Sistem mengurangi stok bahan sesuai resep.
-5. **Stok Opname:** cocokkan saldo aplikasi dengan jumlah bahan yang benar-benar tersedia.
-6. **Laporan:** pilih rentang tanggal untuk melihat hasil usaha.
+## 1. Masuk, navigasi, dan hak akses
+
+1. Buka alamat aplikasi Kasapink ERP.
+2. Masukkan **username** dan **password**, lalu pilih **Masuk ke Sistem**.
+3. Gunakan menu di sisi kiri untuk berpindah halaman. Di ponsel, buka menu lewat tombol di kiri atas.
+4. Tombol **Password** membuka formulir ganti password. Tombol **Kunci** mengakhiri sesi di perangkat tersebut.
+
+Aplikasi mengakhiri sesi setelah 20 menit tanpa aktivitas. Perubahan yang belum disimpan dapat hilang jika berpindah halaman; aplikasi akan meminta konfirmasi sebelum meninggalkan formulir yang sedang diedit.
+
+**Peran akun:**
+
+- **Admin** dapat memakai fitur operasional dan membuka **Manajemen User**.
+- **User** dapat memakai fitur operasional yang sama, tetapi tidak dapat mengelola akun.
+- **Testing** hanya dapat melihat data. Tombol perubahan dan penyimpanan dinonaktifkan.
+
+Jangan berbagi password. Minta admin membuatkan akun sendiri untuk setiap anggota tim agar aktivitas usaha dapat dikelola dengan akses yang tepat.
+
+## 2. Urutan menyiapkan aplikasi
+
+Sebelum mencatat transaksi, siapkan data dasar dengan urutan ini:
+
+1. **Stok Bahan:** buat semua bahan, pilih jenis, kategori, satuan, stok awal, biaya per satuan stok awal, dan batas minimum.
+2. **Produksi / Prep:** buat prep yang memang diproduksi terlebih dahulu, misalnya nasi matang atau ayam suwir; atur resep bahan dan hasil standarnya.
+3. **Produk & Resep:** buat produk yang dijual, harga, dan jenisnya. Atur resep bahan langsung dan pemakaian prep pada produk yang sesuai.
+4. **Catat Belanja:** masukkan pembelian agar stok dan biaya rata-rata bahan diperbarui.
+5. **Catat Penjualan:** catat produk yang terjual pada tanggal yang benar.
+6. **Stok Opname:** cocokkan stok sistem dengan hasil hitung fisik.
+7. **Kontrol F&B** dan **Laporan:** tinjau kinerja sesuai periode yang dipilih.
+
+Gunakan satuan yang konsisten, misalnya kilogram untuk stok dan kilogram untuk resep. Jika resep memakai satuan yang berbeda, pastikan satuan serta konversinya masuk akal sebelum produksi atau penjualan dicatat.
 
 ## 3. Ringkasan
 
-Halaman **Ringkasan** menampilkan kondisi hari ini:
+Halaman **Ringkasan** memberi gambaran usaha hari ini, antara lain penjualan, laba kotor, belanja bahan, bahan yang menipis, dan transaksi terbaru. Angka dihitung dari data transaksi yang sudah tersimpan.
 
-- **Penjualan hari ini:** nilai penjualan yang dicatat untuk tanggal hari ini.
-- **Laba kotor:** penjualan dikurangi biaya bahan yang dipakai untuk produk terjual.
-- **Belanja bahan:** total transaksi pembelian bahan hari ini.
-- **Bahan menipis:** jumlah bahan dengan stok sama dengan atau di bawah batas minimum.
-- **Stok perlu diisi:** daftar singkat bahan yang mencapai batas minimum.
-- **Catatan terakhir:** transaksi belanja dan penjualan terbaru.
+Jika angka terlihat tidak sesuai, periksa tanggal pada transaksi terkait, resep produk, biaya bahan, dan apakah pembelian atau produksi batch sudah dicatat.
 
-Angka berasal dari transaksi yang sudah disimpan. Pastikan tanggal pada setiap transaksi benar.
+## 4. Stok Bahan
 
-## 4. Mengelola stok bahan
+Buka menu **Stok Bahan**, lalu pilih sub-menu **Makanan** atau **Parfum**. Gunakan pencarian untuk menemukan bahan. Daftar menunjukkan stok, satuan, batas minimum, harga terakhir, dan tren harga pembelian.
 
-Buka **Stok Bahan** untuk melihat, mencari, menambah, mengubah, atau menghapus bahan.
-
-### Menambah bahan
+### Menambahkan bahan
 
 1. Pilih **Tambah bahan**.
-2. Isi nama, kategori, satuan (misalnya kg, liter, atau butir), stok awal, biaya per satuan stok awal, dan batas minimum.
-3. Pilih simpan. Stok awal dan biayanya menjadi dasar penghitungan persediaan dan laba.
+2. Isi nama, kategori, satuan, stok awal, **biaya per satuan stok awal**, dan batas minimum.
+3. Pilih **Simpan bahan**.
 
-### Mengubah atau menghapus bahan
+Nama bahan harus diawali huruf kapital. Contoh: `Bawang Putih`. Biaya awal dipakai sebagai dasar HPP bahan sebelum ada transaksi pembelian.
 
-- Gunakan ikon pensil untuk mengubah informasi bahan dan batas minimum.
-- Perubahan jumlah stok dicatat melalui **Catat Belanja** atau **Stok Opname**, bukan dari formulir ubah bahan.
-- Gunakan ikon tempat sampah untuk menghapus bahan dan konfirmasi jika diminta. Penghapusan dapat memengaruhi kemampuan mengelola resep yang memakai bahan tersebut.
-- Gunakan kolom pencarian untuk mencari nama atau kategori. Label **Menipis** berarti jumlah stok sama dengan atau lebih rendah dari batas minimum.
+### Mengubah bahan
 
-## 5. Mengelola produk dan resep
+Gunakan ikon pensil untuk mengubah informasi dan batas minimum. Untuk memperbarui jumlah stok bahan, catat pembelian atau lakukan Stock Opname; jangan gunakan edit data master sebagai pengganti pencatatan pergerakan stok.
 
-Buka **Produk & Resep**. Setiap produk memiliki salah satu dari dua tipe:
+Ikon tempat sampah menghapus bahan. Penghapusan dapat ditolak atau memengaruhi data resep jika bahan masih digunakan.
 
-- **Produk Jadi:** barang yang dibeli lalu dijual kembali, seperti parfum botolan. Masukkan stok barang jadi dan biaya beli per unit. Penjualan mengurangi stok produk ini, bukan stok bahan. Untuk restock atau koreksi, ubah nilai stok pada formulir produk.
-- **Produk Olahan:** makanan atau barang racikan yang stok bahan makronya dipotong saat terjual.
+Status **Menipis** berarti stok sama dengan atau lebih kecil dari batas minimum. Tinjau tren harga berdasarkan transaksi pembelian yang telah dicatat.
 
-### Menambah produk
+## 5. Produk & Resep
+
+Buka **Produk & Resep**, kemudian pilih **Makanan** atau **Parfum**. Produk dibagi menjadi dua jenis:
+
+- **Produk olahan** dibuat dari resep bahan dan/atau prep. Penjualan mengurangi stok bahan atau prep sesuai resep.
+- **Produk jadi** dijual langsung dari stok produk, misalnya barang yang dibeli untuk dijual kembali. Penjualan mengurangi stok produk tersebut.
+
+### Membuat produk
 
 1. Pilih **Tambah produk**, lalu isi nama dan harga jual per unit.
-2. Pilih **Produk Jadi** atau **Produk Olahan**.
-3. Untuk Produk Jadi, isi stok awal dan biaya beli per unit.
-4. Untuk Produk Olahan sederhana, centang **Otomatis ambil dari bahan (rasio 1:1)** dan pilih bahan makro utama. Sistem langsung membuat resep satu satuan bahan untuk satu produk.
-5. Jika tidak memakai auto-resep, simpan produk lalu pilih **Atur resep** pada kartunya.
+2. Pilih jenis produk: olahan atau jadi.
+3. Untuk produk jadi, masukkan stok awal dan biaya beli per unit.
+4. Untuk produk olahan sederhana, opsi resep otomatis 1:1 dapat dipakai jika satu unit produk memang memakai satu unit bahan utama.
+5. Simpan produk. Jika resep tidak dibuat otomatis, buka kartu produk dan pilih **Atur resep**.
 
-### Mengatur resep
+### Mengatur resep produk
 
-- Masukkan jumlah bahan makro untuk membuat **satu** produk, mengikuti satuan bahan yang terdaftar.
-- Garam, micin, dan bahan mikro lainnya dicatat sebagai biaya operasional di luar resep/stok. Jika bahan tersebut terdaftar, gunakan kategori yang memuat kata **Mikro** atau **Operasional** agar tidak muncul pada form resep.
-- Kosongkan bahan yang tidak dipakai. Isi `0` juga berarti bahan tersebut tidak digunakan.
-- Kartu produk menampilkan perkiraan biaya bahan, sisa setelah biaya produk, dan persentase dari harga jual. Perkiraan biaya resep memakai biaya rata-rata bahan saat ini dan belum memasukkan seluruh biaya operasional.
-- Gunakan ikon pensil untuk mengubah data produk. Gunakan ikon tempat sampah untuk menghapus produk.
+Masukkan jumlah setiap bahan untuk membuat satu unit/porsi produk. Bahan dengan kategori yang memuat kata **Mikro** atau **Operasional** tidak dimasukkan ke resep makro di formulir ini. Bahan yang tidak dipakai dibiarkan kosong atau bernilai nol.
 
-## 6. Mencatat belanja bahan
+Untuk produk yang menggunakan prep, buka **Produksi / Prep** dan tautkan prep yang digunakan per porsi. HPP produk olahan memperhitungkan resep bahan serta pemakaian prep sesuai konfigurasi.
 
-Buka **Catat Belanja** setiap kali membeli bahan.
+Kartu produk menunjukkan perkiraan biaya bahan, sisa setelah biaya produk, dan margin perkiraan. Angka tersebut bukan laba bersih dan belum tentu mencakup semua biaya usaha.
 
-1. Periksa tanggal transaksi dan pilih asal belanja: Pasar, Toko, Grosir, atau Lainnya.
-2. Untuk setiap bahan, pilih bahan, masukkan jumlah yang dibeli, dan **total biaya untuk jumlah tersebut**.
-3. Pilih **Tambah bahan** untuk mencatat beberapa jenis bahan dalam satu transaksi.
-4. Periksa total pengeluaran, lalu pilih **Simpan belanja**.
+## 6. Catat Belanja
 
-Setelah tersimpan, stok bahan bertambah dan biaya rata-rata bahan diperbarui. Jika membeli beberapa bahan sekaligus, pisahkan biaya setiap bahan pada barisnya masing-masing.
+Catat pembelian bahan segera setelah transaksi terjadi agar stok dan HPP tetap mendekati kondisi nyata.
 
-## 7. Mencatat penjualan
+1. Periksa tanggal pembelian.
+2. Pilih asal pembelian yang tersedia.
+3. Pilih bahan, masukkan jumlah yang dibeli, dan **total biaya untuk jumlah tersebut**.
+4. Gunakan **Tambah bahan** untuk memasukkan beberapa bahan; pisahkan jumlah dan biaya per bahan.
+5. Periksa total pengeluaran, lalu pilih **Simpan belanja**.
 
-Buka **Catat Penjualan**.
+Setelah tersimpan, stok bertambah dan biaya rata-rata bahan diperbarui. Contoh: membeli 2 kg tepung seharga Rp30.000 berarti masukkan kuantitas `2` dan total biaya `30000`, bukan biaya per kilogram.
 
-1. Pastikan tanggal transaksi benar.
-2. Pilih produk dan jumlah yang terjual. Pilih **Tambah produk** untuk menambahkan produk lain ke transaksi yang sama.
-3. Perkiraan penjualan dihitung dari harga jual produk dan jumlahnya.
-4. Pilih **Simpan penjualan**.
+## 7. Produksi / Prep
 
-Harga mengikuti daftar harga produk. Untuk Produk Olahan, bahan pada resep akan mengurangi stok bahan. Untuk Produk Jadi, stok produk yang berkurang.
+Menu **Produksi / Prep** digunakan untuk bahan olahan yang dibuat dalam batch sebelum dipakai dalam menu. Alurnya: **bahan baku → produksi batch → stok prep → produk jualan**.
 
-Jika resep belum diatur atau stok bahan/produk kurang, transaksi tetap disimpan. Aplikasi menampilkan warning kuning dan saldo stok boleh menjadi minus. Periksa warning, lalu lakukan pembelian atau koreksi melalui stok opname (bahan) atau formulir produk (stok barang jadi).
+### Membuat dan mengatur prep
 
-## 8. Melakukan stok opname
+1. Pilih **Buat prep**.
+2. Isi nama, satuan stok, dan hasil standar satu batch. Contoh: 1 batch menghasilkan 5 kg nasi matang.
+3. Pilih prep, lalu di bagian **Resep** masukkan jumlah bahan untuk menghasilkan satu hasil standar dan pilih satuannya.
+4. Simpan resep prep sebelum mencatat produksi.
 
-Gunakan **Stok Opname** untuk menyesuaikan catatan dengan hitungan fisik.
+### Mencatat produksi batch
+
+1. Pilih tanggal produksi.
+2. Isi target hasil batch dan hasil jadi yang benar-benar masuk stok.
+3. Periksa persentase yield/susut, lalu pilih **Catat produksi**.
+
+Sistem mengurangi bahan baku sesuai resep, menambah stok prep sebesar hasil jadi, dan memperbarui HPP prep. Riwayat batch menampilkan tanggal, kuantitas hasil, yield, dan HPP.
+
+### Memakai prep pada produk
+
+Di bagian **Atur prep untuk produk jualan**, pilih produk makanan. Tambahkan prep yang benar-benar dipakai dan isi jumlah per porsi serta satuannya, lalu pilih **Simpan pemakaian**. Saat produk terjual, stok prep berkurang sesuai pemakaian dan biaya prep ikut dihitung ke HPP.
+
+## 8. Catat Penjualan
+
+1. Pilih kategori penjualan **Makanan** atau **Parfum**.
+2. Periksa tanggal transaksi.
+3. Pilih produk dan jumlah yang terjual. Gunakan **Tambah produk** untuk memasukkan beberapa produk dalam transaksi yang sama.
+4. Periksa perkiraan penjualan, lalu pilih **Simpan penjualan**.
+
+Harga memakai harga jual pada master produk. Untuk produk olahan, sistem mengurangi stok bahan dan prep berdasarkan resep. Untuk produk jadi, sistem mengurangi stok produk.
+
+Jika resep kosong atau stok kurang, transaksi dapat tetap tersimpan dengan peringatan. Baca peringatannya, lalu benahi resep, catat pembelian/produksi, atau koreksi stok melalui Stock Opname. Stok dapat menjadi minus; jangan abaikan warning tersebut.
+
+## 9. Stok Opname
+
+Gunakan **Stok Opname** untuk mencatat jumlah fisik **bahan dan preparation**. Selisih dihitung sebagai:
+
+**Variance kuantitas = stok fisik − stok sistem**
 
 1. Pilih tanggal opname.
-2. Hitung bahan yang tersedia secara fisik.
-3. Isi kolom jumlah fisik untuk bahan yang perlu diperbarui. Nilai selisih dibanding saldo sistem ditampilkan pada tabel.
-4. Pilih **Simpan hasil opname**.
+2. Hitung bahan/prep yang tersedia secara fisik.
+3. Isi kolom **Stok Fisik** hanya untuk item yang dihitung dan ingin dikoreksi.
+4. Tinjau selisih yang ditampilkan, lalu pilih **Simpan hasil opname**.
 
-Kolom yang dibiarkan kosong memakai saldo saat ini, sehingga tidak mengubah jumlah bahan tersebut. Periksa tanggal dan angka sebelum menyimpan.
+Kolom kosong berarti item tersebut tidak diubah. Nilai fisik `0` adalah hitungan nol dan berbeda dari kolom kosong. Simpan akan membuat movement adjustment dan memperbarui stok. Nilai variance rupiah menggunakan HPP item saat opname.
 
-## 9. Membaca laporan keuangan
+Hasil adjustment tampil pada **Stock Opname Variance** di Kontrol F&B. Adjustment tidak digabung ke **Recipe Usage Variance**.
 
-Buka **Laporan**, lalu pilih tanggal **Dari** dan **Sampai**. Halaman menampilkan rincian harian untuk:
+## 10. Kontrol F&B
 
-- Penjualan.
-- Harga pokok terjual (perkiraan biaya bahan yang digunakan untuk produk terjual).
-- Belanja bahan.
-- Laba kotor.
+Halaman **Kontrol F&B** merangkum periode yang dipilih. Atur tanggal **Dari** dan **Sampai** untuk meninjau periode lain.
 
-Laba kotor dihitung dari penjualan dikurangi biaya bahan produk yang terjual. Angka ini belum memasukkan upah, listrik, sewa, ongkos kirim, dan biaya operasional lain. Belanja bahan ditampilkan terpisah dari harga pokok penjualan.
+- **Penjualan:** nilai dan jumlah menu terjual.
+- **HPP Aktual** dan **Food Cost:** biaya bahan aktual untuk penjualan.
+- **Waste:** bahan atau prep yang dicatat terbuang.
+- **Laba Bersih:** laba setelah biaya operasional tercatat di aplikasi.
+- **Menu paling menghasilkan:** penjualan, HPP, food cost, dan laba kotor per menu.
+- **Recipe Usage Variance:** perbandingan pemakaian aktual dengan pemakaian teoritis menurut resep dan penjualan. Prep yang dibuat sebelum periode dapat memengaruhi angka aktual.
+- **Stock Opname Variance:** selisih jumlah dan nilai rupiah dari movement adjustment Stock Opname.
 
-## 10. Tips dan pemecahan masalah
+### Mencatat waste
 
-- Jika daftar bahan atau produk masih kosong, tambahkan datanya terlebih dahulu.
-- Jika penjualan gagal, pastikan setiap produk memiliki resep dan stok cukup untuk semua bahan resep.
-- Jika stok aplikasi berbeda dari stok nyata, lakukan stok opname.
-- Jika data gagal dimuat, periksa koneksi internet dan gunakan **Coba muat kembali** bila tersedia.
-- Pastikan tanggal transaksi benar sebelum menyimpan, terutama untuk transaksi yang dicatat setelah kejadian.
-- Laba yang ditampilkan adalah laba kotor berbasis biaya bahan; gunakan pencatatan terpisah untuk biaya operasional lainnya.
+Di bagian **Catat yang terbuang**, pilih jenis item (bahan/prep), item, jumlah, dan alasan. Catat waste saat terjadi agar biaya dan jumlah waste tercermin pada laporan.
+
+### Mencatat biaya usaha
+
+Di bagian **Catat pengeluaran**, isi kategori, keterangan, dan nominal, lalu pilih **Simpan pengeluaran**. Contoh: gas, listrik, air, transportasi, atau biaya di luar bahan. Hanya biaya yang dicatat di aplikasi yang masuk perhitungan periode.
+
+## 11. Laporan keuangan
+
+Buka **Laporan keuangan**, pilih rentang tanggal **Dari** dan **Sampai**, lalu tinjau penjualan, harga pokok terjual, belanja bahan, dan laba kotor per hari.
+
+Belanja bahan ditampilkan terpisah dari HPP karena pembelian menambah persediaan; pembelian tidak sama dengan bahan yang sudah dipakai. Laporan keuangan ini menampilkan laba kotor. Untuk melihat biaya operasional dan laba setelah biaya yang dicatat, gunakan Kontrol F&B.
+
+## 12. Manajemen User
+
+Menu **Manajemen User** hanya tersedia untuk admin. Admin dapat membuat akun, mengatur peran, dan mereset password sesuai kontrol yang tersedia di layar.
+
+- Buat akun terpisah untuk setiap orang; jangan memakai satu akun bersama.
+- Berikan peran **User** untuk pemakaian operasional sehari-hari.
+- Gunakan peran **Testing** untuk melihat data tanpa mengubahnya.
+- Batasi peran **Admin** untuk orang yang perlu mengelola akun.
+- Minta setiap pengguna mengganti password melalui tombol **Password** jika diperlukan.
+
+## 13. Tips dan pemecahan masalah
+
+- **Data belum dapat dimuat / HTTP 500:** pilih **Coba muat kembali** satu kali. Jika tetap gagal, catat halaman, waktu, dan pesan error lalu hubungi admin; jangan mengulang transaksi yang mungkin sudah tersimpan.
+- **Tidak bisa masuk:** periksa username/password dan pastikan akun belum dinonaktifkan atau diubah oleh admin. Password tidak dapat dilihat kembali oleh admin; gunakan reset/ganti password.
+- **Bahan atau produk tidak muncul:** periksa submenu kategori (Makanan/Parfum), pencarian, dan data master.
+- **Stok atau HPP berbeda:** periksa tanggal pembelian, kuantitas, total biaya, resep, hasil produksi batch, penjualan, dan adjustment terakhir.
+- **Stok opname tidak mengubah item:** pastikan kolom stok fisik terisi; kolom kosong memang tidak dikirim.
+- **Penjualan tersimpan dengan warning:** baca warning dan periksa stok bahan/prep/produk. Jangan hapus warning tanpa membenahi catatan sumbernya.
+- **Form belum tersimpan:** tetap di halaman dan simpan dahulu. Jika pindah halaman, konfirmasi akan memberi tahu bahwa isian bisa hilang.
+- Gunakan tanggal transaksi yang benar. Laporan mengikuti tanggal yang tersimpan, bukan tanggal saat transaksi dimasukkan.
+
+## 14. Istilah dan cara hitung
+
+| Istilah | Arti |
+|---|---|
+| Stok sistem | Jumlah yang tercatat di aplikasi sebelum hitung fisik. |
+| Stok fisik | Jumlah yang benar-benar dihitung di tempat usaha. |
+| Variance kuantitas | Stok fisik dikurangi stok sistem. Nilai negatif berarti jumlah fisik lebih sedikit. |
+| Variance rupiah | Dampak nilai adjustment berdasarkan HPP item saat opname. |
+| HPP | Biaya bahan/prep yang dipakai untuk menghasilkan produk atau prep. |
+| Recipe Usage Variance | Selisih pemakaian aktual dibandingkan kebutuhan teoritis dari resep dan penjualan. |
+| Stock Opname Variance | Selisih hasil hitung fisik yang tercatat sebagai adjustment Stock Opname. |
+| Laba kotor | Penjualan dikurangi HPP produk terjual. Belum dikurangi seluruh biaya operasional. |
+| Laba bersih (Kontrol F&B) | Nilai setelah biaya operasional dan waste yang dicatat dalam sistem. |
+
+**Prinsip pencatatan:** masukkan transaksi pada saat terjadi, gunakan satuan konsisten, periksa tanggal dan kuantitas, serta simpan resep sebelum transaksi yang mengandalkannya.
