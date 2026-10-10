@@ -1282,4 +1282,15 @@ body { background:#f2bfd2; }
   .side-nav { flex:0 0 auto; }
   .sidebar-note { margin-top:24px; }
   .side-footer { padding-bottom:4px; }
+  .form-row { grid-template-columns:1fr; gap:14px; }
+  .date-range { display:grid; grid-template-columns:1fr; gap:9px; width:100%; }
+  .date-range .field { width:100%; }
+  .range-separator { padding:0; margin:0; text-align:center; }
+  .opname-intro { overflow:hidden; }
+  .opname-intro .field { width:100%; min-width:0; }
 }
+
+/* Keep mobile warning and KPI panels calm and readable on iPhone screens. */
+.metric-feature, .side-tip, .report-total.highlight { background:#f2bfd2; }
+.metric-feature .metric-foot svg, .side-tip .inline-link, .side-tip .tip-symbol { color:#613248; }
+.side-tip .inline-link { font-weight:700; }
