@@ -15,7 +15,8 @@ import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-c
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check, ChevronDown,
   CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
-  KeyRound, Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2, TrendingUp, X,
+  KeyRound, LoaderCircle, Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2,
+  TrendingUp, UserRound, X,
 } from 'lucide-react';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import PasswordInput from './components/PasswordInput';
@@ -62,7 +63,7 @@ let unsavedChanges = false;
 const setUnsavedChanges = (value: boolean) => { unsavedChanges = value; };
 const confirmNavigation = () => !unsavedChanges || window.confirm('Perubahan belum disimpan. Jika pindah menu sekarang, isian yang belum disimpan akan hilang. Tetap keluar?');
 
-function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg }: {
+function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg, loginPending }: {
   onLogin: (e: React.FormEvent) => void;
   onSetup: (username: string, password: string, bootstrapToken: string) => void;
   setupAvailable: boolean;
@@ -71,6 +72,7 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
   passwordInput: string;
   setPasswordInput: (val: string) => void;
   errorMsg: string;
+  loginPending: boolean;
 }) {
   const [setupMode, setSetupMode] = useState(false);
   const [bootstrapToken, setBootstrapToken] = useState('');
@@ -96,13 +98,14 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
         </form> : <form onSubmit={onLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
           <div>
             <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>USERNAME</label>
-            <input type="text" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} placeholder="Username" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B', marginBottom: '12px' }} />
+            <input disabled={loginPending} type="text" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} placeholder="Username" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B', marginBottom: '12px' }} />
             <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>PASSWORD</label>
             <PasswordInput
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
               placeholder="Masukkan password..."
               autoComplete="current-password"
+              disabled={loginPending}
               style={{ width: '100%', padding: '12px 40px 12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B' }}
               autoFocus
             />
@@ -110,9 +113,10 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
           {errorMsg && <p style={{ color: '#e11d48', fontSize: '12px', margin: 0, fontWeight: '500' }}>{errorMsg}</p>}
           <button
             type="submit"
+            disabled={loginPending}
             style={{ width: '100%', padding: '12px', backgroundColor: '#1B3B2B', color: '#fff', fontWeight: '600', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '14px', marginTop: '6px', boxShadow: '0 4px 12px rgba(27, 59, 43, 0.2)', transition: 'background 0.2s' }}
           >
-            Masuk ke Sistem
+            {loginPending ? <><LoaderCircle className="spin" size={17} /> Memeriksa akun…</> : 'Masuk ke Sistem'}
           </button>
           {setupAvailable && <button type="button" className="text-button" onClick={() => setSetupMode(true)}>Buat admin pertama</button>}
         </form>}
@@ -125,13 +129,24 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
   );
 }
 
-function Shell({ children, connected, onLogout, role }: { children: React.ReactNode; connected: boolean; onLogout: () => void; role: UserRole }) {
+function Shell({ children, connected, onLogout, user }: { children: React.ReactNode; connected: boolean; onLogout: () => void; user: AppUser }) {
   const [path] = useLocation();
   const [mobileNav, setMobileNav] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
-  const visibleNavItems = navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || role === 'admin');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const userMenuRef = useRef<HTMLDivElement>(null);
+  const visibleNavItems = navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || user.role === 'admin');
   const active = visibleNavItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
+  useEffect(() => {
+    if (!userMenuOpen) return;
+    const closeMenu = (event: MouseEvent) => {
+      if (!userMenuRef.current?.contains(event.target as Node)) setUserMenuOpen(false);
+    };
+    document.addEventListener('mousedown', closeMenu);
+    return () => document.removeEventListener('mousedown', closeMenu);
+  }, [userMenuOpen]);
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <Link href="/" className="brand-lockup" onClick={() => setMobileNav(false)}>
@@ -163,25 +178,30 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
           <span className={`connection ${connected ? '' : 'connection-off'}`}><i />{connected ? 'Tersambung' : 'Menghubungkan'}</span>
           <div className="top-date"><CalendarDays size={15} /> {new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long' }).format(new Date())}</div>
 
-          <button type="button" onClick={() => setShowChangePassword(true)} title="Ganti Password" aria-label="Ganti Password" className="button button-secondary" style={{ padding: '6px 10px', marginLeft: '6px' }}>
-            <KeyRound size={14} /> Password
-          </button>
-
-          <button
-            onClick={onLogout}
-            title="Akhiri semua sesi akun ini"
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', backgroundColor: 'rgba(225, 29, 72, 0.08)', color: '#e11d48', border: '1px solid rgba(225, 29, 72, 0.2)', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '500', transition: 'all 0.2s', marginLeft: '6px' }}
-          >
-            <LogOut size={14} /> Keluar semua sesi
-          </button>
+          <div className="user-menu" ref={userMenuRef}>
+            <button type="button" className="user-menu-trigger" aria-label={`Menu akun ${user.username}`} aria-haspopup="menu" aria-expanded={userMenuOpen} onClick={() => setUserMenuOpen((open) => !open)}>
+              <span className="user-avatar"><UserRound size={15} /></span>
+              <span className="user-menu-copy"><b>{user.username}</b><small>{user.role === 'admin' ? 'Administrator' : 'Testing'}</small></span>
+              <ChevronDown className={userMenuOpen ? 'is-open' : ''} size={15} />
+            </button>
+            {userMenuOpen && <div className="user-menu-dropdown" role="menu">
+              <button type="button" role="menuitem" onClick={() => { setUserMenuOpen(false); setShowChangePassword(true); }}><KeyRound size={15} /><span><b>Ganti password</b><small>Perbarui keamanan akun</small></span></button>
+              <button type="button" role="menuitem" className="danger" onClick={() => { setUserMenuOpen(false); setShowLogoutConfirm(true); }}><LogOut size={15} /><span><b>Keluar</b><small>Akhiri semua sesi akun</small></span></button>
+            </div>}
+          </div>
         </div>
       </header>
-      <div className={`page-content ${role === 'testing' ? 'testing-readonly' : ''}`}>
-        {role === 'testing' && <div className="readonly-notice"><Shield size={16} /> Akun testing hanya dapat melihat data.</div>}
+      <div className={`page-content ${user.role === 'testing' ? 'testing-readonly' : ''}`}>
+        {user.role === 'testing' && <div className="readonly-notice"><Shield size={16} /> Akun testing hanya dapat melihat data.</div>}
         {children}
       </div>
     </main>
     {showChangePassword && <ChangePasswordModal onClose={() => setShowChangePassword(false)} />}
+    {showLogoutConfirm && <div className="modal-backdrop" role="presentation"><div className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="logout-title">
+      <span className="confirm-icon"><LogOut size={21} /></span>
+      <div><span className="eyebrow">KONFIRMASI AKUN</span><h2 id="logout-title">Keluar dari Kasapink?</h2><p>Semua sesi aktif akun <b>{user.username}</b> akan diakhiri. Anda perlu login kembali untuk masuk.</p></div>
+      <div className="confirm-actions"><Button variant="quiet" onClick={() => setShowLogoutConfirm(false)}>Batal</Button><button type="button" className="button button-danger" onClick={() => { setShowLogoutConfirm(false); onLogout(); }}><LogOut size={15} /> Ya, keluar</button></div>
+    </div></div>}
   </div>;
 }
 
@@ -190,10 +210,17 @@ function PageHeading({ kicker, title, note, action }: { kicker: string; title: s
 }
 function Card({ children, className = '', ...props }: React.ComponentProps<'section'>) { return <section className={`card ${className}`} {...props}>{children}</section>; }
 function LoadingPanel() { return <div className="loading-grid"><div className="skeleton big" /><div className="skeleton" /><div className="skeleton" /></div>; }
+function FnbLoadingPanel() { return <div className="grid gap-3" aria-label="Memuat kontrol F&B"><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded-xl border border-stone-200 bg-white p-4"><div className="h-2 w-20 rounded bg-stone-200" /><div className="mt-5 h-6 w-28 rounded bg-stone-100" /></div>)}</div><div className="grid gap-3 lg:grid-cols-[1.2fr_.8fr]"><div className="h-52 animate-pulse rounded-xl border border-stone-200 bg-white" /><div className="h-52 animate-pulse rounded-xl border border-stone-200 bg-white" /></div></div>; }
 function ErrorPanel({ message, retry }: { message: string; retry: () => void }) { return <div className="error-panel"><AlertCircle size={22} /><div><b>Data belum dapat dimuat</b><p>{message}</p><button className="text-button" onClick={retry}>Coba muat kembali</button></div></div>; }
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><span className="empty-icon"><Boxes size={20} /></span><b>{title}</b><p>{text}</p></div>; }
 function Button({ children, onClick, variant = 'primary', type = 'button', disabled = false }: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet'; type?: 'button' | 'submit'; disabled?: boolean }) {
   return <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant}`} data-testid="button-action">{children}</button>;
+}
+function PaginationControls({ page, totalItems, pageSize, onPageChange, label = 'data' }: { page: number; totalItems: number; pageSize: number; onPageChange: (page: number) => void; label?: string }) {
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const start = totalItems ? (page - 1) * pageSize + 1 : 0;
+  const end = Math.min(page * pageSize, totalItems);
+  return <div className="pagination-bar"><span>Menampilkan {start}–{end} dari {totalItems} {label}</span><div><button type="button" disabled={page <= 1} onClick={() => onPageChange(page - 1)} aria-label="Halaman sebelumnya">‹</button><span>Halaman <b>{page}</b> / {totalPages}</span><button type="button" disabled={page >= totalPages} onClick={() => onPageChange(page + 1)} aria-label="Halaman berikutnya">›</button></div></div>;
 }
 export function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) { return <label className="field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>; }
 export function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) { return <input className="input" {...props} />; }
@@ -274,9 +301,12 @@ const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
 type PriceTrend = { ingredientId: number; ingredientName: string; unit: string; latestPrice: number | null; previousPrice: number | null; changeAmount: number | null; changePercent: number | null; history: Array<{ date: string; supplierType: string; quantity: number; totalCost: number; unitCost: number }> };
 
 function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum'; readOnly?: boolean }) {
+  const pageSize = 10;
   const safeIngredients = ingredients || [];
   const [modal, setModal] = useState<Ingredient | 'new' | null>(null);
   const [search, setSearch] = useState('');
+  const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all');
+  const [page, setPage] = useState(1);
   const create = useCreateIngredient(), update = useUpdateIngredient(), refresh = useRefresh();
   const [error, setError] = useState('');
   const [formCategory, setFormCategory] = useState('');
@@ -292,7 +322,11 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
       .catch(() => { if (active) setPriceTrends([]); });
     return () => { active = false; };
   }, []);
-  const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()));
+  const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()) && (stockFilter === 'all' || x.stock <= x.minStock));
+  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
+  const pagedIngredients = visible.slice((page - 1) * pageSize, page * pageSize);
+  useEffect(() => { setPage(1); }, [search, stockFilter, stockType]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const openModal = (value: Ingredient | 'new') => {
     setError('');
@@ -343,8 +377,8 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
 
   return <>
     <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => openModal('new')}><Plus size={17} /> Tambah bahan</Button>} />
-    <Card className="table-card"><div className="table-toolbar"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><span className="result-count">{visible.length} bahan</span></div>
-      {visible.length ? <div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{visible.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div> : <Empty title="Bahan belum ditemukan" text={search ? 'Coba kata pencarian lain.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
+    <Card className="table-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><button type="button" className={`filter-chip ${stockFilter === 'low' ? 'is-active' : ''}`} aria-pressed={stockFilter === 'low'} onClick={() => setStockFilter((value) => value === 'low' ? 'all' : 'low')}><AlertCircle size={14} /> Stok menipis</button></div><span className="result-count">{visible.length} bahan</span></div>
+      {visible.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={visible.length} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
       <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" onBlur={(e) => { const value = e.currentTarget.value.trim(); setNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.' : ''); }} />{nameError && <small className="form-hint" style={{ color: '#b42318' }}>{nameError}</small>}</Field>
@@ -525,12 +559,18 @@ function PurchasePage({ ingredients = [], readOnly = false }: { ingredients?: In
 }
 
 function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boolean }) {
+  const salesPageSize = 5;
   const safeProducts = state.products || [];
+  const recentSales = state.recentSales || [];
+  const [salesPage, setSalesPage] = useState(1);
   const [kategoriPenjualan, setKategoriPenjualan] = useState<'Makanan' | 'Parfum'>('Makanan');
   const availableProducts = safeProducts.filter((product) => product.businessType === kategoriPenjualan);
   const [date, setDate] = useState(today()), [lines, setLines] = useState<{ productId: number; quantity: number | '' }[]>([{ productId: safeProducts.find((product) => product.businessType === 'Makanan')?.id || 0, quantity: '' }]), [error, setError] = useState(''), [done, setDone] = useState(''), [warnings, setWarnings] = useState<string[]>([]);
   const mutation = useRecordSale(), refresh = useRefresh();
   const total = lines.reduce((n, l) => n + (safeProducts.find((p) => p.id === l.productId)?.sellingPrice || 0) * (Number(l.quantity) || 0), 0);
+  const pagedSales = recentSales.slice((salesPage - 1) * salesPageSize, salesPage * salesPageSize);
+  const salesTotalPages = Math.max(1, Math.ceil(recentSales.length / salesPageSize));
+  useEffect(() => { if (salesPage > salesTotalPages) setSalesPage(salesTotalPages); }, [salesPage, salesTotalPages]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone(''); setWarnings([]);
     mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && Number(l.quantity) > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
@@ -549,6 +589,9 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
       {warnings.length > 0 && <div className="warning-panel" role="alert"><AlertCircle size={18} /><div><b>Transaksi tersimpan dengan catatan stok</b><ul>{warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul></div></div>}
       <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={readOnly || mutation.isPending || !availableProducts.length}>{mutation.isPending ? 'Menyimpan?' : 'Simpan penjualan'}</Button></div>
     </form></Card><aside className="side-tip"><div className="tip-symbol peach"><ReceiptText size={20} /></div><span className="eyebrow">SEBELUM MENYIMPAN</span><h3>Stok kurang tidak menghentikan transaksi</h3><p>Resep kosong atau stok minus akan ditampilkan sebagai warning setelah penjualan berhasil dicatat. Periksa dan sesuaikan stok secara berkala.</p><Link href="/produk" className="inline-link">Cek produk & resep <ArrowRight size={15} /></Link></aside></div>
+    <Card className="table-card sales-history"><div className="card-heading"><div><span className="eyebrow">RIWAYAT TRANSAKSI</span><h2>Penjualan terakhir</h2></div><span className="result-count">{recentSales.length} transaksi terbaru</span></div>
+      {recentSales.length ? <><div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>PRODUK</th><th>JUMLAH</th><th>PENJUALAN</th><th>LABA KOTOR</th><th>STATUS</th></tr></thead><tbody>{pagedSales.map((sale) => <tr key={sale.id}><td><b>{dateLabel(sale.date)}</b><small className="muted">#{sale.id}</small></td><td>{sale.items.map((item) => item.productName).join(', ') || '—'}</td><td>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</td><td><b>{money(sale.totalRevenue)}</b></td><td className="positive"><b>{money(sale.grossProfit)}</b></td><td><span className="status-pill status-ok">Tercatat</span></td></tr>)}</tbody></table></div><PaginationControls page={salesPage} totalItems={recentSales.length} pageSize={salesPageSize} onPageChange={setSalesPage} label="transaksi" /></> : <Empty title="Belum ada penjualan" text="Transaksi yang disimpan akan muncul di tabel ini." />}
+    </Card>
   </>;
 }
 
@@ -990,10 +1033,15 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 }
 
 function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
+  const fnbPageSize = 5;
   const stateQuery = useGetErpState();
   const [startDate,setStartDate]=useState(today());
   const [endDate,setEndDate]=useState(today());
   const [report,setReport]=useState<any>(null);
+  const [reportLoading,setReportLoading]=useState(true);
+  const [menuPage,setMenuPage]=useState(1);
+  const [recipeVariancePage,setRecipeVariancePage]=useState(1);
+  const [stockVariancePage,setStockVariancePage]=useState(1);
   const [wasteType,setWasteType]=useState<'ingredient'|'preparation'>('ingredient');
   const [wasteItem,setWasteItem]=useState('');
   const [wasteQty,setWasteQty]=useState('');
@@ -1005,12 +1053,15 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
 
   const load=useCallback(async()=>{
     try{
+      setReportLoading(true);
       setError('');
       const r=await fetch(`/api/erp/fnb-report?startDate=${startDate}&endDate=${endDate}`,{headers:authHeaders()});
       const d=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(d.error||'Gagal memuat laporan F&B.');
       setReport(d);
+      setMenuPage(1); setRecipeVariancePage(1); setStockVariancePage(1);
     }catch(e){setError(errText(e));}
+    finally{setReportLoading(false);}
   },[startDate,endDate]);
 
   useEffect(()=>{void load();},[load]);
@@ -1056,6 +1107,8 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
   const variance=Number(report?.foodCostVariance)||0;
   const variancePositive=variance>0;
   const menuCount=report?.menus?.length||0;
+  const recipeVariance=report?.recipeUsageVariance||[];
+  const stockVariance=report?.stockOpnameVariance||[];
 
   return <div className="page-stack fnb-page">
     <PageHeading kicker="KONTROL F&B" title="Kontrol F&B" note="Lihat kesehatan usaha, menu paling untung, dan kebocoran biaya tanpa harus membaca laporan panjang." />
@@ -1073,7 +1126,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
 
     {error&&<div className="error-panel"><AlertCircle size={20}/><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
 
-    {report&&<>
+    {reportLoading ? <FnbLoadingPanel /> : report&&<>
       <div className="fnb-kpi-grid">
         <Card className="fnb-kpi"><span>PENJUALAN</span><strong>{money(report.revenue)}</strong><small>{report.menus?.reduce((n:any,m:any)=>n+Number(m.quantity||0),0)||0} porsi terjual</small></Card>
         <Card className="fnb-kpi"><span>HPP AKTUAL</span><strong>{money(report.actualCogs)}</strong><small>Food cost {actualFc}%</small></Card>
@@ -1102,13 +1155,13 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
           <div><span className="eyebrow">MENU</span><h2>Menu paling menghasilkan</h2></div>
           <span className="fnb-count">{menuCount} menu</span>
         </div>
-        {menuCount>0 ? <div className="fnb-menu-list">{report.menus.map((m:any,i:number)=><div className="fnb-menu-row" key={m.productId}>
-          <div className="fnb-menu-rank">{i+1}</div>
+        {menuCount>0 ? <><div className="fnb-menu-list">{report.menus.slice((menuPage-1)*fnbPageSize,menuPage*fnbPageSize).map((m:any,i:number)=><div className="fnb-menu-row" key={m.productId}>
+          <div className="fnb-menu-rank">{(menuPage-1)*fnbPageSize+i+1}</div>
           <div className="fnb-menu-name"><b>{m.productName}</b><small>{m.quantity} terjual · food cost {m.foodCostPercentage}%</small></div>
           <div className="fnb-menu-cost"><span>Penjualan</span><b>{money(m.revenue)}</b></div>
           <div className="fnb-menu-cost"><span>HPP</span><b>{money(m.actualCogs)}</b></div>
           <div className="fnb-menu-profit"><span>Laba kotor</span><b>{money(m.grossProfit)}</b></div>
-        </div>)}</div> : <div className="fnb-empty">Belum ada penjualan pada periode ini.</div>}
+        </div>)}</div><PaginationControls page={menuPage} totalItems={menuCount} pageSize={fnbPageSize} onPageChange={setMenuPage} label="menu" /></> : <div className="fnb-empty">Belum ada penjualan pada periode ini.</div>}
       </Card>
 
       <Card className="fnb-section-card">
@@ -1116,13 +1169,14 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
           <div><span className="eyebrow">RECIPE USAGE VARIANCE</span><h2>Pemakaian aktual vs teoritis</h2><p>Selisih actual usage dikurangi theoretical usage dari resep dan penjualan.</p></div>
           <span className="fnb-count">Aktual − teoritis</span>
         </div>
-        <div className="fnb-variance-list">{(report.recipeUsageVariance||[]).slice(0,10).map((v:any)=><div className="fnb-variance-row" key={v.itemType+'-'+v.itemId}>
+        <div className="fnb-variance-list">{recipeVariance.slice((recipeVariancePage-1)*fnbPageSize,recipeVariancePage*fnbPageSize).map((v:any)=><div className="fnb-variance-row" key={v.itemType+'-'+v.itemId}>
           <div><b>{v.itemName}</b><small>{v.itemType==='preparation'?'Prep':'Bahan'} · {v.unit}</small></div>
           <span>{v.actualQty}</span><span>{v.theoreticalQty}</span>
           <strong className={Number(v.varianceQty)>0?'is-warning':'is-ok'}>{Number(v.varianceQty)>0?'+':''}{v.varianceQty} {v.unit}</strong>
           <b>{money(v.varianceCost)}</b>
         </div>)}</div>
         <div className="fnb-variance-labels"><span>ITEM</span><span>AKTUAL</span><span>TEORITIS</span><span>SELISIH</span><span>DAMPAK</span></div>
+        <PaginationControls page={recipeVariancePage} totalItems={recipeVariance.length} pageSize={fnbPageSize} onPageChange={setRecipeVariancePage} label="item" />
         <p className="helper-text fnb-note">Variance positif berarti pemakaian aktual lebih tinggi dari kebutuhan resep. Prep yang dibuat sebelum periode juga bisa memengaruhi angka ini.</p>
       </Card>
 
@@ -1131,11 +1185,11 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
           <div><span className="eyebrow">STOCK OPNAME VARIANCE</span><h2>Stok fisik vs sistem</h2><p>Selisih dan nilai rupiah diambil dari adjustment saat opname.</p></div>
           <span className="fnb-count">Fisik − sistem</span>
         </div>
-        {(report.stockOpnameVariance||[]).length ? <div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>ITEM</th><th>STOK SISTEM</th><th>STOK FISIK</th><th>VARIANCE QTY</th><th>HPP SAAT OPNAME</th><th>VARIANCE RUPIAH</th></tr></thead><tbody>{report.stockOpnameVariance.map((v:any)=><tr key={`${v.itemType}-${v.itemId}-${v.movementId}`}>
+        {stockVariance.length ? <><div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>ITEM</th><th>STOK SISTEM</th><th>STOK FISIK</th><th>VARIANCE QTY</th><th>HPP SAAT OPNAME</th><th>VARIANCE RUPIAH</th></tr></thead><tbody>{stockVariance.slice((stockVariancePage-1)*fnbPageSize,stockVariancePage*fnbPageSize).map((v:any)=><tr key={`${v.itemType}-${v.itemId}-${v.movementId}`}>
           <td>{dateLabel(v.date)}</td><td><b>{v.itemName}</b><small className="muted">{v.itemType==='preparation'?'Preparation':'Ingredient'} · {v.unit}</small></td>
           <td>{v.systemStock} {v.unit}</td><td>{v.physicalStock} {v.unit}</td><td>{Number(v.varianceQty)>0?'+':''}{v.varianceQty} {v.unit}</td>
           <td>{v.unitCost == null ? '—' : money(v.unitCost)}</td><td>{v.varianceValue == null ? '—' : money(v.varianceValue)}</td>
-        </tr>)}</tbody></table></div> : <Empty title="Belum ada hasil opname pada periode ini" text="Hasil opname akan tampil sesuai tanggal adjustment." />}
+        </tr>)}</tbody></table></div><PaginationControls page={stockVariancePage} totalItems={stockVariance.length} pageSize={fnbPageSize} onPageChange={setStockVariancePage} label="hasil opname" /></> : <Empty title="Belum ada hasil opname pada periode ini" text="Hasil opname akan tampil sesuai tanggal adjustment." />}
       </Card>
 
       <div className="fnb-action-grid">
@@ -1164,37 +1218,37 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
   </div>;
 }
 
-function AppContent({ onLogout, role }: { onLogout: () => void; role: UserRole }) {
+function AppContent({ onLogout, user }: { onLogout: () => void; user: AppUser }) {
   const query = useGetErpState();
   const health = useHealthCheck();
   const state = query.data;
   const fallback: ErpState = { ingredients: [], products: [], recipes: [], recentPurchases: [], recentSales: [], today: { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }, lowStockCount: 0 };
   const shared = state || fallback;
-  return <Shell connected={health.isSuccess} onLogout={onLogout} role={role}><ErrorBoundary resetKey="routes"><Switch>
+  return <Shell connected={health.isSuccess} onLogout={onLogout} user={user}><ErrorBoundary resetKey="routes"><Switch>
     <Route path="/" component={() => <Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />} />
-    <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={role === 'testing'} />} />
-    <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={role === 'testing'} />} />
-    <Route path="/produk/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={role === 'testing'} />} />
-    <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
-    <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={role === 'testing'} />} />
-    <Route path="/prep" component={() => <PrepPage readOnly={role === 'testing'} />} />
-    <Route path="/kontrol-fnb" component={() => <FnbControlPage readOnly={role === 'testing'} />} />
-    <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={role === 'testing'} />} />
+    <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />} />
+    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />} />
+    <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={user.role === 'testing'} />} />
+    <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />} />
+    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />} />
+    <Route path="/produk/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={user.role === 'testing'} />} />
+    <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />} />
+    <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={user.role === 'testing'} />} />
+    <Route path="/prep" component={() => <PrepPage readOnly={user.role === 'testing'} />} />
+    <Route path="/kontrol-fnb" component={() => <FnbControlPage readOnly={user.role === 'testing'} />} />
+    <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />} />
     <Route path="/laporan" component={ReportPage} />
-    <Route path="/users" component={() => role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
+    <Route path="/users" component={() => user.role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
 
     <Route component={() => <div className="not-found"><span className="eyebrow">HALAMAN TIDAK ADA</span><h1>Sepertinya tersesat.</h1><Link href="/" className="inline-link">Kembali ke ringkasan <ArrowRight size={16} /></Link></div>} />
   </Switch></ErrorBoundary></Shell>;
 }
 
-function AppRoutes({ isAuthenticated, authReady, user, setupAvailable, onLogin, onSetup, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg, onLogout }: {
+function AppRoutes({ isAuthenticated, authReady, user, setupAvailable, onLogin, onSetup, usernameInput, setUsernameInput, passwordInput, setPasswordInput, errorMsg, loginPending, onLogout }: {
   isAuthenticated: boolean; authReady: boolean; user: AppUser | null; setupAvailable: boolean;
   onLogin: (e: React.FormEvent) => void; onSetup: (username: string, password: string, bootstrapToken: string) => void;
   usernameInput: string; setUsernameInput: (val: string) => void; passwordInput: string;
-  setPasswordInput: (val: string) => void; errorMsg: string; onLogout: () => void;
+  setPasswordInput: (val: string) => void; errorMsg: string; loginPending: boolean; onLogout: () => void;
 }) {
   const [location, setLocation] = useLocation();
   const redirectTarget = !authReady
@@ -1213,8 +1267,8 @@ function AppRoutes({ isAuthenticated, authReady, user, setupAvailable, onLogin, 
   if (redirectTarget) return <LoadingPanel />;
   if (!isAuthenticated) return <LoginPage onLogin={onLogin} onSetup={onSetup} setupAvailable={setupAvailable}
     usernameInput={usernameInput} setUsernameInput={setUsernameInput} passwordInput={passwordInput}
-    setPasswordInput={setPasswordInput} errorMsg={errorMsg} />;
-  return <AppContent onLogout={onLogout} role={user?.role || 'testing'} />;
+    setPasswordInput={setPasswordInput} errorMsg={errorMsg} loginPending={loginPending} />;
+  return user ? <AppContent onLogout={onLogout} user={user} /> : <LoadingPanel />;
 }
 
 const AUTO_LOGOUT_MS = 20 * 60 * 1000;
@@ -1228,6 +1282,7 @@ function App() {
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const [loginPending, setLoginPending] = useState(false);
   const logoutPending = useRef(false);
 
   const handleLogout = useCallback(() => {
@@ -1302,6 +1357,7 @@ function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault(); setErrorMsg('');
+    setLoginPending(true);
     try {
       const response = await fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ username: usernameInput.trim(), password: passwordInput }) });
       const data = await response.json().catch(() => ({}));
@@ -1309,6 +1365,7 @@ function App() {
       saveSession(data);
       setUsernameInput(''); setPasswordInput('');
     } catch (error) { setErrorMsg(errText(error)); }
+    finally { setLoginPending(false); }
   };
 
   const handleSetup = async (username: string, password: string, bootstrapToken: string) => {
@@ -1374,7 +1431,7 @@ function App() {
             setupAvailable={setupAvailable} onLogin={handleLogin} onSetup={handleSetup}
             usernameInput={usernameInput} setUsernameInput={setUsernameInput}
             passwordInput={passwordInput} setPasswordInput={setPasswordInput}
-            errorMsg={errorMsg} onLogout={() => { void handleAccountLogout(); }} />
+            errorMsg={errorMsg} loginPending={loginPending} onLogout={() => { void handleAccountLogout(); }} />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>

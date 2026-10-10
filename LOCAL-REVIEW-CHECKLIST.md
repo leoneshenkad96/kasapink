@@ -80,3 +80,14 @@ File berikut sudah berubah atau belum terlacak sebelum pekerjaan keamanan/local 
 ## Gerbang deployment
 
 Deployment baru dilakukan setelah review lokal disetujui. Sebelum preview deployment, environment preview Vercel harus dipisahkan dari database produksi atau diarahkan ke branch Neon khusus preview. Setelah preview lulus smoke test, production baru dapat dipromosikan.
+
+## Pembaruan dashboard dan data padat
+
+- [x] Nama pengguna dirangkum menjadi satu tombol akun dengan dropdown ganti password dan logout.
+- [x] Logout memakai popup konfirmasi sebelum seluruh sesi diakhiri.
+- [x] Tombol login menampilkan indikator loading dan mencegah submit berulang.
+- [x] Stok Bahan memiliki pagination 10 baris per halaman.
+- [x] Stok Bahan memiliki filter khusus stok menipis.
+- [x] Catat Penjualan memiliki tabel riwayat transaksi terbaru.
+- [x] Kontrol F&B memakai loading skeleton berbasis Tailwind.
+- [x] Pagination dipakai pada Stok Bahan, riwayat Penjualan, menu F&B, recipe variance, dan stock-opname variance.
