@@ -46,6 +46,7 @@ import { Router, type IRouter, type Request, type RequestHandler, type Response 
 import { checkRole, requireOperationalRole, verifyToken, type AuthRequest } from "../lib/auth";
 import { preparationComponentCost } from "../lib/costing";
 import { movingAverageAfterReceipt } from "../lib/moving-average";
+import { toCsv, toExcelHtml, toPdf, type ReportTable } from "../lib/report-export";
 
 const router: IRouter = Router();
 router.use(verifyToken, requireOperationalRole("admin", "user"));
@@ -514,6 +515,51 @@ router.get(
     const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
     const rows = await db.select().from(auditLogTable).orderBy(desc(auditLogTable.createdAt)).limit(limit);
     res.json({ items: rows });
+  }),
+);
+
+router.get(
+  "/erp/report-export",
+  checkRole("admin"),
+  safe(async (req, res) => {
+    const type = String(req.query.type ?? "finance");
+    const format = String(req.query.format ?? "csv");
+    const startDate = String(req.query.startDate ?? "2000-01-01");
+    const endDate = String(req.query.endDate ?? jakartaToday());
+    let table: ReportTable;
+    if (type === "stock") {
+      const rows = await db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name));
+      table = { title: "Kasapink - Stok bahan", columns: ["ID", "Nama", "Kategori", "Tipe stok", "Unit", "Stok", "Minimum", "HPP rata-rata"], rows: rows.map((row) => [row.id, row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost)]) };
+    } else if (type === "transactions") {
+      const [purchases, sales] = await Promise.all([
+        db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
+        db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id)),
+      ]);
+      table = { title: "Kasapink - Histori transaksi", columns: ["Tanggal", "Tipe", "Referensi", "Item", "Qty", "Nilai", "HPP", "Keterangan"], rows: [
+        ...purchases.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Belanja", row.id, row.ingredientName, number(row.quantity), number(row.totalCost), "", row.supplierType]),
+        ...sales.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Penjualan", row.id, row.productName, row.quantity, number(row.revenue), number(row.costOfGoodsSold), "Produk terjual"]),
+      ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
+      };
+    } else {
+      const report = await financeReport(startDate, endDate);
+      table = { title: `Kasapink - Laporan keuangan ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], rows: report.days.map((day) => [day.date, day.revenue, day.costOfGoodsSold, day.purchases, day.grossProfit]) };
+    }
+    const stamp = `${type}-${startDate}-${endDate}`;
+    if (format === "pdf") {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.pdf"`);
+      res.end(toPdf(table));
+      return;
+    }
+    if (format === "xls") {
+      res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.xls"`);
+      res.send(toExcelHtml(table));
+      return;
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.csv"`);
+    res.send(`\ufeff${toCsv(table)}`);
   }),
 );
 

@@ -60,6 +60,14 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] 10. `/api/healthz` remains liveness; `/api/readyz` checks PostgreSQL readiness; pino request logging, migration sequence checks, and security smoke checks are available.
 - [x] 11. Final local verification passed: typecheck, frontend build, API build, unit tests, auth session tests, disposable PostgreSQL F&B integration test, and security/API smoke test.
 
+## Backup and reporting operations
+
+- Daily backup installer: `pnpm backup:install` registers a local Windows Task Scheduler job at 02:00. The task runs `pnpm backup:erp` and keeps the latest 30 days by default (`ERP_BACKUP_RETENTION_DAYS` can change this).
+- Manual database backup: `pnpm backup:erp` with `DATABASE_URL` set. Output defaults to `./backups` or `ERP_BACKUP_DIR`.
+- Local restore only: set `ERP_BACKUP_FILE`, `DATABASE_URL` pointing to localhost, `ALLOW_ERP_RESTORE=true`, and `CONFIRM_ERP_RESTORE="RESTORE KASAPINK ERP"`, then run `pnpm restore:erp`.
+- Report exports are available to admins on the Laporan page and via `/api/erp/report-export`: financial report, stock report, and transaction history in CSV, Excel-compatible `.xls`, and PDF.
+- Export database JSON remains available as `Backup JSON` for a portable application-level snapshot.
+
 ### Verification notes
 
 - Frontend build succeeds with one existing nonfatal Vite sourcemap warning in `src/components/ui/tooltip.tsx`.

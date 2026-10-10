@@ -11,6 +11,7 @@
     "test:auth": "node --test ./scripts/auth-session.test.mjs",
     "test:auth:postgres": "node --test ./scripts/auth-postgres.test.mjs",
     "backup:erp": "node ./scripts/backup-erp.mjs",
+    "backup:install": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/install-daily-backup.ps1",
     "restore:erp": "node ./scripts/restore-erp.mjs",
     "check:migrations": "node ./scripts/check-migrations.mjs",
     "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local.ps1",

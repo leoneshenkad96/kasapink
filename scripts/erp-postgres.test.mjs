@@ -105,6 +105,10 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
     const text = await response.text();
     return { status: response.status, body: text ? JSON.parse(text) : null };
   };
+  const requestRaw = async (route, token) => fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {
+    headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+    signal: AbortSignal.timeout(15000),
+  });
 
   const ready = await request("/readyz", null);
   assert.equal(ready.status, 200);
@@ -228,4 +232,19 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   const auditLog = await request("/erp/audit-log", token);
   assert.equal(auditLog.status, 200);
   assert.ok(auditLog.body.items.length >= 1);
+  for (const format of ["csv", "xls", "pdf"]) {
+    const reportExport = await requestRaw(`/erp/report-export?type=finance&format=${format}&startDate=2026-10-10&endDate=2026-10-10`, token);
+    assert.equal(reportExport.status, 200);
+    assert.match(String(reportExport.headers.get("content-disposition")), new RegExp(`\\.${format}`));
+    const body = await reportExport.arrayBuffer();
+    assert.ok(body.byteLength > 30);
+    if (format === "pdf") assert.equal(Buffer.from(body).subarray(0, 8).toString(), "%PDF-1.4");
+    if (format === "csv") assert.match(Buffer.from(body).toString("utf8"), /Tanggal/);
+    if (format === "xls") assert.match(Buffer.from(body).toString("utf8"), /Kasapink/);
+  }
+  for (const type of ["stock", "transactions"]) {
+    const reportExport = await requestRaw(`/erp/report-export?type=${type}&format=csv&startDate=2026-10-10&endDate=2026-10-10`, token);
+    assert.equal(reportExport.status, 200);
+    assert.match(Buffer.from(await reportExport.arrayBuffer()).toString("utf8"), /Tanggal|Nama/);
+  }
 });

@@ -706,6 +706,7 @@ function ReportPage({ isAdmin = false }: { isAdmin?: boolean }) {
   const query = useGetFinanceReport(params);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState('');
+  const [exportType, setExportType] = useState<'finance' | 'stock' | 'transactions'>('finance');
   const r = query.data;
   const safeDays = r?.days || [];
   const exportBackup = async () => {
@@ -731,8 +732,17 @@ function ReportPage({ isAdmin = false }: { isAdmin?: boolean }) {
       setExporting(false);
     }
   };
+  const exportReport = async (format: 'csv' | 'xls' | 'pdf') => {
+    if (!isAdmin || exporting) return;
+    setExporting(true); setExportError('');
+    try {
+      const response = await fetch(`/api/erp/report-export?type=${exportType}&format=${format}&startDate=${startDate}&endDate=${endDate}`, { headers: authHeaders(), credentials: 'include' });
+      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || 'Gagal mengunduh laporan.'); }
+      const blob = await response.blob(); const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `kasapink-${exportType}-${startDate}-${endDate}.${format}`; anchor.click(); URL.revokeObjectURL(url);
+    } catch (error) { setExportError(errText(error)); } finally { setExporting(false); }
+  };
   return <><PageHeading kicker="ANGKA USAHA" title="Laporan keuangan" note="Ringkasan penjualan, belanja, dan laba kotor sesuai tanggal." />
-    <Card className="report-filter"><div><span className="eyebrow">PERIODE LAPORAN</span><h2>Pilih rentang tanggal</h2></div><div className="date-range"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={(e) => setStart(e.target.value)} /></Field><span className="range-separator">sampai</span><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={(e) => setEnd(e.target.value)} /></Field></div>{isAdmin && <button type="button" className="button button-secondary report-export-button" onClick={() => void exportBackup()} disabled={exporting}><Download size={15} />{exporting ? 'Menyiapkan…' : 'Export data'}</button>}</Card>
+    <Card className="report-filter"><div><span className="eyebrow">PERIODE LAPORAN</span><h2>Pilih rentang tanggal</h2></div><div className="date-range"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={(e) => setStart(e.target.value)} /></Field><span className="range-separator">sampai</span><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={(e) => setEnd(e.target.value)} /></Field></div>{isAdmin && <div className="report-export-actions"><select className="input report-export-select" aria-label="Jenis laporan export" value={exportType} onChange={(e) => setExportType(e.target.value as typeof exportType)}><option value="finance">Keuangan</option><option value="stock">Stok</option><option value="transactions">Histori transaksi</option></select><div className="report-export-buttons"><button type="button" className="button button-secondary" onClick={() => void exportReport('csv')} disabled={exporting}>CSV</button><button type="button" className="button button-secondary" onClick={() => void exportReport('xls')} disabled={exporting}>Excel</button><button type="button" className="button button-secondary" onClick={() => void exportReport('pdf')} disabled={exporting}>PDF</button><button type="button" className="button button-primary report-export-button" onClick={() => void exportBackup()} disabled={exporting}><Download size={15} />Backup JSON</button></div></div>}</Card>
     {exportError && <div className="error-panel"><AlertCircle size={18} /><div><b>Export gagal</b><p>{exportError}</p></div></div>}
     {query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : r && <>
       <div className="report-metrics"><Card className="report-total"><span className="metric-label">TOTAL PENJUALAN</span><strong>{money(r.revenue)}</strong><small>Pemasukan dari produk terjual</small></Card><Card className="report-total"><span className="metric-label">HARGA POKOK TERJUAL</span><strong>{money(r.costOfGoodsSold)}</strong><small>Biaya bahan untuk produk terjual</small></Card><Card className="report-total"><span className="metric-label">BELANJA BAHAN</span><strong>{money(r.purchases)}</strong><small>Total pembelian bahan baku</small></Card><Card className="report-total highlight"><span className="metric-label">LABA KOTOR</span><strong>{money(r.grossProfit)}</strong><small>Penjualan dikurangi harga pokok</small></Card></div>
