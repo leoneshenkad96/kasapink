@@ -12,9 +12,9 @@ import bcrypt from 'bcryptjs';
 // No DATABASE_URL, file output, remote requests or production writes are used.
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const mockDb = String.raw`
-  import { usersTable } from './lib/db/src/schema/users.ts';
+  import { auditLogTable, usersTable } from './lib/db/src/schema/users.ts';
   import { PgDialect } from 'drizzle-orm/pg-core';
-  export { usersTable };
+  export { auditLogTable, usersTable };
   export const state = { user: null, writes: 0, beforeWrite: null };
   const dialect = new PgDialect();
   const field = (column) => Object.keys(usersTable).find(k => usersTable[k] === column);
@@ -42,6 +42,7 @@ const mockDb = String.raw`
     ? Object.fromEntries(Object.entries(fields).map(([key, column]) => [key, row[field(column)]]))
     : { ...row };
   export const db = {
+    insert() { return { values() { return Promise.resolve(); } }; },
     select(fields) {
       let condition;
       const query = {

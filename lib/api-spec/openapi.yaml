@@ -609,6 +609,7 @@ components:
       type: object
       properties:
         date: { type: string, format: date }
+        allowNegativeStock: { type: boolean, description: Admin-only override for insufficient stock }
         items:
           type: array
           minItems: 1

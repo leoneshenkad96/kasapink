@@ -38,6 +38,7 @@ import {
   wasteTable,
   operatingExpensesTable,
   recipeItemsTable,
+  recipeVersionsTable,
   salesDetailsTable,
   salesTable,
   stockMovementsTable,
@@ -59,9 +60,7 @@ router.use((req, res, next) => {
   res.on("finish", () => {
     const actor = (req as AuthRequest).authUser;
     if (!actor || res.statusCode >= 500) return;
-    const details = req.body && typeof req.body === "object"
-      ? JSON.stringify(req.body)
-      : undefined;
+    const details = req.body && typeof req.body === "object" ? JSON.stringify(req.body) : undefined;
     void db.insert(auditLogTable).values({
       actorId: actor.id,
       actorUsername: actor.username,
@@ -69,6 +68,9 @@ router.use((req, res, next) => {
       path: req.path,
       statusCode: res.statusCode,
       details,
+      beforeData: res.locals.auditBefore ? JSON.stringify(res.locals.auditBefore) : undefined,
+      afterData: res.locals.auditAfter ? JSON.stringify(res.locals.auditAfter) : undefined,
+      reason: typeof req.headers["x-audit-reason"] === "string" ? req.headers["x-audit-reason"] : undefined,
     }).catch((error: unknown) => req.log?.warn({ err: error }, "ERP audit log write failed"));
   });
   next();
@@ -479,7 +481,7 @@ router.get(
   safe(async (_req, res) => {
     const [ingredients, products, preparations, recipeItems, preparationRecipeItems, productPreparationItems,
       preparationBatches, purchases, purchaseDetails, sales, salesDetails, stockMovements,
-      preparationStockMovements, waste, operatingExpenses, auditLogs] = await Promise.all([
+      preparationStockMovements, waste, operatingExpenses, auditLogs, recipeVersions] = await Promise.all([
       db.select().from(ingredientsTable),
       db.select().from(productsTable),
       db.select().from(preparationsTable),
@@ -496,6 +498,7 @@ router.get(
       db.select().from(wasteTable),
       db.select().from(operatingExpensesTable),
       db.select().from(auditLogTable),
+      db.select().from(recipeVersionsTable),
     ]);
     res.setHeader("Content-Disposition", `attachment; filename="kasapink-erp-export-${jakartaToday()}.json"`);
     res.json({
@@ -503,7 +506,7 @@ router.get(
       exportedAt: new Date().toISOString(),
       data: { ingredients, products, preparations, recipeItems, preparationRecipeItems, productPreparationItems,
         preparationBatches, purchases, purchaseDetails, sales, salesDetails, stockMovements,
-        preparationStockMovements, waste, operatingExpenses, auditLogs },
+        preparationStockMovements, waste, operatingExpenses, auditLogs, recipeVersions },
     });
   }),
 );
@@ -774,6 +777,7 @@ router.put(
       if (rows.some((row) => isOperationalIngredient(row.category))) {
         throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
       }
+      const beforeRecipe = await tx.select().from(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
       const ingredientMap = new Map(rows.map((row) => [row.id, row]));
       const recipeRows = body.data.items.map((item) => {
         const ingredient = ingredientMap.get(item.ingredientId)!;
@@ -785,6 +789,12 @@ router.put(
       });
       await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
       if (recipeRows.length) await tx.insert(recipeItemsTable).values(recipeRows);
+      const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable)
+        .where(and(eq(recipeVersionsTable.scope, "product"), eq(recipeVersionsTable.parentId, params.data.productId)))
+        .orderBy(desc(recipeVersionsTable.version)).limit(1);
+      await tx.insert(recipeVersionsTable).values({ scope: "product", parentId: params.data.productId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: req.authUser?.id });
+      res.locals.auditBefore = beforeRecipe;
+      res.locals.auditAfter = recipeRows;
       return tx
         .select({
           productId: recipeItemsTable.productId,
@@ -910,6 +920,7 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
   const saved = await db.transaction(async (tx) => {
     const [prep] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, preparationId)).for("update");
     if (!prep) throw new HttpError("Prep tidak ditemukan.", 404);
+    const beforeRecipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     const rows = ids.length ? await tx.select({
       id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, category: ingredientsTable.category,
     }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)) : [];
@@ -924,6 +935,12 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
     });
     await tx.delete(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     if (recipeRows.length) await tx.insert(preparationRecipeItemsTable).values(recipeRows);
+    const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable)
+      .where(and(eq(recipeVersionsTable.scope, "preparation"), eq(recipeVersionsTable.parentId, preparationId)))
+      .orderBy(desc(recipeVersionsTable.version)).limit(1);
+    await tx.insert(recipeVersionsTable).values({ scope: "preparation", parentId: preparationId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: req.authUser?.id });
+    res.locals.auditBefore = beforeRecipe;
+    res.locals.auditAfter = recipeRows;
     return recipeRows;
   });
   res.json(saved.map((r) => ({ ...r, qtyRequired: number(r.qtyRequired), conversionFactor: number(r.conversionFactor) })));
@@ -1148,19 +1165,8 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   for (const line of details) {
     const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, actualCogs: 0, theoreticalCogs: 0 };
     row.quantity += line.quantity; row.revenue += number(line.revenue); row.actualCogs += number(line.costOfGoodsSold);
-    const ingCost = recipes.filter((r) => r.productId === line.productId && r.ingredientId).reduce((sum, r) => {
-      const ing = ingredientById.get(r.ingredientId!); return sum + (ing ? number(r.qtyRequired) * number(r.conversionFactor) * number(ing.averageCost) : 0);
-    }, 0);
-    const prepCost = productPreps.filter((r) => r.productId === line.productId).reduce((sum, r) => {
-      const p = prepById.get(r.preparationId);
-      return sum + (p ? preparationComponentCost({
-        quantityRequired: number(r.qtyRequired),
-        conversionFactor: number(r.conversionFactor),
-        quantity: 1,
-        averageCost: number(p.averageCost),
-      }) : 0);
-    }, 0);
-    row.theoreticalCogs += (ingCost + prepCost) * line.quantity;
+    // Use the sale-time snapshot so editing a recipe later cannot rewrite history.
+    row.theoreticalCogs += number(line.costOfGoodsSold);
     menuMap.set(line.productId, row);
   }
   const theoreticalIngredient = new Map<number, number>();
@@ -1445,6 +1451,7 @@ router.delete(
         .select()
         .from(salesDetailsTable)
         .where(eq(salesDetailsTable.salesId, idNum));
+      const auditBefore = { sale, details };
 
       for (const line of details) {
         const [product] = await tx
@@ -1514,6 +1521,9 @@ router.delete(
       await tx.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum));
       await tx.delete(salesTable).where(eq(salesTable.id, idNum));
 
+      res.locals.auditBefore = auditBefore;
+      res.locals.auditAfter = { deletedSaleId: idNum, restoredIngredientMovements: movements.length, restoredPreparationMovements: prepMovements.length };
+
       return { id: idNum };
     });
 
@@ -1526,7 +1536,7 @@ router.delete(
   "/erp/clear-all",
   checkRole("admin"),
   safe(async (_req, res) => {
-    if (process.env.ALLOW_DANGEROUS_CLEAR_ALL !== "true") {
+    if (process.env.NODE_ENV === "production" || process.env.ALLOW_DANGEROUS_CLEAR_ALL !== "true") {
       res.status(404).json({ error: "Endpoint tidak tersedia." });
       return;
     }
@@ -1595,6 +1605,7 @@ router.post(
       }
 
       const warnings: string[] = [];
+      const negativeStockWarnings: string[] = [];
       const missingRecipes = productRows
         .filter((product) => product.needsRecipe && !recipesByProduct.get(product.id)?.length && !productPrepRows.some((row) => row.productId === product.id))
         .map((product) => product.name);
@@ -1637,7 +1648,8 @@ router.post(
         const prep = preparationById.get(preparationId)!;
         const required = requiredByPreparation.get(preparationId) ?? 0;
         if (number(prep.stock) + 1e-9 < required) {
-          warnings.push(`Stok prep ${prep.name} kurang: tersedia ${number(prep.stock)} ${prep.unit}, perlu ${required} ${prep.unit}.`);
+          const warning = `Stok prep ${prep.name} kurang: tersedia ${number(prep.stock)} ${prep.unit}, perlu ${required} ${prep.unit}.`;
+          warnings.push(warning); negativeStockWarnings.push(warning);
         }
       }
 
@@ -1667,9 +1679,8 @@ router.post(
         const required = requiredByIngredient.get(ingredientId) ?? 0;
         const available = number(ingredient.stock);
         if (available + 1e-9 < required) {
-          warnings.push(
-            `Stok bahan ${ingredient.name} kurang: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}.`,
-          );
+          const warning = `Stok bahan ${ingredient.name} kurang: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}.`;
+          warnings.push(warning); negativeStockWarnings.push(warning);
         }
       }
 
@@ -1677,11 +1688,15 @@ router.post(
       for (const [productId, soldQuantity] of quantities) {
         const product = productById.get(productId)!;
         if (!product.needsRecipe && number(product.stock) + 1e-9 < soldQuantity) {
-          warnings.push(
-            `Stok produk ${product.name} kurang: tersedia ${number(product.stock)}, terjual ${soldQuantity}.`,
-          );
+          const warning = `Stok produk ${product.name} kurang: tersedia ${number(product.stock)}, terjual ${soldQuantity}.`;
+          warnings.push(warning); negativeStockWarnings.push(warning);
         }
       }
+
+      if (negativeStockWarnings.length && req.authUser?.role !== "admin") {
+        throw new HttpError("Stok tidak cukup. Hanya admin yang dapat melanjutkan transaksi stok negatif.", 409);
+      }
+      if (negativeStockWarnings.length) warnings.push("Override stok negatif disetujui oleh admin.");
 
       const saleLines = productIds.map((productId) => {
         const product = productById.get(productId)!;

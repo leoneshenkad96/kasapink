@@ -86,7 +86,7 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   pool = loaded.exports.getPool();
 
   await applySqlFile(pool, path.join(root, "lib/db/drizzle/0000_pink_deathstrike.sql"));
-  for (const name of ["0002_product_modes.sql", "0003_ingredient_stock_type.sql", "0004_product_business_type.sql", "0005_user_roles.sql", "0006_add_user_role.sql", "0007_recipe_units.sql", "0008_preparations.sql", "0010_product_preparations.sql", "0011_fnb_controls.sql", "0012_product_prep_units.sql", "0013_preparation_yield.sql", "0014_stock_count_variance.sql", "0015_production_schema_compat.sql", "0016_fix_date_index_operator_classes.sql", "0017_audit_log.sql", "0018_sales_costing_snapshot.sql"]) {
+  for (const name of ["0002_product_modes.sql", "0003_ingredient_stock_type.sql", "0004_product_business_type.sql", "0005_user_roles.sql", "0006_add_user_role.sql", "0007_recipe_units.sql", "0008_preparations.sql", "0010_product_preparations.sql", "0011_fnb_controls.sql", "0012_product_prep_units.sql", "0013_preparation_yield.sql", "0014_stock_count_variance.sql", "0015_production_schema_compat.sql", "0016_fix_date_index_operator_classes.sql", "0017_audit_log.sql", "0018_sales_costing_snapshot.sql", "0019_recipe_versions.sql", "0020_audit_before_after.sql"]) {
     await applySqlFile(pool, path.join(root, "lib/db/migrations", name));
   }
 
@@ -125,11 +125,21 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
     username: "integration-testing", password: "testing-password-123", role: "testing",
   });
   assert.equal(testingUser.status, 201);
+  const normalUser = await request("/users", token, "POST", {
+    username: "integration-user", password: "user-password-123", role: "user",
+  });
+  assert.equal(normalUser.status, 201);
   const testingLogin = await request("/login", null, "POST", {
     username: "integration-testing", password: "testing-password-123",
   });
   assert.equal(testingLogin.status, 200);
+  const userLogin = await request("/login", null, "POST", {
+    username: "integration-user", password: "user-password-123",
+  });
+  assert.equal(userLogin.status, 200);
   assert.equal((await request("/erp/state", testingLogin.body.token)).status, 200);
+  const clearAllUnavailable = await request("/erp/clear-all", token, "DELETE");
+  assert.equal(clearAllUnavailable.status, 404);
   assert.equal((await request("/erp/ingredients", testingLogin.body.token, "POST", {
     name: "Rejected ingredient", category: "Makro", stockType: "Makanan", unit: "kg", stock: 0, minStock: 0, openingUnitCost: 100,
   })).status, 403);
@@ -155,6 +165,10 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   });
   assert.equal(product.status, 201);
   const productId = product.body.id;
+  const negativeForTesting = await request("/erp/sales", userLogin.body.token, "POST", {
+    date: "2026-10-10", items: [{ productId, quantity: 99999 }],
+  });
+  assert.equal(negativeForTesting.status, 409);
 
   const sale = await request("/erp/sales", token, "POST", {
     date: "2026-10-10",
@@ -224,11 +238,30 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   assert.equal(fnb.status, 200);
   assert.equal(fnb.body.revenue, 1700);
   assert.equal(fnb.body.actualCogs, 860);
+  const recipeEdit = await request(`/erp/products/${productId}/recipe`, token, "PUT", {
+    items: [{ ingredientId, qtyRequired: 99, recipeUnit: "kg" }],
+  });
+  assert.equal(recipeEdit.status, 200);
+  const fnbAfterRecipeEdit = await request("/erp/fnb-report?startDate=2026-10-10&endDate=2026-10-10", token);
+  assert.equal(fnbAfterRecipeEdit.status, 200);
+  assert.equal(fnbAfterRecipeEdit.body.theoreticalCogs, fnb.body.theoreticalCogs);
+  const directProduct = await request("/erp/products", token, "POST", {
+    name: "Delete sale test product", sellingPrice: 100, businessType: "Makanan", needsRecipe: false, stock: 5, averageCost: 40,
+  });
+  assert.equal(directProduct.status, 201);
+  const deleteSale = await request("/erp/sales", token, "POST", { date: "2026-10-10", items: [{ productId: directProduct.body.id, quantity: 2 }] });
+  assert.equal(deleteSale.status, 201);
+  const deleteResponse = await request(`/erp/sales/${deleteSale.body.id}`, token, "DELETE");
+  assert.equal(deleteResponse.status, 200);
+  const afterDelete = await request("/erp/state", token);
+  assert.equal(afterDelete.status, 200);
+  assert.equal(afterDelete.body.products.find((item) => item.id === directProduct.body.id).stock, 5);
   const exportResponse = await request("/erp/export", token);
   assert.equal(exportResponse.status, 200);
   assert.equal(exportResponse.body.schemaVersion, 1);
   assert.ok(exportResponse.body.data.ingredients.length >= 1);
   assert.ok(exportResponse.body.data.auditLogs.length >= 1);
+  assert.ok(exportResponse.body.data.recipeVersions.length >= 1);
   const auditLog = await request("/erp/audit-log", token);
   assert.equal(auditLog.status, 200);
   assert.ok(auditLog.body.items.length >= 1);

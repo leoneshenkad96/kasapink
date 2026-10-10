@@ -347,6 +347,7 @@ export const RecordPurchaseResponse = zod.object({
 
 export const RecordSaleBody = zod.object({
   "date": zod.coerce.date(),
+  "allowNegativeStock": zod.boolean().optional(),
   "items": zod.array(zod.object({
   "productId": zod.number().int(),
   "quantity": zod.number().int().min(1)
@@ -758,6 +759,7 @@ export const LegacyRecordPurchaseResponse = zod.object({
 
 export const LegacyRecordSaleBody = zod.object({
   "date": zod.coerce.date(),
+  "allowNegativeStock": zod.boolean().optional(),
   "items": zod.array(zod.object({
   "productId": zod.number().int(),
   "quantity": zod.number().int().min(1)

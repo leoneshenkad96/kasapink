@@ -63,6 +63,7 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 ## Backup and reporting operations
 
 - Daily backup installer: `pnpm backup:install` registers a local Windows Task Scheduler job at 02:00. The task runs `pnpm backup:erp` and keeps the latest 30 days by default (`ERP_BACKUP_RETENTION_DAYS` can change this).
+- Backup freshness check: `pnpm backup:check` fails when no backup exists or the newest backup is older than 26 hours (`ERP_BACKUP_MAX_AGE_HOURS` can change this).
 - Manual database backup: `pnpm backup:erp` with `DATABASE_URL` set. Output defaults to `./backups` or `ERP_BACKUP_DIR`.
 - Local restore only: set `ERP_BACKUP_FILE`, `DATABASE_URL` pointing to localhost, `ALLOW_ERP_RESTORE=true`, and `CONFIRM_ERP_RESTORE="RESTORE KASAPINK ERP"`, then run `pnpm restore:erp`.
 - Report exports are available to admins on the Laporan page and via `/api/erp/report-export`: financial report, stock report, and transaction history in CSV, Excel-compatible `.xls`, and PDF.
@@ -73,3 +74,15 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - Frontend build succeeds with one existing nonfatal Vite sourcemap warning in `src/components/ui/tooltip.tsx`.
 - Cloud preview/production was not used for authenticated writes. No main-branch change, Neon production write, Vercel change, commit, push, or deployment was performed.
 - Before real release, configure a separate preview database/JWT secret, apply migrations through the release process, run the same verification against preview, then obtain explicit deployment approval.
+
+## Follow-up readiness work
+
+- [x] Production `clear-all` guard: returns unavailable in production regardless of the dangerous flag.
+- [x] Negative-stock policy: non-admin operational users receive 409; admins may continue and receive an explicit override warning; testing remains read-only.
+- [x] Recipe version records are created for product and preparation recipe changes; F&B theoretical HPP uses sale-time costing snapshots so historical cost does not change after editing a recipe.
+- [x] Delete-sale integration coverage verifies direct product stock restoration and deletion audit capture.
+- [x] Audit schema now supports before/after data and reason; recipe changes, role changes, and sale deletion populate the extended fields.
+- [x] Backup freshness check is available through `pnpm backup:check`.
+- [ ] Playwright/Cypress browser automation is not yet installed; current browser verification remains manual/local smoke coverage.
+- [ ] Full server-side pagination for every large data table and production alerting still require a separate performance/operations pass.
+- [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette is already locked.

@@ -111,6 +111,21 @@ export const preparationRecipeItemsTable = pgTable(
   (table) => [uniqueIndex("erp_prep_recipe_preparation_ingredient_unique").on(table.preparationId, table.ingredientId)],
 );
 
+export const recipeVersionsTable = pgTable(
+  "erp_recipe_versions",
+  {
+    id: serial("id").primaryKey(),
+    scope: text("scope").notNull(),
+    parentId: integer("parent_id").notNull(),
+    version: integer("version").notNull(),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull().defaultNow(),
+    snapshot: text("snapshot").notNull(),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("erp_recipe_versions_parent_idx").on(table.scope, table.parentId, table.version)],
+);
+
 export const preparationBatchesTable = pgTable(
   "erp_preparation_batches",
   {

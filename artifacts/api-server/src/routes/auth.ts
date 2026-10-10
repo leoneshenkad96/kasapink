@@ -2,10 +2,29 @@ import { timingSafeEqual } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import { and, count, eq, sql } from "drizzle-orm";
-import { db, usersTable } from "@workspace/db";
+import { auditLogTable, db, usersTable } from "@workspace/db";
 import { checkRole, createToken, type AuthRequest, verifyToken } from "../lib/auth";
 
 const router = Router();
+router.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  res.on("finish", () => {
+    const actor = (req as AuthRequest).authUser;
+    if (!actor || res.statusCode >= 500) return;
+    void db.insert(auditLogTable).values({
+      actorId: actor.id,
+      actorUsername: actor.username,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      details: req.body && typeof req.body === "object" ? JSON.stringify(req.body) : undefined,
+      beforeData: res.locals.auditBefore ? JSON.stringify(res.locals.auditBefore) : undefined,
+      afterData: res.locals.auditAfter ? JSON.stringify(res.locals.auditAfter) : undefined,
+      reason: typeof req.headers["x-audit-reason"] === "string" ? req.headers["x-audit-reason"] : undefined,
+    }).catch((error: unknown) => req.log?.warn({ err: error }, "Auth audit log write failed"));
+  });
+  next();
+});
 // Millisecond precision matches JS Date; always advance, even within one tick.
 const nextSessionRevision = () => sql`greatest(date_trunc('milliseconds', clock_timestamp()), ${usersTable.updatedAt} + interval '1 millisecond')`;
 const currentSession = (req: AuthRequest) => and(
@@ -143,6 +162,9 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReques
   if (userId === req.authUser!.id && role !== "admin") {
     return res.status(400).json({ error: "Role akun admin yang sedang digunakan tidak dapat diturunkan." });
   }
+  const [beforeUser] = await db.select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
+    .from(usersTable).where(eq(usersTable.id, userId));
+  if (!beforeUser) return res.status(404).json({ error: "User tidak ditemukan." });
 
   const values: { role: "admin" | "testing" | "user"; passwordHash?: string; updatedAt: ReturnType<typeof nextSessionRevision> } = {
     role, updatedAt: nextSessionRevision(),
@@ -153,6 +175,8 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReques
     .where(eq(usersTable.id, userId))
     .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
   if (!updatedUser) return res.status(404).json({ error: "User tidak ditemukan." });
+  res.locals.auditBefore = beforeUser;
+  res.locals.auditAfter = updatedUser;
   return res.json(updatedUser);
 });
 
