@@ -87,8 +87,8 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Backup freshness check is available through `pnpm backup:check`.
 - [x] Ingredient and audit-log APIs now support bounded server-side pagination; ingredient search, stock type, and low-stock filters are queryable without loading the full table.
 - [x] Product list API and Produk & Resep UI now use server-side search, business-type filtering, and pagination.
-- [x] Palette lock checker (`pnpm check:palette`) prevents the removed yellow/olive legacy colors from returning and verifies the pink lock remains active.
+- [x] Palette lock checker (`pnpm check:palette`) prevents removed yellow/olive colors and new non-palette hex colors in the active CSS lock or inline UI from returning.
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection.
 - [x] Sales history now has a date-bounded server-side pagination endpoint and the Penjualan page consumes it; report-heavy tables remain date-bounded exports.
 - [x] Local readiness monitor combines liveness, PostgreSQL readiness, migration ordering, and optional backup freshness; production alerting still requires a deployment-specific monitoring target and credentials.
-- [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette is locked and the remaining inline/legacy color cleanup is tracked separately.
+- [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette and inline colors are now guarded by the palette check.
