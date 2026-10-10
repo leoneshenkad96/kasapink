@@ -1121,6 +1121,7 @@ body { background: linear-gradient(135deg, #91acef 0%, #b9caf2 100%); }
 .sidebar-note b { color:#303748; font-size:11px; }
 .sidebar-note small { color:#9299aa; }
 .side-footer { color:#a6adbc; font-size:9px; line-height:1.6; }
+.purchase-source-select { height:32px; padding-inline:2px; border-width:0 0 1px; border-radius:0; background:transparent; }
 .main-area { margin-left:0; width:auto; flex:1; min-width:0; background:#fff; }
 .topbar { height:84px; padding:0 38px; border-bottom:1px solid #f0f1f6; background:#fff; }
 .crumb { color:#a2a8b7; font-size:11px; }
