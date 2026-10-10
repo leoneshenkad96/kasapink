@@ -1271,4 +1271,8 @@ body { background:#f2bfd2; }
 .connection i { background:#f2bfd2; }
 .legend-dot.sales, .sales-chart-svg polyline:first-of-type { background:#f2bfd2; }
 .legend-dot.purchases { background:#fdcee0; }
+.profile-avatar { background:#f9f5f6; border-color:#f2bfd2; color:#613248; }
+.side-caption, .side-footer, .nav-group-chevron, .connection-off, .connection-off i { color:#613248; }
+.connection-off i { background:#f2bfd2; }
+.login-input::placeholder { color:#613248; }
 @media (max-width:767px) { body { background:#f9f5f6; } }

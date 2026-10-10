@@ -89,6 +89,7 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Ingredient and audit-log APIs now support bounded server-side pagination; ingredient search, stock type, and low-stock filters are queryable without loading the full table.
 - [x] Product list API and Produk & Resep UI now use server-side search, business-type filtering, and pagination.
 - [x] Palette lock checker (`pnpm check:palette`) prevents removed yellow/olive colors and new non-palette hex colors in the active CSS lock or inline UI from returning.
+- [x] Remaining visible shell fallbacks (profile avatar, sidebar captions/footer, offline status, and login placeholders) are normalized to the active Kasapink palette.
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection; latest isolated run passed 2/2.
 - [x] Sales history now has a date-bounded server-side pagination endpoint and the Penjualan page consumes it; report-heavy tables remain date-bounded exports.
 - [x] Local readiness monitor combines liveness, PostgreSQL readiness, migration ordering, and optional backup freshness; production alerting still requires a deployment-specific monitoring target and credentials.
