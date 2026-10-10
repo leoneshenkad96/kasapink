@@ -18526,8 +18526,8 @@ var require_escape_html = __commonJS({
   "node_modules/.pnpm/escape-html@1.0.3/node_modules/escape-html/index.js"(exports2, module2) {
     "use strict";
     var matchHtmlRegExp = /["'&<>]/;
-    module2.exports = escapeHtml;
-    function escapeHtml(string) {
+    module2.exports = escapeHtml2;
+    function escapeHtml2(string) {
       var str = "" + string;
       var match = matchHtmlRegExp.exec(str);
       if (!match) {
@@ -18658,13 +18658,13 @@ var require_finalhandler = __commonJS({
     "use strict";
     var debug = require_src()("finalhandler");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var onFinished = require_on_finished();
     var parseUrl = require_parseurl();
     var statuses = require_statuses();
     var isFinished = onFinished.isFinished;
     function createHtmlDocument(message) {
-      var body = escapeHtml(message).replaceAll("\n", "<br>").replaceAll("  ", " &nbsp;");
+      var body = escapeHtml2(message).replaceAll("\n", "<br>").replaceAll("  ", " &nbsp;");
       return '<!DOCTYPE html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n<title>Error</title>\n</head>\n<body>\n<pre>' + body + "</pre>\n</body>\n</html>\n";
     }
     module2.exports = finalhandler;
@@ -22604,7 +22604,7 @@ var require_send = __commonJS({
     var createError = require_http_errors();
     var debug = require_src()("send");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var etag = require_etag();
     var fresh = require_fresh();
     var fs = require("fs");
@@ -22657,7 +22657,7 @@ var require_send = __commonJS({
       }
       var res = this.res;
       var msg = statuses.message[status] || String(status);
-      var doc = createHtmlDocument("Error", escapeHtml(msg));
+      var doc = createHtmlDocument("Error", escapeHtml2(msg));
       clearHeaders(res);
       if (err && err.headers) {
         setHeaders(res, err.headers);
@@ -22757,7 +22757,7 @@ var require_send = __commonJS({
         return;
       }
       var loc = encodeUrl(collapseLeadingSlashes(this.path + "/"));
-      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml(loc));
+      var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml2(loc));
       res.statusCode = 301;
       res.setHeader("Content-Type", "text/html; charset=UTF-8");
       res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -23161,7 +23161,7 @@ var require_response = __commonJS({
     var createError = require_http_errors();
     var deprecate = require_depd()("express");
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var http = require("node:http");
     var onFinished = require_on_finished();
     var mime = require_mime_types();
@@ -23500,7 +23500,7 @@ var require_response = __commonJS({
           body = statuses.message[status] + ". Redirecting to " + address;
         },
         html: function() {
-          var u = escapeHtml(address);
+          var u = escapeHtml2(address);
           body = "<p>" + statuses.message[status] + ". Redirecting to " + u + "</p>";
         },
         default: function() {
@@ -23628,7 +23628,7 @@ var require_serve_static = __commonJS({
   "node_modules/.pnpm/serve-static@2.2.1/node_modules/serve-static/index.js"(exports2, module2) {
     "use strict";
     var encodeUrl = require_encodeurl();
-    var escapeHtml = require_escape_html();
+    var escapeHtml2 = require_escape_html();
     var parseUrl = require_parseurl();
     var resolve = require("path").resolve;
     var send = require_send();
@@ -23714,7 +23714,7 @@ var require_serve_static = __commonJS({
         originalUrl.path = null;
         originalUrl.pathname = collapseLeadingSlashes(originalUrl.pathname + "/");
         var loc = encodeUrl(url.format(originalUrl));
-        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml(loc));
+        var doc = createHtmlDocument("Redirecting", "Redirecting to " + escapeHtml2(loc));
         res.statusCode = 301;
         res.setHeader("Content-Type", "text/html; charset=UTF-8");
         res.setHeader("Content-Length", Buffer.byteLength(doc));
@@ -24678,23 +24678,23 @@ var require_helpers = __commonJS({
   "node_modules/.pnpm/ip-address@10.2.0/node_modules/ip-address/dist/v6/helpers.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    exports2.escapeHtml = escapeHtml;
+    exports2.escapeHtml = escapeHtml2;
     exports2.spanAllZeroes = spanAllZeroes;
     exports2.spanAll = spanAll;
     exports2.spanLeadingZeroes = spanLeadingZeroes;
     exports2.simpleGroup = simpleGroup;
-    function escapeHtml(s) {
+    function escapeHtml2(s) {
       return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
     }
     function spanAllZeroes(s) {
-      return escapeHtml(s).replace(/(0+)/g, '<span class="zero">$1</span>');
+      return escapeHtml2(s).replace(/(0+)/g, '<span class="zero">$1</span>');
     }
     function spanAll(s, offset = 0) {
       const letters = s.split("");
-      return letters.map((n, i) => `<span class="digit value-${escapeHtml(n)} position-${i + offset}">${spanAllZeroes(n)}</span>`).join("");
+      return letters.map((n, i) => `<span class="digit value-${escapeHtml2(n)} position-${i + offset}">${spanAllZeroes(n)}</span>`).join("");
     }
     function spanLeadingZeroesSimple(group) {
-      return escapeHtml(group).replace(/^(0+)/, '<span class="zero">$1</span>');
+      return escapeHtml2(group).replace(/^(0+)/, '<span class="zero">$1</span>');
     }
     function spanLeadingZeroes(address) {
       const groups = address.split(":");
@@ -46412,6 +46412,7 @@ function drizzle(...params) {
 // lib/db/src/schema/index.ts
 var schema_exports = {};
 __export(schema_exports, {
+  auditLogTable: () => auditLogTable,
   ingredientsTable: () => ingredientsTable,
   operatingExpensesTable: () => operatingExpensesTable,
   preparationBatchesTable: () => preparationBatchesTable,
@@ -46423,6 +46424,7 @@ __export(schema_exports, {
   purchaseDetailsTable: () => purchaseDetailsTable,
   purchasesTable: () => purchasesTable,
   recipeItemsTable: () => recipeItemsTable,
+  recipeVersionsTable: () => recipeVersionsTable,
   salesDetailsTable: () => salesDetailsTable,
   salesTable: () => salesTable,
   stockMovementsTable: () => stockMovementsTable,
@@ -46509,6 +46511,20 @@ var preparationRecipeItemsTable = pgTable(
     conversionFactor: numeric("conversion_factor", { precision: 14, scale: 6 }).notNull().default("1")
   },
   (table) => [uniqueIndex("erp_prep_recipe_preparation_ingredient_unique").on(table.preparationId, table.ingredientId)]
+);
+var recipeVersionsTable = pgTable(
+  "erp_recipe_versions",
+  {
+    id: serial("id").primaryKey(),
+    scope: text("scope").notNull(),
+    parentId: integer("parent_id").notNull(),
+    version: integer("version").notNull(),
+    effectiveAt: timestamp("effective_at", { withTimezone: true }).notNull().defaultNow(),
+    snapshot: text("snapshot").notNull(),
+    createdBy: integer("created_by"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("erp_recipe_versions_parent_idx").on(table.scope, table.parentId, table.version)]
 );
 var preparationBatchesTable = pgTable(
   "erp_preparation_batches",
@@ -46627,7 +46643,8 @@ var salesDetailsTable = pgTable("erp_sales_details", {
   quantity: integer("quantity").notNull(),
   unitPrice: money("unit_price"),
   revenue: money("revenue"),
-  costOfGoodsSold: money("cost_of_goods_sold")
+  costOfGoodsSold: money("cost_of_goods_sold"),
+  costingSnapshot: text("costing_snapshot")
 });
 var stockMovementsTable = pgTable(
   "erp_stock_movements",
@@ -46664,6 +46681,23 @@ var usersTable = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => /* @__PURE__ */ new Date())
   },
   (table) => [uniqueIndex("erp_users_username_unique").on(table.username)]
+);
+var auditLogTable = pgTable(
+  "erp_audit_log",
+  {
+    id: serial("id").primaryKey(),
+    actorId: integer("actor_id"),
+    actorUsername: text("actor_username").notNull(),
+    method: text("method").notNull(),
+    path: text("path").notNull(),
+    statusCode: integer("status_code").notNull(),
+    details: text("details"),
+    beforeData: text("before_data"),
+    afterData: text("after_data"),
+    reason: text("reason"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow()
+  },
+  (table) => [index("erp_audit_log_created_at_idx").on(table.createdAt), index("erp_audit_log_actor_idx").on(table.actorId)]
 );
 
 // lib/db/src/index.ts
@@ -46739,7 +46773,15 @@ function createToken(user, res) {
     exp: now + 60 * 60
   }));
   const content = `${header}.${payload}`;
-  return `${content}.${(0, import_node_crypto2.createHmac)("sha256", secret).update(content).digest("base64url")}`;
+  const token = `${content}.${(0, import_node_crypto2.createHmac)("sha256", secret).update(content).digest("base64url")}`;
+  res?.cookie("kasapink_session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 1e3,
+    path: "/"
+  });
+  return token;
 }
 function verifyTokenValue(token) {
   const secret = getSecret();
@@ -46767,7 +46809,7 @@ function verifyTokenValue(token) {
 async function verifyToken(req, res, next) {
   if (!getSecret(res)) return;
   const header = req.headers.authorization;
-  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : typeof req.cookies?.kasapink_session === "string" ? req.cookies.kasapink_session : "";
   const user = token ? verifyTokenValue(token) : null;
   if (!user) {
     res.status(401).json({ error: "Sesi tidak valid atau sudah berakhir. Silakan login kembali." });
@@ -46813,6 +46855,25 @@ function requireOperationalRole(...roles) {
 
 // artifacts/api-server/src/routes/auth.ts
 var router = (0, import_express.Router)();
+router.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
+  res.on("finish", () => {
+    const actor = req.authUser;
+    if (!actor || res.statusCode >= 500) return;
+    void db.insert(auditLogTable).values({
+      actorId: actor.id,
+      actorUsername: actor.username,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      details: req.body && typeof req.body === "object" ? JSON.stringify(req.body) : void 0,
+      beforeData: res.locals.auditBefore ? JSON.stringify(res.locals.auditBefore) : void 0,
+      afterData: res.locals.auditAfter ? JSON.stringify(res.locals.auditAfter) : void 0,
+      reason: typeof req.headers["x-audit-reason"] === "string" ? req.headers["x-audit-reason"] : void 0
+    }).catch((error) => req.log?.warn({ err: error }, "Auth audit log write failed"));
+  });
+  next();
+});
 var nextSessionRevision = () => sql`greatest(date_trunc('milliseconds', clock_timestamp()), ${usersTable.updatedAt} + interval '1 millisecond')`;
 var currentSession = (req) => and(
   eq(usersTable.id, req.authUser.id),
@@ -46882,6 +46943,7 @@ router.get("/me", verifyToken, (req, res) => {
 });
 router.post("/logout", verifyToken, async (req, res) => {
   await db.update(usersTable).set({ updatedAt: nextSessionRevision() }).where(currentSession(req));
+  res.clearCookie("kasapink_session", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
   return res.status(204).end();
 });
 router.put("/users/change-password", verifyToken, async (req, res) => {
@@ -46931,6 +46993,8 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req, res) => {
   if (userId === req.authUser.id && role !== "admin") {
     return res.status(400).json({ error: "Role akun admin yang sedang digunakan tidak dapat diturunkan." });
   }
+  const [beforeUser] = await db.select({ id: usersTable.id, username: usersTable.username, role: usersTable.role }).from(usersTable).where(eq(usersTable.id, userId));
+  if (!beforeUser) return res.status(404).json({ error: "User tidak ditemukan." });
   const values = {
     role,
     updatedAt: nextSessionRevision()
@@ -46938,6 +47002,8 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req, res) => {
   if (newPassword) values.passwordHash = await import_bcryptjs.default.hash(newPassword, 12);
   const [updatedUser] = await db.update(usersTable).set(values).where(eq(usersTable.id, userId)).returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
   if (!updatedUser) return res.status(404).json({ error: "User tidak ditemukan." });
+  res.locals.auditBefore = beforeUser;
+  res.locals.auditAfter = updatedUser;
   return res.json(updatedUser);
 });
 router.delete("/users/:id", verifyToken, checkRole("admin"), async (req, res) => {
@@ -50949,6 +51015,35 @@ var GetFinanceReportResponse = objectType({
     "grossProfit": numberType()
   }))
 });
+var listIngredientsQueryLimitDefault = 50;
+var listIngredientsQueryLimitMax = 200;
+var listIngredientsQueryOffsetDefault = 0;
+var listIngredientsQueryOffsetMin = 0;
+var ListIngredientsQueryParams = objectType({
+  "search": coerce.string().optional(),
+  "stockType": enumType(["Makanan", "Parfum"]).optional(),
+  "lowStock": coerce.boolean().optional(),
+  "limit": coerce.number().int().min(1).max(listIngredientsQueryLimitMax).default(listIngredientsQueryLimitDefault),
+  "offset": coerce.number().int().min(listIngredientsQueryOffsetMin).default(listIngredientsQueryOffsetDefault)
+});
+var ListIngredientsResponse = objectType({
+  "items": arrayType(objectType({
+    "id": numberType().int(),
+    "name": stringType(),
+    "category": stringType(),
+    "stockType": enumType(["Makanan", "Parfum"]),
+    "unit": stringType(),
+    "stock": numberType(),
+    "minStock": numberType(),
+    "lastPrice": numberType(),
+    "averageCost": numberType()
+  })),
+  "pagination": objectType({
+    "limit": numberType().int(),
+    "offset": numberType().int(),
+    "total": numberType().int()
+  })
+});
 var createIngredientBodyNameMax = 120;
 var createIngredientBodyStockTypeDefault = `Makanan`;
 var createIngredientBodyUnitMax = 30;
@@ -50998,6 +51093,32 @@ var UpdateIngredientResponse = objectType({
   "minStock": numberType(),
   "lastPrice": numberType(),
   "averageCost": numberType()
+});
+var listProductsQueryLimitDefault = 50;
+var listProductsQueryLimitMax = 200;
+var listProductsQueryOffsetDefault = 0;
+var listProductsQueryOffsetMin = 0;
+var ListProductsQueryParams = objectType({
+  "search": coerce.string().optional(),
+  "businessType": enumType(["Makanan", "Parfum"]).optional(),
+  "limit": coerce.number().int().min(1).max(listProductsQueryLimitMax).default(listProductsQueryLimitDefault),
+  "offset": coerce.number().int().min(listProductsQueryOffsetMin).default(listProductsQueryOffsetDefault)
+});
+var ListProductsResponse = objectType({
+  "items": arrayType(objectType({
+    "id": numberType().int(),
+    "name": stringType(),
+    "sellingPrice": numberType(),
+    "businessType": enumType(["Makanan", "Parfum"]),
+    "needsRecipe": booleanType(),
+    "stock": numberType(),
+    "averageCost": numberType()
+  })),
+  "pagination": objectType({
+    "limit": numberType().int(),
+    "offset": numberType().int(),
+    "total": numberType().int()
+  })
 });
 var createProductBodyNameMax = 120;
 var createProductBodySellingPriceMin = 0;
@@ -51096,8 +51217,43 @@ var RecordPurchaseResponse = objectType({
     "unitCost": numberType()
   }))
 });
+var listSalesQueryStartDateDefault = /* @__PURE__ */ new Date("2000-01-01");
+var listSalesQueryLimitDefault = 50;
+var listSalesQueryLimitMax = 200;
+var listSalesQueryOffsetDefault = 0;
+var listSalesQueryOffsetMin = 0;
+var ListSalesQueryParams = objectType({
+  "startDate": dateType().default(listSalesQueryStartDateDefault),
+  "endDate": dateType().optional(),
+  "limit": coerce.number().int().min(1).max(listSalesQueryLimitMax).default(listSalesQueryLimitDefault),
+  "offset": coerce.number().int().min(listSalesQueryOffsetMin).default(listSalesQueryOffsetDefault)
+});
+var ListSalesResponse = objectType({
+  "items": arrayType(objectType({
+    "id": numberType().int(),
+    "date": coerce.date(),
+    "totalRevenue": numberType(),
+    "totalCostOfGoodsSold": numberType(),
+    "grossProfit": numberType(),
+    "warnings": arrayType(stringType()).optional(),
+    "items": arrayType(objectType({
+      "productId": numberType().int(),
+      "productName": stringType(),
+      "quantity": numberType().int(),
+      "unitPrice": numberType(),
+      "revenue": numberType(),
+      "costOfGoodsSold": numberType()
+    }))
+  })),
+  "pagination": objectType({
+    "limit": numberType().int(),
+    "offset": numberType().int(),
+    "total": numberType().int()
+  })
+});
 var RecordSaleBody = objectType({
   "date": coerce.date(),
+  "allowNegativeStock": booleanType().optional().describe("Admin-only override for insufficient stock"),
   "items": arrayType(objectType({
     "productId": numberType().int(),
     "quantity": numberType().int().min(1)
@@ -51396,6 +51552,7 @@ var LegacyRecordPurchaseResponse = objectType({
 });
 var LegacyRecordSaleBody = objectType({
   "date": coerce.date(),
+  "allowNegativeStock": booleanType().optional().describe("Admin-only override for insufficient stock"),
   "items": arrayType(objectType({
     "productId": numberType().int(),
     "quantity": numberType().int().min(1)
@@ -51483,8 +51640,110 @@ var LegacyGetFinanceReportResponse = objectType({
 
 // artifacts/api-server/src/routes/erp.ts
 var import_express2 = __toESM(require_express2(), 1);
+
+// artifacts/api-server/src/lib/costing.ts
+function preparationComponentCost({
+  quantityRequired,
+  conversionFactor,
+  quantity: quantity2,
+  averageCost
+}) {
+  return quantityRequired * conversionFactor * quantity2 * averageCost;
+}
+
+// artifacts/api-server/src/lib/moving-average.ts
+function movingAverageAfterReceipt({
+  stockBefore,
+  averageCostBefore,
+  quantityReceived,
+  receiptTotalCost,
+  round = (value) => value
+}) {
+  if (!Number.isFinite(stockBefore) || !Number.isFinite(averageCostBefore) || !Number.isFinite(quantityReceived) || !Number.isFinite(receiptTotalCost) || quantityReceived <= 0) {
+    throw new Error("Receipt values must be finite and quantity must be positive.");
+  }
+  const receiptUnitCost = receiptTotalCost / quantityReceived;
+  const stockAfter = stockBefore + quantityReceived;
+  if (stockBefore < 0) return stockAfter > 0 ? round(receiptUnitCost) : round(averageCostBefore);
+  if (stockAfter <= 0) return round(averageCostBefore);
+  return round((stockBefore * averageCostBefore + receiptTotalCost) / stockAfter);
+}
+
+// artifacts/api-server/src/lib/report-export.ts
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
+}
+function escapePdf(value) {
+  return value.replace(/\\/g, "\\\\").replace(/[()]/g, (character) => `\\${character}`);
+}
+function toCsv(table) {
+  return [table.columns, ...table.rows].map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+}
+function toExcelHtml(table) {
+  const row = (values, header = false) => `<tr>${values.map((value) => header ? `<th>${escapeHtml(String(value))}</th>` : `<td>${escapeHtml(String(value))}</td>`).join("")}</tr>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#613248}table{border-collapse:collapse}th,td{border:1px solid #f2bfd2;padding:6px 9px}th{background:#f8e7ed}</style></head><body><h1>${escapeHtml(table.title)}</h1><table>${row(table.columns, true)}${table.rows.map((values) => row(values)).join("")}</table></body></html>`;
+}
+function toPdf(table) {
+  const lines = [table.title, `Dibuat: ${(/* @__PURE__ */ new Date()).toISOString()}`, "", table.columns.join(" | "), ...table.rows.map((row) => row.join(" | "))];
+  const pages = [];
+  for (let index2 = 0; index2 < lines.length; index2 += 42) pages.push(lines.slice(index2, index2 + 42));
+  const objects = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [" + pages.map((_, index2) => `${5 + index2 * 2} 0 R`).join(" ") + `] /Count ${pages.length} >>`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
+  for (const page of pages) {
+    const content = ["BT", "/F1 9 Tf", "45 760 Td", ...page.map((line2, index2) => `${index2 ? "0 -17 Td" : ""} (${escapePdf(line2.slice(0, 150))}) Tj`), "ET"].join(" ");
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length + 2} 0 R >>`);
+    objects.push(`<< /Length ${Buffer.byteLength(content, "utf8")} >>
+stream
+${content}
+endstream`);
+  }
+  let output = "%PDF-1.4\n";
+  const offsets = [0];
+  objects.forEach((object, index2) => {
+    offsets[index2 + 1] = Buffer.byteLength(output, "utf8");
+    output += `${index2 + 1} 0 obj
+${object}
+endobj
+`;
+  });
+  const xref = Buffer.byteLength(output, "utf8");
+  output += `xref
+0 ${objects.length + 1}
+0000000000 65535 f 
+${offsets.slice(1).map((offset) => `${String(offset).padStart(10, "0")} 00000 n `).join("\n")}
+trailer
+<< /Size ${objects.length + 1} /Root 1 0 R >>
+startxref
+${xref}
+%%EOF`;
+  return Buffer.from(output, "utf8");
+}
+
+// artifacts/api-server/src/routes/erp.ts
 var router2 = (0, import_express2.Router)();
 router2.use(verifyToken, requireOperationalRole("admin", "user"));
+router2.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    next();
+    return;
+  }
+  res.on("finish", () => {
+    const actor = req.authUser;
+    if (!actor || res.statusCode >= 500) return;
+    const details = req.body && typeof req.body === "object" ? JSON.stringify(req.body) : void 0;
+    void db.insert(auditLogTable).values({
+      actorId: actor.id,
+      actorUsername: actor.username,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      details,
+      beforeData: res.locals.auditBefore ? JSON.stringify(res.locals.auditBefore) : void 0,
+      afterData: res.locals.auditAfter ? JSON.stringify(res.locals.auditAfter) : void 0,
+      reason: typeof req.headers["x-audit-reason"] === "string" ? req.headers["x-audit-reason"] : void 0
+    }).catch((error) => req.log?.warn({ err: error }, "ERP audit log write failed"));
+  });
+  next();
+});
 var HttpError = class extends Error {
   constructor(message, status) {
     super(message);
@@ -51763,6 +52022,154 @@ router2.get(
     });
   })
 );
+router2.get(
+  "/erp/export",
+  checkRole("admin"),
+  safe(async (_req, res) => {
+    const [
+      ingredients,
+      products,
+      preparations,
+      recipeItems,
+      preparationRecipeItems,
+      productPreparationItems,
+      preparationBatches,
+      purchases,
+      purchaseDetails,
+      sales,
+      salesDetails,
+      stockMovements,
+      preparationStockMovements,
+      waste,
+      operatingExpenses,
+      auditLogs,
+      recipeVersions
+    ] = await Promise.all([
+      db.select().from(ingredientsTable),
+      db.select().from(productsTable),
+      db.select().from(preparationsTable),
+      db.select().from(recipeItemsTable),
+      db.select().from(preparationRecipeItemsTable),
+      db.select().from(productPreparationItemsTable),
+      db.select().from(preparationBatchesTable),
+      db.select().from(purchasesTable),
+      db.select().from(purchaseDetailsTable),
+      db.select().from(salesTable),
+      db.select().from(salesDetailsTable),
+      db.select().from(stockMovementsTable),
+      db.select().from(preparationStockMovementsTable),
+      db.select().from(wasteTable),
+      db.select().from(operatingExpensesTable),
+      db.select().from(auditLogTable),
+      db.select().from(recipeVersionsTable)
+    ]);
+    res.setHeader("Content-Disposition", `attachment; filename="kasapink-erp-export-${jakartaToday()}.json"`);
+    res.json({
+      schemaVersion: 1,
+      exportedAt: (/* @__PURE__ */ new Date()).toISOString(),
+      data: {
+        ingredients,
+        products,
+        preparations,
+        recipeItems,
+        preparationRecipeItems,
+        productPreparationItems,
+        preparationBatches,
+        purchases,
+        purchaseDetails,
+        sales,
+        salesDetails,
+        stockMovements,
+        preparationStockMovements,
+        waste,
+        operatingExpenses,
+        auditLogs,
+        recipeVersions
+      }
+    });
+  })
+);
+router2.get(
+  "/erp/audit-log",
+  checkRole("admin"),
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const [rows, totalRows] = await Promise.all([
+      db.select().from(auditLogTable).orderBy(desc(auditLogTable.createdAt)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(auditLogTable)
+    ]);
+    res.json({ items: rows, pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
+  })
+);
+router2.get(
+  "/erp/report-export",
+  checkRole("admin"),
+  safe(async (req, res) => {
+    const type = String(req.query.type ?? "finance");
+    const format = String(req.query.format ?? "csv");
+    const startDate = String(req.query.startDate ?? "2000-01-01");
+    const endDate = String(req.query.endDate ?? jakartaToday());
+    let table;
+    if (type === "stock") {
+      const rows = await db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name));
+      table = { title: "Kasapink - Stok bahan", columns: ["ID", "Nama", "Kategori", "Tipe stok", "Unit", "Stok", "Minimum", "HPP rata-rata"], rows: rows.map((row) => [row.id, row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost)]) };
+    } else if (type === "transactions") {
+      const [purchases, sales] = await Promise.all([
+        db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
+        db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id))
+      ]);
+      table = {
+        title: "Kasapink - Histori transaksi",
+        columns: ["Tanggal", "Tipe", "Referensi", "Item", "Qty", "Nilai", "HPP", "Keterangan"],
+        rows: [
+          ...purchases.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Belanja", row.id, row.ingredientName, number(row.quantity), number(row.totalCost), "", row.supplierType]),
+          ...sales.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Penjualan", row.id, row.productName, row.quantity, number(row.revenue), number(row.costOfGoodsSold), "Produk terjual"])
+        ].sort((a, b) => String(a[0]).localeCompare(String(b[0])))
+      };
+    } else {
+      const report = await financeReport(startDate, endDate);
+      table = { title: `Kasapink - Laporan keuangan ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], rows: report.days.map((day) => [day.date, day.revenue, day.costOfGoodsSold, day.purchases, day.grossProfit]) };
+    }
+    const stamp = `${type}-${startDate}-${endDate}`;
+    if (format === "pdf") {
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.pdf"`);
+      res.end(toPdf(table));
+      return;
+    }
+    if (format === "xls") {
+      res.setHeader("Content-Type", "application/vnd.ms-excel; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.xls"`);
+      res.send(toExcelHtml(table));
+      return;
+    }
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.csv"`);
+    res.send(`\uFEFF${toCsv(table)}`);
+  })
+);
+router2.get(
+  "/erp/ingredients",
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const search = String(req.query.search ?? "").trim();
+    const stockType = String(req.query.stockType ?? "").trim();
+    const lowStock = String(req.query.lowStock ?? "") === "true";
+    const filters = [
+      search ? or(ilike(ingredientsTable.name, `%${search}%`), ilike(ingredientsTable.category, `%${search}%`)) : void 0,
+      stockType === "Makanan" || stockType === "Parfum" ? eq(ingredientsTable.stockType, stockType) : void 0,
+      lowStock ? lte(ingredientsTable.stock, ingredientsTable.minStock) : void 0
+    ].filter(Boolean);
+    const where = filters.length ? and(...filters) : void 0;
+    const [rows, totalRows] = await Promise.all([
+      db.select().from(ingredientsTable).where(where).orderBy(asc(ingredientsTable.name)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(ingredientsTable).where(where)
+    ]);
+    res.json({ items: rows.map(asIngredient), pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
+  })
+);
 router2.post(
   "/erp/ingredients",
   safe(async (req, res) => {
@@ -51811,6 +52218,25 @@ router2.patch(
     const [row] = await db.update(ingredientsTable).set(update).where(eq(ingredientsTable.id, params.data.ingredientId)).returning();
     if (!row) throw new HttpError("Bahan tidak ditemukan.", 404);
     res.json(UpdateIngredientResponse.parse(asIngredient(row)));
+  })
+);
+router2.get(
+  "/erp/products",
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const search = String(req.query.search ?? "").trim();
+    const businessType = String(req.query.businessType ?? "").trim();
+    const filters = [
+      search ? ilike(productsTable.name, `%${search}%`) : void 0,
+      businessType === "Makanan" || businessType === "Parfum" ? eq(productsTable.businessType, businessType) : void 0
+    ].filter(Boolean);
+    const where = filters.length ? and(...filters) : void 0;
+    const [rows, totalRows] = await Promise.all([
+      db.select().from(productsTable).where(where).orderBy(asc(productsTable.name)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(productsTable).where(where)
+    ]);
+    res.json({ items: rows.map(asProduct), pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
   })
 );
 router2.post(
@@ -51927,6 +52353,7 @@ router2.put(
       if (rows.some((row) => isOperationalIngredient(row.category))) {
         throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
       }
+      const beforeRecipe = await tx.select().from(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
       const ingredientMap = new Map(rows.map((row) => [row.id, row]));
       const recipeRows = body.data.items.map((item) => {
         const ingredient = ingredientMap.get(item.ingredientId);
@@ -51938,6 +52365,10 @@ router2.put(
       });
       await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
       if (recipeRows.length) await tx.insert(recipeItemsTable).values(recipeRows);
+      const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable).where(and(eq(recipeVersionsTable.scope, "product"), eq(recipeVersionsTable.parentId, params.data.productId))).orderBy(desc(recipeVersionsTable.version)).limit(1);
+      await tx.insert(recipeVersionsTable).values({ scope: "product", parentId: params.data.productId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: req.authUser?.id });
+      res.locals.auditBefore = beforeRecipe;
+      res.locals.auditAfter = recipeRows;
       return tx.select({
         productId: recipeItemsTable.productId,
         ingredientId: recipeItemsTable.ingredientId,
@@ -51977,6 +52408,8 @@ var PrepRecipeBody = {
       const v = recordBody(x);
       return !v || !positiveInteger(v.ingredientId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30;
     })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
+    const ingredientIds = items.map((x) => x.ingredientId);
+    if (new Set(ingredientIds).size !== ingredientIds.length) return { success: false, error: { message: "Bahan yang sama tidak boleh dicantumkan dua kali dalam resep prep." } };
     return { success: true, data: { items } };
   }
 };
@@ -51987,6 +52420,8 @@ var ProductPrepBody = {
       const v = recordBody(x);
       return !v || !positiveInteger(v.preparationId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30;
     })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
+    const preparationIds = items.map((x) => x.preparationId);
+    if (new Set(preparationIds).size !== preparationIds.length) return { success: false, error: { message: "Preparation yang sama tidak boleh dicantumkan dua kali dalam produk." } };
     return { success: true, data: { items } };
   }
 };
@@ -52076,6 +52511,7 @@ router2.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => 
   const saved = await db.transaction(async (tx) => {
     const [prep] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, preparationId)).for("update");
     if (!prep) throw new HttpError("Prep tidak ditemukan.", 404);
+    const beforeRecipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     const rows = ids.length ? await tx.select({
       id: ingredientsTable.id,
       name: ingredientsTable.name,
@@ -52093,6 +52529,10 @@ router2.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => 
     });
     await tx.delete(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     if (recipeRows.length) await tx.insert(preparationRecipeItemsTable).values(recipeRows);
+    const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable).where(and(eq(recipeVersionsTable.scope, "preparation"), eq(recipeVersionsTable.parentId, preparationId))).orderBy(desc(recipeVersionsTable.version)).limit(1);
+    await tx.insert(recipeVersionsTable).values({ scope: "preparation", parentId: preparationId, version: (latest?.version ?? 0) + 1, snapshot: JSON.stringify(recipeRows), createdBy: req.authUser?.id });
+    res.locals.auditBefore = beforeRecipe;
+    res.locals.auditAfter = recipeRows;
     return recipeRows;
   });
   res.json(saved.map((r) => ({ ...r, qtyRequired: number(r.qtyRequired), conversionFactor: number(r.conversionFactor) })));
@@ -52166,7 +52606,13 @@ router2.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =
     const unitCost = roundMoney(totalCost / parsed.data.actualQty);
     const yieldPercentage = roundMoney(parsed.data.actualQty / parsed.data.targetQty * 1e3) / 10;
     const newStock = number(prep.stock) + parsed.data.actualQty;
-    const newAverageCost = newStock > 0 ? roundMoney((number(prep.stock) * number(prep.averageCost) + totalCost) / newStock) : unitCost;
+    const newAverageCost = movingAverageAfterReceipt({
+      stockBefore: number(prep.stock),
+      averageCostBefore: number(prep.averageCost),
+      quantityReceived: parsed.data.actualQty,
+      receiptTotalCost: totalCost,
+      round: roundMoney
+    });
     const batchNumber = `P-${dateKey(parsed.data.date).replaceAll("-", "")}-${preparationId}-${Date.now()}`;
     const [batch] = await tx.insert(preparationBatchesTable).values({
       preparationId,
@@ -52335,15 +52781,7 @@ router2.get("/erp/fnb-report", safe(async (req, res) => {
     row.quantity += line2.quantity;
     row.revenue += number(line2.revenue);
     row.actualCogs += number(line2.costOfGoodsSold);
-    const ingCost = recipes.filter((r) => r.productId === line2.productId && r.ingredientId).reduce((sum, r) => {
-      const ing = ingredientById.get(r.ingredientId);
-      return sum + (ing ? number(r.qtyRequired) * number(r.conversionFactor) * number(ing.averageCost) : 0);
-    }, 0);
-    const prepCost = productPreps.filter((r) => r.productId === line2.productId).reduce((sum, r) => {
-      const p = prepById.get(r.preparationId);
-      return sum + (p ? number(r.qtyRequired) * number(p.averageCost) : 0);
-    }, 0);
-    row.theoreticalCogs += (ingCost + prepCost) * line2.quantity;
+    row.theoreticalCogs += number(line2.costOfGoodsSold);
     menuMap.set(line2.productId, row);
   }
   const theoreticalIngredient = /* @__PURE__ */ new Map();
@@ -52531,7 +52969,13 @@ router2.post(
         const oldAverageCost = number(ingredient.averageCost);
         const unitCost = line2.totalCost / line2.quantity;
         const newStock = oldStock + line2.quantity;
-        const newAverageCost = newStock > 0 ? roundMoney((oldStock * oldAverageCost + line2.totalCost) / newStock) : roundMoney(unitCost);
+        const newAverageCost = movingAverageAfterReceipt({
+          stockBefore: oldStock,
+          averageCostBefore: oldAverageCost,
+          quantityReceived: line2.quantity,
+          receiptTotalCost: line2.totalCost,
+          round: roundMoney
+        });
         details.push({
           purchaseId: purchase.id,
           ingredientId: line2.ingredientId,
@@ -52600,6 +53044,7 @@ router2.delete(
       const [sale] = await tx.select().from(salesTable).where(eq(salesTable.id, idNum)).for("update");
       if (!sale) throw new HttpError("Penjualan tidak ditemukan.", 404);
       const details = await tx.select().from(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum));
+      const auditBefore = { sale, details };
       for (const line2 of details) {
         const [product] = await tx.select().from(productsTable).where(eq(productsTable.id, line2.productId)).for("update");
         if (product && !product.needsRecipe) {
@@ -52636,6 +53081,8 @@ router2.delete(
       ));
       await tx.delete(salesDetailsTable).where(eq(salesDetailsTable.salesId, idNum));
       await tx.delete(salesTable).where(eq(salesTable.id, idNum));
+      res.locals.auditBefore = auditBefore;
+      res.locals.auditAfter = { deletedSaleId: idNum, restoredIngredientMovements: movements.length, restoredPreparationMovements: prepMovements.length };
       return { id: idNum };
     });
     res.json({ message: "Sale record deleted", id: result.id });
@@ -52645,7 +53092,7 @@ router2.delete(
   "/erp/clear-all",
   checkRole("admin"),
   safe(async (_req, res) => {
-    if (process.env.ALLOW_DANGEROUS_CLEAR_ALL !== "true") {
+    if (process.env.NODE_ENV === "production" || process.env.ALLOW_DANGEROUS_CLEAR_ALL !== "true") {
       res.status(404).json({ error: "Endpoint tidak tersedia." });
       return;
     }
@@ -52667,6 +53114,41 @@ router2.delete(
       await tx.delete(ingredientsTable).execute();
     });
     res.json({ message: "All ERP tables have been cleared" });
+  })
+);
+router2.get(
+  "/erp/sales",
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const startDate = String(req.query.startDate ?? "2000-01-01");
+    const endDate = String(req.query.endDate ?? jakartaToday());
+    const [headers, totalRows] = await Promise.all([
+      db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))).orderBy(desc(salesTable.date), desc(salesTable.id)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)))
+    ]);
+    const ids = headers.map((row) => row.id);
+    const lines = ids.length ? await db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, ids)) : [];
+    const items = headers.map((sale) => {
+      const totalRevenue = number(sale.totalRevenue);
+      const totalCostOfGoodsSold = number(sale.totalCostOfGoodsSold);
+      return {
+        id: sale.id,
+        date: dateKey(sale.date),
+        totalRevenue,
+        totalCostOfGoodsSold,
+        grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
+        items: lines.filter((line2) => line2.salesId === sale.id).map((line2) => ({
+          productId: line2.productId,
+          productName: line2.productName,
+          quantity: line2.quantity,
+          unitPrice: number(line2.unitPrice),
+          revenue: number(line2.revenue),
+          costOfGoodsSold: number(line2.costOfGoodsSold)
+        }))
+      };
+    });
+    res.json({ items, pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
   })
 );
 router2.post(
@@ -52698,6 +53180,7 @@ router2.post(
         recipesByProduct.set(row.productId, items);
       }
       const warnings = [];
+      const negativeStockWarnings = [];
       const missingRecipes = productRows.filter((product) => product.needsRecipe && !recipesByProduct.get(product.id)?.length && !productPrepRows.some((row) => row.productId === product.id)).map((product) => product.name);
       for (const name of missingRecipes) {
         warnings.push(`Resep belum diatur untuk ${name}; transaksi tetap dicatat tanpa pemotongan bahan.`);
@@ -52733,7 +53216,9 @@ router2.post(
         const prep = preparationById.get(preparationId);
         const required = requiredByPreparation.get(preparationId) ?? 0;
         if (number(prep.stock) + 1e-9 < required) {
-          warnings.push(`Stok prep ${prep.name} kurang: tersedia ${number(prep.stock)} ${prep.unit}, perlu ${required} ${prep.unit}.`);
+          const warning = `Stok prep ${prep.name} kurang: tersedia ${number(prep.stock)} ${prep.unit}, perlu ${required} ${prep.unit}.`;
+          warnings.push(warning);
+          negativeStockWarnings.push(warning);
         }
       }
       const requestedIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
@@ -52754,25 +53239,54 @@ router2.post(
         const required = requiredByIngredient.get(ingredientId) ?? 0;
         const available = number(ingredient.stock);
         if (available + 1e-9 < required) {
-          warnings.push(
-            `Stok bahan ${ingredient.name} kurang: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}.`
-          );
+          const warning = `Stok bahan ${ingredient.name} kurang: tersedia ${available} ${ingredient.unit}, perlu ${required} ${ingredient.unit}.`;
+          warnings.push(warning);
+          negativeStockWarnings.push(warning);
         }
       }
       const productById = new Map(productRows.map((row) => [row.id, row]));
       for (const [productId, soldQuantity] of quantities) {
         const product = productById.get(productId);
         if (!product.needsRecipe && number(product.stock) + 1e-9 < soldQuantity) {
-          warnings.push(
-            `Stok produk ${product.name} kurang: tersedia ${number(product.stock)}, terjual ${soldQuantity}.`
-          );
+          const warning = `Stok produk ${product.name} kurang: tersedia ${number(product.stock)}, terjual ${soldQuantity}.`;
+          warnings.push(warning);
+          negativeStockWarnings.push(warning);
         }
       }
+      if (negativeStockWarnings.length && req.authUser?.role !== "admin") {
+        throw new HttpError("Stok tidak cukup. Hanya admin yang dapat melanjutkan transaksi stok negatif.", 409);
+      }
+      if (negativeStockWarnings.length) warnings.push("Override stok negatif disetujui oleh admin.");
       const saleLines = productIds.map((productId) => {
         const product = productById.get(productId);
         const quantity2 = quantities.get(productId);
         const unitPrice = number(product.sellingPrice);
         const recipe = recipesByProduct.get(productId) ?? [];
+        const costingSnapshot = {
+          capturedAt: (/* @__PURE__ */ new Date()).toISOString(),
+          productAverageCost: number(product.averageCost),
+          ingredients: recipe.filter((item) => item.ingredientId).map((item) => {
+            const ingredient = ingredientById.get(item.ingredientId);
+            return {
+              ingredientId: item.ingredientId,
+              quantityRequired: number(item.qtyRequired),
+              recipeUnit: item.recipeUnit,
+              conversionFactor: number(item.conversionFactor),
+              averageCost: number(ingredient.averageCost),
+              category: ingredient.category
+            };
+          }),
+          preparations: productPrepRows.filter((row) => row.productId === productId).map((item) => {
+            const prep = preparationById.get(item.preparationId);
+            return {
+              preparationId: item.preparationId,
+              quantityRequired: number(item.qtyRequired),
+              recipeUnit: item.recipeUnit,
+              conversionFactor: number(item.conversionFactor),
+              averageCost: prep ? number(prep.averageCost) : 0
+            };
+          })
+        };
         const costOfGoodsSold = product.needsRecipe ? recipe.reduce((sum, item) => {
           if (!item.ingredientId) return sum;
           const ingredient = ingredientById.get(item.ingredientId);
@@ -52780,7 +53294,12 @@ router2.post(
           return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity2 * number(ingredient.averageCost);
         }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
           const prep = preparationById.get(item.preparationId);
-          return sum + (prep ? number(item.qtyRequired) * number(item.conversionFactor) * quantity2 * number(prep.averageCost) : 0);
+          return sum + (prep ? preparationComponentCost({
+            quantityRequired: number(item.qtyRequired),
+            conversionFactor: number(item.conversionFactor),
+            quantity: quantity2,
+            averageCost: number(prep.averageCost)
+          }) : 0);
         }, 0)) : number(product.averageCost) * quantity2;
         return {
           productId,
@@ -52788,7 +53307,8 @@ router2.post(
           quantity: quantity2,
           unitPrice,
           revenue: roundMoney(unitPrice * quantity2),
-          costOfGoodsSold: roundMoney(costOfGoodsSold)
+          costOfGoodsSold: roundMoney(costOfGoodsSold),
+          costingSnapshot: JSON.stringify(costingSnapshot)
         };
       });
       const totalRevenue = roundMoney(saleLines.reduce((sum, line2) => sum + line2.revenue, 0));
@@ -52808,7 +53328,8 @@ router2.post(
           quantity: line2.quantity,
           unitPrice: String(line2.unitPrice),
           revenue: String(line2.revenue),
-          costOfGoodsSold: String(line2.costOfGoodsSold)
+          costOfGoodsSold: String(line2.costOfGoodsSold),
+          costingSnapshot: line2.costingSnapshot
         }))
       );
       for (const [productId, soldQuantity] of quantities) {
@@ -53075,6 +53596,14 @@ router3.get("/health", (_req, res) => {
     timestamp: /* @__PURE__ */ new Date()
   });
   res.json(data);
+});
+router3.get("/readyz", async (_req, res) => {
+  try {
+    await pool.query("select 1");
+    res.json({ status: "ok", database: "ready" });
+  } catch (error) {
+    res.status(503).json({ status: "degraded", database: "unavailable" });
+  }
 });
 var health_default = router3;
 
