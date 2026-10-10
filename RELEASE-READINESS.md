@@ -64,6 +64,7 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 
 - Daily backup installer: `pnpm backup:install` registers a local Windows Task Scheduler job at 02:00. The task runs `pnpm backup:erp` and keeps the latest 30 days by default (`ERP_BACKUP_RETENTION_DAYS` can change this).
 - Backup freshness check: `pnpm backup:check` fails when no backup exists or the newest backup is older than 26 hours (`ERP_BACKUP_MAX_AGE_HOURS` can change this).
+- Readiness monitor: `pnpm monitor:readiness` checks `/api/healthz`, `/api/readyz`, migration ordering, and optionally backup freshness with `READINESS_REQUIRE_BACKUP=1`.
 - Manual database backup: `pnpm backup:erp` with `DATABASE_URL` set. Output defaults to `./backups` or `ERP_BACKUP_DIR`.
 - Local restore only: set `ERP_BACKUP_FILE`, `DATABASE_URL` pointing to localhost, `ALLOW_ERP_RESTORE=true`, and `CONFIRM_ERP_RESTORE="RESTORE KASAPINK ERP"`, then run `pnpm restore:erp`.
 - Report exports are available to admins on the Laporan page and via `/api/erp/report-export`: financial report, stock report, and transaction history in CSV, Excel-compatible `.xls`, and PDF.
@@ -88,5 +89,5 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Palette lock checker (`pnpm check:palette`) prevents the removed yellow/olive legacy colors from returning and verifies the pink lock remains active.
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection.
 - [x] Sales history now has a date-bounded server-side pagination endpoint and the Penjualan page consumes it; report-heavy tables remain date-bounded exports.
-- [ ] Production alerting still requires a deployment-specific monitoring target and credentials; no external monitoring was changed.
+- [x] Local readiness monitor combines liveness, PostgreSQL readiness, migration ordering, and optional backup freshness; production alerting still requires a deployment-specific monitoring target and credentials.
 - [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette is locked and the remaining inline/legacy color cleanup is tracked separately.
