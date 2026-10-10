@@ -19,6 +19,7 @@ The working tree also contains changes that predated this work: user guides, the
 - All 8 mock-database auth scenarios passed.
 - All 7 real PostgreSQL 17.11 auth scenarios passed, using a disposable local cluster and the actual Drizzle adapter. Account migrations `0005` and `0006` were applied only in that temporary cluster. Cleanup stopped the cluster and removed its files.
 - Workspace typecheck, frontend/API production build, and standalone backend build passed in the preceding implementation step. The frontend build emitted a nonfatal sourcemap warning in `tooltip.tsx`.
+- Playwright browser smoke and role suite passed 2/2 against an isolated local API/frontend stack using the installed Chrome fallback executable.
 - Production GET `/api/healthz` returned 200 with JSON, `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`, and `X-Frame-Options: SAMEORIGIN`.
 - Production GET `/api/me` without credentials returned 401. No authenticated production requests or write requests were sent.
 
@@ -88,7 +89,7 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Ingredient and audit-log APIs now support bounded server-side pagination; ingredient search, stock type, and low-stock filters are queryable without loading the full table.
 - [x] Product list API and Produk & Resep UI now use server-side search, business-type filtering, and pagination.
 - [x] Palette lock checker (`pnpm check:palette`) prevents removed yellow/olive colors and new non-palette hex colors in the active CSS lock or inline UI from returning.
-- [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection.
+- [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection; latest isolated run passed 2/2.
 - [x] Sales history now has a date-bounded server-side pagination endpoint and the Penjualan page consumes it; report-heavy tables remain date-bounded exports.
 - [x] Local readiness monitor combines liveness, PostgreSQL readiness, migration ordering, and optional backup freshness; production alerting still requires a deployment-specific monitoring target and credentials.
 - [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette and inline colors are now guarded by the palette check.
