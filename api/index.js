@@ -51764,6 +51764,14 @@ function safe(handler) {
     });
   };
 }
+async function optionalDbQuery(req, label, operation, fallback) {
+  try {
+    return await operation;
+  } catch (error) {
+    req.log.warn({ err: error, query: label }, "ERP state query degraded; using fallback");
+    return fallback;
+  }
+}
 function invalid(res, message) {
   res.status(400).json({ error: message });
 }
@@ -51909,10 +51917,12 @@ async function financeReport(startDate, endDate) {
 }
 router2.get(
   "/erp/state",
-  safe(async (_req, res) => {
-    const [ingredientRows, productRows, recipeRows, purchaseHeaders, saleHeaders] = await Promise.all([
-      db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)),
-      db.select().from(productsTable).orderBy(asc(productsTable.name)),
+  safe(async (req, res) => {
+    const ingredientRows = await optionalDbQuery(req, "ingredients", db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)), []);
+    const productRows = await optionalDbQuery(req, "products", db.select().from(productsTable).orderBy(asc(productsTable.name)), []);
+    const recipeRows = await optionalDbQuery(
+      req,
+      "recipes",
       db.select({
         productId: recipeItemsTable.productId,
         ingredientId: recipeItemsTable.ingredientId,
@@ -51921,12 +51931,18 @@ router2.get(
         qtyRequired: recipeItemsTable.qtyRequired,
         recipeUnit: recipeItemsTable.recipeUnit
       }).from(recipeItemsTable).innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id)).orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name)),
+      []
+    );
+    const purchaseHeaders = await optionalDbQuery(
+      req,
+      "purchase headers",
       db.select().from(purchasesTable).orderBy(desc(purchasesTable.date), desc(purchasesTable.id)).limit(6),
-      db.select().from(salesTable).orderBy(desc(salesTable.date), desc(salesTable.id)).limit(6)
-    ]);
+      []
+    );
+    const saleHeaders = await optionalDbQuery(req, "sale headers", db.select().from(salesTable).orderBy(desc(salesTable.date), desc(salesTable.id)).limit(6), []);
     const purchaseIds = purchaseHeaders.map((row) => row.id);
     const saleIds = saleHeaders.map((row) => row.id);
-    const purchaseLines = purchaseIds.length ? await db.select({
+    const purchaseLines = purchaseIds.length ? await optionalDbQuery(req, "purchase details", db.select({
       purchaseId: purchaseDetailsTable.purchaseId,
       ingredientId: purchaseDetailsTable.ingredientId,
       ingredientName: ingredientsTable.name,
@@ -51934,8 +51950,8 @@ router2.get(
       quantity: purchaseDetailsTable.quantity,
       totalCost: purchaseDetailsTable.totalCost,
       unitCost: purchaseDetailsTable.unitCost
-    }).from(purchaseDetailsTable).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)).where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)) : [];
-    const saleLines = saleIds.length ? await db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)) : [];
+    }).from(purchaseDetailsTable).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)).where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)), []) : [];
+    const saleLines = saleIds.length ? await optionalDbQuery(req, "sale details", db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)), []) : [];
     const recentPurchases = purchaseHeaders.map((purchase) => ({
       id: purchase.id,
       date: purchase.date,
@@ -51969,7 +51985,16 @@ router2.get(
         }))
       };
     });
-    const today = await financeReport(jakartaToday(), jakartaToday());
+    const todayDate = jakartaToday();
+    const today = await optionalDbQuery(req, "today finance", financeReport(todayDate, todayDate), {
+      startDate: todayDate,
+      endDate: todayDate,
+      revenue: 0,
+      costOfGoodsSold: 0,
+      purchases: 0,
+      grossProfit: 0,
+      days: [{ date: todayDate, revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }]
+    });
     const data = {
       ingredients: ingredientRows.map(asIngredient),
       products: productRows.map(asProduct),

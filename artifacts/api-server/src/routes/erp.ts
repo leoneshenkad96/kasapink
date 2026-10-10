@@ -99,6 +99,15 @@ function safe(handler: (req: Request, res: Response) => Promise<void>): RequestH
   };
 }
 
+async function optionalDbQuery<T>(req: Request, label: string, operation: PromiseLike<T>, fallback: T): Promise<T> {
+  try {
+    return await operation;
+  } catch (error: unknown) {
+    req.log.warn({ err: error, query: label }, "ERP state query degraded; using fallback");
+    return fallback;
+  }
+}
+
 function invalid(res: Response, message: string): void {
   res.status(400).json({ error: message });
 }
@@ -329,12 +338,11 @@ async function financeReport(startDate: string, endDate: string) {
 
 router.get(
   "/erp/state",
-  safe(async (_req, res) => {
+  safe(async (req, res) => {
     // await ensureSeedData();   // disabled – prevents auto‑reseed
-    const [ingredientRows, productRows, recipeRows, purchaseHeaders, saleHeaders] = await Promise.all([
-      db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)),
-      db.select().from(productsTable).orderBy(asc(productsTable.name)),
-      db
+    const ingredientRows = await optionalDbQuery(req, "ingredients", db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)), []);
+    const productRows = await optionalDbQuery(req, "products", db.select().from(productsTable).orderBy(asc(productsTable.name)), []);
+    const recipeRows = await optionalDbQuery(req, "recipes", db
         .select({
           productId: recipeItemsTable.productId,
           ingredientId: recipeItemsTable.ingredientId,
@@ -346,22 +354,23 @@ router.get(
         .from(recipeItemsTable)
         .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
         .orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name)),
-      db
+      []);
+    const purchaseHeaders = await optionalDbQuery(req, "purchase headers", db
         .select()
         .from(purchasesTable)
         .orderBy(desc(purchasesTable.date), desc(purchasesTable.id))
         .limit(6),
-      db
+      []);
+    const saleHeaders = await optionalDbQuery(req, "sale headers", db
         .select()
         .from(salesTable)
         .orderBy(desc(salesTable.date), desc(salesTable.id))
-        .limit(6),
-    ]);
+        .limit(6), []);
 
     const purchaseIds = purchaseHeaders.map((row) => row.id);
     const saleIds = saleHeaders.map((row) => row.id);
     const purchaseLines = purchaseIds.length
-      ? await db
+        ? await optionalDbQuery(req, "purchase details", db
         .select({
           purchaseId: purchaseDetailsTable.purchaseId,
           ingredientId: purchaseDetailsTable.ingredientId,
@@ -373,13 +382,13 @@ router.get(
         })
         .from(purchaseDetailsTable)
         .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
-        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds))
+        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)), [])
       : [];
     const saleLines = saleIds.length
-      ? await db
+      ? await optionalDbQuery(req, "sale details", db
         .select()
         .from(salesDetailsTable)
-        .where(inArray(salesDetailsTable.salesId, saleIds))
+        .where(inArray(salesDetailsTable.salesId, saleIds)), [])
       : [];
 
     const recentPurchases = purchaseHeaders.map((purchase) => ({
@@ -420,7 +429,16 @@ router.get(
       };
     });
 
-    const today = await financeReport(jakartaToday(), jakartaToday());
+    const todayDate = jakartaToday();
+    const today = await optionalDbQuery(req, "today finance", financeReport(todayDate, todayDate), {
+      startDate: todayDate,
+      endDate: todayDate,
+      revenue: 0,
+      costOfGoodsSold: 0,
+      purchases: 0,
+      grossProfit: 0,
+      days: [{ date: todayDate, revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }],
+    });
     const data = {
       ingredients: ingredientRows.map(asIngredient),
       products: productRows.map(asProduct),
