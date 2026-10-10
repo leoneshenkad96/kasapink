@@ -304,8 +304,8 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
           <polygon points={`42,170 ${salesPoints} 678,170`} fill="url(#salesFill)" />
           <polyline points={salesPoints} fill="none" stroke="#f2bfd2" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
           <polyline points={purchasePoints} fill="none" stroke="#fdcee0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-          {chartData.map((day, index) => <text key={day.label} x={chartData.length <= 1 ? 360 : 42 + (index / (chartData.length - 1)) * 636} y="198" textAnchor="middle" fill="#8b6072" fontSize="10">{day.label}</text>)}
-          <text x="4" y="31" fill="#8b6072" fontSize="10">{chartMax >= 1000 ? `${Math.round(chartMax / 1000)}k` : chartMax}</text><text x="14" y="174" fill="#8b6072" fontSize="10">0</text>
+          {chartData.map((day, index) => <text key={day.label} x={chartData.length <= 1 ? 360 : 42 + (index / (chartData.length - 1)) * 636} y="198" textAnchor="middle" fill="#613248" fontSize="10">{day.label}</text>)}
+          <text x="4" y="31" fill="#613248" fontSize="10">{chartMax >= 1000 ? `${Math.round(chartMax / 1000)}k` : chartMax}</text><text x="14" y="174" fill="#613248" fontSize="10">0</text>
         </svg> : <Empty title="Belum ada data grafik" text="Penjualan dan belanja akan membentuk grafik setelah ada transaksi." />}
       </div>
     </Card>
