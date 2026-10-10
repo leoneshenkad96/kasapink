@@ -232,6 +232,42 @@ export const UpdateIngredientResponse = zod.object({
 
 
 /**
+ * @summary List products with server-side search and pagination
+ */
+export const listProductsQueryLimitDefault = 50;
+export const listProductsQueryLimitMax = 200;
+
+export const listProductsQueryOffsetDefault = 0;
+export const listProductsQueryOffsetMin = 0;
+
+
+
+export const ListProductsQueryParams = zod.object({
+  "search": zod.coerce.string().optional(),
+  "businessType": zod.enum(['Makanan', 'Parfum']).optional(),
+  "limit": zod.coerce.number().int().min(1).max(listProductsQueryLimitMax).default(listProductsQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(listProductsQueryOffsetMin).default(listProductsQueryOffsetDefault)
+})
+
+export const ListProductsResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "name": zod.string(),
+  "sellingPrice": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum']),
+  "needsRecipe": zod.boolean(),
+  "stock": zod.number(),
+  "averageCost": zod.number()
+})),
+  "pagination": zod.object({
+  "limit": zod.number().int(),
+  "offset": zod.number().int(),
+  "total": zod.number().int()
+})
+})
+
+
+/**
  * @summary Add a sale product
  */
 export const createProductBodyNameMax = 120;

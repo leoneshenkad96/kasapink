@@ -170,6 +170,11 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   });
   assert.equal(product.status, 201);
   const productId = product.body.id;
+  const productPage = await request("/erp/products?businessType=Makanan&search=Roti&limit=1&offset=0", token);
+  assert.equal(productPage.status, 200);
+  assert.equal(productPage.body.items[0].id, productId);
+  assert.equal(productPage.body.pagination.limit, 1);
+  assert.ok(productPage.body.pagination.total >= 1);
   const negativeForTesting = await request("/erp/sales", userLogin.body.token, "POST", {
     date: "2026-10-10", items: [{ productId, quantity: 99999 }],
   });

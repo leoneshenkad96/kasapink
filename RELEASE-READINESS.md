@@ -84,7 +84,8 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Audit schema now supports before/after data and reason; recipe changes, role changes, and sale deletion populate the extended fields.
 - [x] Backup freshness check is available through `pnpm backup:check`.
 - [x] Ingredient and audit-log APIs now support bounded server-side pagination; ingredient search, stock type, and low-stock filters are queryable without loading the full table.
+- [x] Product list API and Produk & Resep UI now use server-side search, business-type filtering, and pagination.
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection.
-- [ ] Server-side pagination still needs to be wired into every large frontend table (ingredient stock is now wired; the shared state endpoint remains intentionally compatible for dashboard use).
+- [ ] Sales history and report-heavy tables still need server-side pagination if their volume grows beyond the bounded dashboard/state payload.
 - [ ] Production alerting still requires a deployment-specific monitoring target and credentials; no external monitoring was changed.
 - [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette is locked and the remaining inline/legacy color cleanup is tracked separately.

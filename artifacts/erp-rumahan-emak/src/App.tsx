@@ -9,6 +9,7 @@ import {
   useCreateProduct, useGetErpState, useGetFinanceReport, useRecordPurchase,
   useRecordSale, useRecordStockCount, useSaveProductRecipe, useUpdateIngredient,
   useUpdateProduct, getListIngredientsQueryKey, useListIngredients,
+  getListProductsQueryKey, useListProducts,
 } from '@workspace/api-client-react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-client-react';
@@ -256,6 +257,7 @@ function useRefresh() {
     void qc.invalidateQueries({ queryKey: getGetErpStateQueryKey() });
     void qc.invalidateQueries({ queryKey: getGetFinanceReportQueryKey() });
     void qc.invalidateQueries({ queryKey: getListIngredientsQueryKey() });
+    void qc.invalidateQueries({ queryKey: getListProductsQueryKey() });
   };
 }
 
@@ -447,6 +449,9 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
 }
 
 function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { state: ErpState; businessType?: 'Makanan' | 'Parfum'; readOnly?: boolean }) {
+  const productPageSize = 12;
+  const [productSearch, setProductSearch] = useState('');
+  const [productPage, setProductPage] = useState(1);
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const [recipeProduct, setRecipeProduct] = useState<Product | null>(null);
   const [needsRecipe, setNeedsRecipe] = useState(true);
@@ -455,8 +460,11 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const [productFormDirty, setProductFormDirty] = useState(false);
   const [prepData, setPrepData] = useState<Prep[]>([]);
   const create = useCreateProduct(), update = useUpdateProduct(), saveRecipe = useSaveProductRecipe(), refresh = useRefresh();
+  const productQuery = useListProducts({ businessType, search: productSearch.trim() || undefined, limit: productPageSize, offset: (productPage - 1) * productPageSize });
   const safeProducts = state.products || [];
-  const visibleProducts = safeProducts.filter((product) => product.businessType === businessType);
+  const visibleProducts = productQuery.data?.items ?? safeProducts.filter((product) => product.businessType === businessType);
+  const productTotal = productQuery.data?.pagination.total ?? visibleProducts.length;
+  const productTotalPages = Math.max(1, Math.ceil(productTotal / productPageSize));
   const safeRecipes = state.recipes || [];
   const safeIngredients = state.ingredients || [];
   const macroIngredients = safeIngredients.filter((ingredient) => ingredient.stockType === businessType && !/mikro|operasional/i.test(ingredient.category));
@@ -466,6 +474,8 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
     fetch('/api/erp/preparations', { headers: authHeaders() }).then(r => r.ok ? r.json() : []).then((d: Prep[]) => { if (active && Array.isArray(d)) setPrepData(d); }).catch(() => {});
     return () => { active = false; };
   }, []);
+  useEffect(() => { setProductPage(1); }, [businessType, productSearch]);
+  useEffect(() => { if (productPage > productTotalPages) setProductPage(productTotalPages); }, [productPage, productTotalPages]);
 
   const openNewProduct = () => {
     setError('');
@@ -531,8 +541,9 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
 
   return <>
     <PageHeading kicker={`PRODUK ${businessType.toUpperCase()}`} title="Produk & Resep" note="Pilih barang jadi yang stoknya dijual langsung, atau produk olahan yang memakai bahan makro." action={<Button onClick={openNewProduct}><Plus size={17} /> Tambah produk</Button>} />
-    {!visibleProducts.length ? <Card><Empty title={`Belum ada produk ${businessType.toLowerCase()}`} text="Tambahkan produk di submenu ini untuk mulai mencatat penjualan." /></Card> :
-      <div className="product-list">{visibleProducts.map((p) => {
+    <Card className="table-card product-filter-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari produk" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setProductPage(1); }} placeholder="Cari nama produk..." /></div></div><span className="result-count">{productTotal} produk</span></div></Card>
+    {productQuery.isError ? <ErrorPanel message={errText(productQuery.error)} retry={() => void productQuery.refetch()} /> : !visibleProducts.length ? <Card><Empty title={`Belum ada produk ${businessType.toLowerCase()}`} text={productSearch ? 'Coba kata kunci lain.' : 'Tambahkan produk di submenu ini untuk mulai mencatat penjualan.'} /></Card> :
+      <><div className="product-list">{visibleProducts.map((p) => {
         const items = safeRecipes.filter((r) => r.productId === p.id);
         const macroItems = items.filter((item) => {
           const ingredient = safeIngredients.find((x) => x.id === item.ingredientId);
@@ -560,7 +571,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
           <div className="recipe-summary">{p.needsRecipe ? (macroItems.length ? <>{macroItems.length} bahan makro ? {macroItems.slice(0, 3).map((r) => r.ingredientName).join(', ')}{macroItems.length > 3 ? '?' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>) : 'Stok produk dipotong langsung saat penjualan.'}</div>
           {p.needsRecipe && <button className="recipe-button" disabled={readOnly} onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button>}
         </Card>;
-      })}</div>}
+      })}</div><PaginationControls page={productPage} totalItems={productTotal} pageSize={productPageSize} onPageChange={setProductPage} label="produk" /></>}
     {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={closeProductForm}>
       <form className="form-stack" onInput={() => { setProductFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setProductFormDirty(true); setUnsavedChanges(true); }} onSubmit={submitProduct}>
         <Field label="Nama produk"><FieldInput disabled={readOnly} name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>

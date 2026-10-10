@@ -657,6 +657,26 @@ router.patch(
   }),
 );
 
+router.get(
+  "/erp/products",
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const search = String(req.query.search ?? "").trim();
+    const businessType = String(req.query.businessType ?? "").trim();
+    const filters = [
+      search ? ilike(productsTable.name, `%${search}%`) : undefined,
+      businessType === "Makanan" || businessType === "Parfum" ? eq(productsTable.businessType, businessType) : undefined,
+    ].filter(Boolean);
+    const where = filters.length ? and(...filters) : undefined;
+    const [rows, totalRows] = await Promise.all([
+      db.select().from(productsTable).where(where).orderBy(asc(productsTable.name)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(productsTable).where(where),
+    ]);
+    res.json({ items: rows.map(asProduct), pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
+  }),
+);
+
 router.post(
   "/erp/products",
   safe(async (req, res) => {

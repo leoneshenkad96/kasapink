@@ -499,6 +499,33 @@ export type ListIngredients200 = {
   pagination: Pagination;
 };
 
+export type ListProductsParams = {
+search?: string;
+businessType?: ListProductsBusinessType;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListProductsBusinessType = typeof ListProductsBusinessType[keyof typeof ListProductsBusinessType];
+
+
+export const ListProductsBusinessType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+} as const;
+
+export type ListProducts200 = {
+  items: Product[];
+  pagination: Pagination;
+};
+
 export type GetFnbReportParams = {
 startDate: string;
 endDate: string;

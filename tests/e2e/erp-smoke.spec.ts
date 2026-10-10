@@ -22,6 +22,10 @@ test.describe('Kasapink ERP browser smoke and roles', () => {
     await expect(page.getByText(/\d+ bahan/).first()).toBeVisible();
     await page.getByRole('button', { name: /Stok menipis/ }).click();
     await expect(page.getByRole('button', { name: /Stok menipis/ })).toHaveAttribute('aria-pressed', 'true');
+    await page.goto('/produk/makanan');
+    await expect(page.getByRole('heading', { name: 'Produk & Resep' })).toBeVisible();
+    await page.getByLabel('Cari produk').fill('demo');
+    await expect(page.getByText(/produk/).first()).toBeVisible();
     const token = await page.evaluate(() => localStorage.getItem('kasapink_token'));
     expect(token).toBeNull();
   });

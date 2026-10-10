@@ -125,6 +125,29 @@ paths:
               schema:
                 $ref: "#/components/schemas/Ingredient"
   /erp/products:
+    get:
+      operationId: listProducts
+      tags: [erp]
+      summary: List products with server-side search and pagination
+      parameters:
+        - { in: query, name: search, schema: { type: string } }
+        - { in: query, name: businessType, schema: { type: string, enum: [Makanan, Parfum] } }
+        - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
+        - { in: query, name: offset, schema: { type: integer, minimum: 0, default: 0 } }
+      responses:
+        "200":
+          description: Paginated product list
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, pagination]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: "#/components/schemas/Product" }
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
     post:
       operationId: createProduct
       tags: [erp]
