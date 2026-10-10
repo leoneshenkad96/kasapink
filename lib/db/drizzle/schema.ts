@@ -17,7 +17,7 @@ export const erpPreparationStockMovements = pgTable("erp_preparation_stock_movem
 	note: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	index("erp_prep_stock_movements_preparation_date_idx").using("btree", table.preparationId.asc().nullsLast().op("int4_ops"), table.date.asc().nullsLast().op("int4_ops")),
+	index("erp_prep_stock_movements_preparation_date_idx").using("btree", table.preparationId.asc().nullsLast().op("int4_ops"), table.date.asc().nullsLast().op("date_ops")),
 	foreignKey({
 			columns: [table.preparationId],
 			foreignColumns: [erpPreparations.id],
@@ -220,7 +220,7 @@ export const erpPreparationBatches = pgTable("erp_preparation_batches", {
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
 	uniqueIndex("erp_preparation_batches_batch_number_unique").using("btree", table.batchNumber.asc().nullsLast().op("text_ops")),
-	index("erp_preparation_batches_preparation_date_idx").using("btree", table.preparationId.asc().nullsLast().op("int4_ops"), table.date.asc().nullsLast().op("int4_ops")),
+	index("erp_preparation_batches_preparation_date_idx").using("btree", table.preparationId.asc().nullsLast().op("int4_ops"), table.date.asc().nullsLast().op("date_ops")),
 	foreignKey({
 			columns: [table.preparationId],
 			foreignColumns: [erpPreparations.id],
@@ -251,7 +251,7 @@ export const erpStockMovements = pgTable("erp_stock_movements", {
 	note: text(),
 	createdAt: timestamp("created_at", { withTimezone: true, mode: 'string' }).defaultNow().notNull(),
 }, (table) => [
-	index("erp_stock_movements_ingredient_date_idx").using("btree", table.ingredientId.asc().nullsLast().op("int4_ops"), table.date.asc().nullsLast().op("int4_ops")),
+	index("erp_stock_movements_ingredient_date_idx").using("btree", table.ingredientId.asc().nullsLast().op("int4_ops"), table.date.asc().nullsLast().op("date_ops")),
 	foreignKey({
 			columns: [table.ingredientId],
 			foreignColumns: [erpIngredients.id],

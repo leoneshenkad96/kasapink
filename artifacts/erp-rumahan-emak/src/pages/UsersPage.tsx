@@ -4,7 +4,7 @@ import { AlertCircle, Pencil, Plus, Shield, Trash2, UserRound } from "lucide-rea
 import PasswordInput from "../components/PasswordInput";
 
 type AppUser = { id: number; username: string; role: "admin" | "testing" | "user"; createdAt: string };
-const headers = () => ({ Authorization: `Bearer ${localStorage.getItem("kasapink_token") || ""}` });
+const headers = () => ({ });
 function getLoggedInUserId(): number | null {
   try {
     const user = JSON.parse(localStorage.getItem("kasapink_user") || "null") as { id?: unknown } | null;
@@ -31,7 +31,7 @@ export default function UsersPage() {
     setLoading(true);
     setError("");
     try {
-      const response = await fetch("/api/users", { headers: headers() });
+      const response = await fetch("/api/users", { headers: headers(), credentials: "include" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Gagal memuat daftar user.");
       setUsers(data);
@@ -53,7 +53,7 @@ export default function UsersPage() {
     try {
       const response = await fetch("/api/users", {
         method: "POST",
-        headers: { ...headers(), "Content-Type": "application/json" },
+        headers: { ...headers(), "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({
           username: String(form.get("username") || "").trim(),
           password: String(form.get("password") || ""),
@@ -80,7 +80,7 @@ export default function UsersPage() {
     try {
       const response = await fetch(`/api/users/${editUser.id}`, {
         method: "PUT",
-        headers: { ...headers(), "Content-Type": "application/json" },
+        headers: { ...headers(), "Content-Type": "application/json" }, credentials: "include",
         body: JSON.stringify({ role: editRole, newPassword: editPassword || undefined }),
       });
       const data = await response.json().catch(() => ({}));
@@ -100,7 +100,7 @@ export default function UsersPage() {
     setDeletingUserId(user.id);
     setError("");
     try {
-      const response = await fetch(`/api/users/${user.id}`, { method: "DELETE", headers: headers() });
+      const response = await fetch(`/api/users/${user.id}`, { method: "DELETE", headers: headers(), credentials: "include" });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || "Gagal menghapus user.");
       setUsers((currentUsers) => currentUsers.filter((currentUser) => currentUser.id !== user.id));
@@ -147,7 +147,7 @@ export default function UsersPage() {
       <div className="card-heading"><div><span className="eyebrow">AKUN KASAPINK</span><h2>Daftar user</h2></div><span className="result-count">{users.length} user</span></div>
       {error && !showForm && <div className="form-error"><AlertCircle size={16} />{error}<button className="text-button" onClick={() => { setError(""); void loadUsers(); }}>Coba lagi</button></div>}
       {loading ? <div className="loading-grid"><div className="skeleton" /></div> : users.length ? <div className="table-scroll"><table><thead><tr><th>USERNAME</th><th>ROLE</th><th>DIBUAT</th><th>AKSI</th></tr></thead><tbody>
-        {users.map((user) => <tr key={user.id}><td><div className="table-name"><span className="ingredient-token"><UserRound size={16} /></span><b>{user.username}</b></div></td><td><span className={`status-pill ${user.role === "testing" ? "status-low" : "status-ok"}`}>{user.role}</span></td><td>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(user.createdAt))}</td><td><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" className="button button-quiet" onClick={() => { setError(""); setEditPassword(""); setEditRole(user.role); setEditUser(user); }} disabled={editingUserId !== null || deletingUserId !== null} aria-label={`Edit user ${user.username}`}><Pencil size={15} /> Edit</button>{user.id !== loggedInUserId && <button type="button" className="button button-quiet" onClick={() => void deleteUser(user)} disabled={deletingUserId !== null || editingUserId !== null} aria-label={`Hapus user ${user.username}`} style={{ color: "#e11d48" }}>{deletingUserId === user.id ? "Menghapus…" : <><Trash2 size={15} /> Hapus</>}</button>}</div></td></tr>)}
+        {users.map((user) => <tr key={user.id}><td><div className="table-name"><span className="ingredient-token"><UserRound size={16} /></span><b>{user.username}</b></div></td><td><span className={`status-pill ${user.role === "testing" ? "status-low" : "status-ok"}`}>{user.role}</span></td><td>{new Intl.DateTimeFormat("id-ID", { dateStyle: "medium" }).format(new Date(user.createdAt))}</td><td><div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}><button type="button" className="button button-quiet" onClick={() => { setError(""); setEditPassword(""); setEditRole(user.role); setEditUser(user); }} disabled={editingUserId !== null || deletingUserId !== null} aria-label={`Edit user ${user.username}`}><Pencil size={15} /> Edit</button>{user.id !== loggedInUserId && <button type="button" className="button button-quiet" onClick={() => void deleteUser(user)} disabled={deletingUserId !== null || editingUserId !== null} aria-label={`Hapus user ${user.username}`} style={{ color: "#613248" }}>{deletingUserId === user.id ? "Menghapus…" : <><Trash2 size={15} /> Hapus</>}</button>}</div></td></tr>)}
       </tbody></table></div> : <div className="empty-state"><span className="empty-icon"><UserRound size={20} /></span><b>Belum ada user</b><p>Buat user pertama untuk mulai mengelola akses.</p></div>}
     </section>
   </>;

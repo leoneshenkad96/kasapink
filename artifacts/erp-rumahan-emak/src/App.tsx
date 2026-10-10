@@ -14,7 +14,7 @@ import { setAuthTokenGetter } from '@workspace/api-client-react';
 import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-client-react';
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check, ChevronDown,
-  CirclePlus, ClipboardList, CookingPot, FileText, Home, LogOut, Menu,
+  CirclePlus, ClipboardList, CookingPot, Download, FileText, Home, LogOut, Menu,
   KeyRound, LoaderCircle, Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2,
   TrendingUp, UserRound, X,
 } from 'lucide-react';
@@ -26,18 +26,26 @@ import { Link, Route, Switch, useLocation, Router as WouterRouter } from 'wouter
 const client = new QueryClient();
 type UserRole = 'admin' | 'testing' | 'user';
 type AppUser = { id: number; username: string; role: UserRole };
-setAuthTokenGetter(() => localStorage.getItem('kasapink_token'));
+setAuthTokenGetter(() => null);
 const navItems = [
-  { href: '/', label: 'Ringkasan', icon: Home },
-  { href: '/stok', label: 'Stok Bahan', icon: Boxes, children: [{ href: '/stok/makanan', label: 'Makanan' }, { href: '/stok/parfum', label: 'Parfum' }] },
-  { href: '/produk', label: 'Produk & Resep', icon: CookingPot, children: [{ href: '/produk/makanan', label: 'Makanan' }, { href: '/produk/parfum', label: 'Parfum' }] },
-  { href: '/belanja', label: 'Catat Belanja', icon: ShoppingBasket },
-  { href: '/penjualan', label: 'Catat Penjualan', icon: ReceiptText },
-  { href: '/prep', label: 'Produksi / Prep', icon: CookingPot },
-  { href: '/kontrol-fnb', label: 'Kontrol F&B', icon: TrendingUp },
-  { href: '/opname', label: 'Stok Opname', icon: ClipboardList },
-  { href: '/laporan', label: 'Laporan', icon: FileText },
-  { href: '/users', label: 'Manajemen User', icon: Shield, adminOnly: true },
+  { href: '/overview', label: 'Overview', icon: Home, children: [{ href: '/', label: 'Dashboard' }] },
+  { href: '/inventory', label: 'Inventory', icon: Boxes, children: [
+    { href: '/stok/makanan', label: 'Stok bahan · Makanan' },
+    { href: '/stok/parfum', label: 'Stok bahan · Parfum' },
+    { href: '/produk/makanan', label: 'Produk & resep · Makanan' },
+    { href: '/produk/parfum', label: 'Produk & resep · Parfum' },
+    { href: '/prep', label: 'Produksi / Prep' },
+  ] },
+  { href: '/transactions', label: 'Transactions', icon: ReceiptText, children: [
+    { href: '/belanja', label: 'Catat belanja' },
+    { href: '/penjualan', label: 'Catat penjualan' },
+    { href: '/opname', label: 'Stok opname' },
+  ] },
+  { href: '/reports', label: 'Reports', icon: FileText, children: [
+    { href: '/laporan', label: 'Laporan keuangan' },
+    { href: '/kontrol-fnb', label: 'Kontrol F&B' },
+  ] },
+  { href: '/management', label: 'Management', icon: Shield, children: [{ href: '/users', label: 'Pengguna & role' }], adminOnly: true },
 ];
 const today = () => {
   const now = new Date();
@@ -57,7 +65,7 @@ const errText = (e: unknown) => {
   const x = e as { response?: { data?: { error?: string; message?: string } }; message?: string };
   return x?.response?.data?.error || x?.response?.data?.message || x?.message || 'Terjadi kendala. Silakan coba lagi.';
 };
-const authHeaders = () => ({ Authorization: `Bearer ${localStorage.getItem('kasapink_token') || ''}` });
+const authHeaders = () => ({ });
 
 let unsavedChanges = false;
 const setUnsavedChanges = (value: boolean) => { unsavedChanges = value; };
@@ -79,51 +87,56 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
   const [setupUsername, setSetupUsername] = useState('');
   const [setupPassword, setSetupPassword] = useState('');
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#FAF8F5', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px', fontFamily: 'system-ui, sans-serif' }}>
-      <div style={{ backgroundColor: '#ffffff', border: '1px solid #E5E0D8', borderRadius: '24px', padding: '40px 36px', width: '100%', maxWidth: '400px', boxShadow: '0 10px 30px -5px rgba(27, 59, 43, 0.08)', textAlign: 'center' }}>
-        <div style={{ width: '60px', height: '60px', backgroundColor: '#1B3B2B', color: '#fff', borderRadius: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px', fontSize: '26px', boxShadow: '0 6px 16px rgba(27, 59, 43, 0.2)' }}>
-          🍲
-        </div>
-        <h1 style={{ fontSize: '24px', fontWeight: 'bold', color: '#1B3B2B', marginBottom: '4px' }}>Kasapink</h1>
-        <p style={{ fontSize: '13px', color: '#666', marginBottom: '28px' }}>CATATAN USAHA</p>
+    <div className="login-page">
+      <div className="login-layout">
+        <section className="login-card" aria-labelledby="login-title">
+          <div className="login-brand-lockup">
+            <span className="login-brand-mark"><CookingPot size={27} strokeWidth={1.8} /></span>
+            <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
+          </div>
+          <div className="login-card-heading">
+            <div>
+              <h2 id="login-title">{setupMode ? 'Buat akun admin' : 'Masuk'}</h2>
+            </div>
+          </div>
 
-        {setupMode ? <form onSubmit={(e) => { e.preventDefault(); onSetup(setupUsername, setupPassword, bootstrapToken); }} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
-          <p style={{ color: '#555', fontSize: '13px', margin: 0 }}>Buat akun admin pertama. Token setup diberikan oleh pemilik aplikasi.</p>
-          <input value={bootstrapToken} onChange={(e) => setBootstrapToken(e.target.value)} placeholder="Token setup admin" autoComplete="off" required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
-          <input value={setupUsername} onChange={(e) => setSetupUsername(e.target.value)} placeholder="Username admin" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
-          <PasswordInput value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Password (min. 8 karakter)" autoComplete="new-password" minLength={8} required style={{ width: '100%', padding: '12px 40px 12px 16px', border: '1px solid #E5E0D8', borderRadius: '12px', boxSizing: 'border-box' }} />
-          {errorMsg && <p style={{ color: '#e11d48', fontSize: '12px', margin: 0 }}>{errorMsg}</p>}
-          <button type="submit" style={{ width: '100%', padding: '12px', backgroundColor: '#1B3B2B', color: '#fff', fontWeight: '600', borderRadius: '12px', border: 'none', cursor: 'pointer' }}>Buat admin pertama</button>
+        {setupMode ? <form className="login-form" onSubmit={(e) => { e.preventDefault(); onSetup(setupUsername, setupPassword, bootstrapToken); }}>
+          <label className="login-field"><span>TOKEN SETUP</span><input className="login-input" value={bootstrapToken} onChange={(e) => setBootstrapToken(e.target.value)} placeholder="Masukkan token setup" autoComplete="off" required /></label>
+          <label className="login-field"><span>USERNAME ADMIN</span><input className="login-input" value={setupUsername} onChange={(e) => setSetupUsername(e.target.value)} placeholder="Username admin" autoComplete="username" required /></label>
+          <label className="login-field"><span>PASSWORD</span><PasswordInput className="login-input" value={setupPassword} onChange={(e) => setSetupPassword(e.target.value)} placeholder="Minimal 8 karakter" autoComplete="new-password" minLength={8} required /></label>
+          {errorMsg && <p className="login-error" role="alert">{errorMsg}</p>}
+          <button type="submit" className="login-submit">Buat admin pertama</button>
           <button type="button" className="text-button" onClick={() => setSetupMode(false)}>Kembali ke login</button>
-        </form> : <form onSubmit={onLogin} style={{ display: 'flex', flexDirection: 'column', gap: '14px', textAlign: 'left' }}>
-          <div>
-            <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>USERNAME</label>
-            <input disabled={loginPending} type="text" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} placeholder="Username" autoComplete="username" required style={{ width: '100%', padding: '12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B', marginBottom: '12px' }} />
-            <label style={{ fontSize: '11px', fontWeight: '700', color: '#555', display: 'block', marginBottom: '6px', letterSpacing: '0.5px' }}>PASSWORD</label>
+        </form> : <form onSubmit={onLogin} className="login-form">
+          <label className="login-field"><span>USERNAME</span>
+            <input disabled={loginPending} type="text" value={usernameInput} onChange={(e) => setUsernameInput(e.target.value)} placeholder="Masukkan username" autoComplete="username" required className="login-input" />
+          </label>
+          <label className="login-field"><span>PASSWORD</span>
             <PasswordInput
               value={passwordInput}
               onChange={(e) => setPasswordInput(e.target.value)}
-              placeholder="Masukkan password..."
+              placeholder="Masukkan password"
               autoComplete="current-password"
               disabled={loginPending}
-              style={{ width: '100%', padding: '12px 40px 12px 16px', backgroundColor: '#FAF8F5', border: '1px solid #E5E0D8', borderRadius: '12px', outline: 'none', fontSize: '14px', boxSizing: 'border-box', color: '#1B3B2B' }}
+              className="login-input"
               autoFocus
             />
-          </div>
-          {errorMsg && <p style={{ color: '#e11d48', fontSize: '12px', margin: 0, fontWeight: '500' }}>{errorMsg}</p>}
+          </label>
+          {errorMsg && <p className="login-error" role="alert">{errorMsg}</p>}
           <button
             type="submit"
             disabled={loginPending}
-            style={{ width: '100%', padding: '12px', backgroundColor: '#1B3B2B', color: '#fff', fontWeight: '600', borderRadius: '12px', border: 'none', cursor: 'pointer', fontSize: '14px', marginTop: '6px', boxShadow: '0 4px 12px rgba(27, 59, 43, 0.2)', transition: 'background 0.2s' }}
+            className="login-submit"
           >
-            {loginPending ? <><LoaderCircle className="spin" size={17} /> Memeriksa akun…</> : 'Masuk ke Sistem'}
+            {loginPending ? <><LoaderCircle className="spin" size={17} /> Memeriksa…</> : 'Masuk'}
           </button>
           {setupAvailable && <button type="button" className="text-button" onClick={() => setSetupMode(true)}>Buat admin pertama</button>}
         </form>}
 
-        <div style={{ marginTop: '32px', fontSize: '12px', color: '#888', borderTop: '1px solid #F0ECE6', paddingTop: '16px' }}>
-          Created by Leoneshenkad
-        </div>
+        </section>
+        <section className="login-brand-panel" aria-label="Kasapink ERP">
+          <img className="login-illustration" src="/kasapink-login-illustration.png" alt="Ilustrasi dashboard stok dan produk Kasapink ERP" />
+        </section>
       </div>
     </div>
   );
@@ -137,8 +150,12 @@ function Shell({ children, connected, onLogout, user }: { children: React.ReactN
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const userMenuRef = useRef<HTMLDivElement>(null);
-  const visibleNavItems = navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || user.role === 'admin');
+  const visibleNavItems = useMemo(() => navItems.filter((item) => !('adminOnly' in item && item.adminOnly) || user.role === 'admin'), [user.role]);
   const active = visibleNavItems.flatMap((n) => n.children || [n]).find((n) => n.href === path);
+  useEffect(() => {
+    const activeGroup = visibleNavItems.find((item) => item.children?.some((child) => child.href === path));
+    if (activeGroup) setExpandedMenu(activeGroup.href);
+  }, [path, user.role, visibleNavItems]);
   useEffect(() => {
     if (!userMenuOpen) return;
     const closeMenu = (event: MouseEvent) => {
@@ -153,9 +170,13 @@ function Shell({ children, connected, onLogout, user }: { children: React.ReactN
         <span className="brand-mark"><CookingPot size={21} /></span>
         <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
       </Link>
+      <div className="sidebar-profile">
+        <span className="profile-avatar">{user.username.slice(0, 1).toUpperCase()}</span>
+        <span><b>{user.username}</b><small>{user.role === 'admin' ? 'Business owner' : 'Read only'}</small></span>
+      </div>
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">
-        {visibleNavItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${path.startsWith(`${href}/`) ? 'nav-group-active' : ''}`} key={href}>
+        {visibleNavItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${children.some((child) => child.href === path) ? 'nav-group-active' : ''}`} key={href}>
           <button type="button" className="nav-group-heading" aria-expanded={expandedMenu === href} aria-controls={`${href.slice(1)}-submenu`} onClick={() => setExpandedMenu((open) => open === href ? null : href)}>
             <Icon size={18} strokeWidth={1.8} /><span>{label}</span><ChevronDown className={`nav-group-chevron ${expandedMenu === href ? 'is-open' : ''}`} size={16} />
           </button>
@@ -238,6 +259,17 @@ function useRefresh() {
 }
 
 function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; retry: () => void }) {
+  const chartParams = useMemo(() => ({ startDate: `${today().slice(0, 7)}-01`, endDate: today() }), []);
+  const chartQuery = useGetFinanceReport(chartParams);
+  const chartData = (chartQuery.data?.days || []).map((day) => ({ label: day.date.slice(5), sales: Number(day.revenue), purchases: Number(day.purchases) }));
+  const chartMax = Math.max(1, ...chartData.flatMap((day) => [day.sales, day.purchases]));
+  const chartPoint = (value: number, index: number) => {
+    const x = chartData.length <= 1 ? 360 : 42 + (index / (chartData.length - 1)) * 636;
+    const y = 170 - (value / chartMax) * 142;
+    return `${x},${y}`;
+  };
+  const salesPoints = chartData.map((day, index) => chartPoint(day.sales, index)).join(' ');
+  const purchasePoints = chartData.map((day, index) => chartPoint(day.purchases, index)).join(' ');
   if (!state) return error ? <ErrorPanel message={error} retry={retry} /> : <LoadingPanel />;
 
   const todayData = state.today || { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 };
@@ -251,18 +283,33 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
   ].sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
 
   return <>
-    <PageHeading kicker="RINGKASAN HARI INI" title="KASAPINK." note="Semua catatan usaha hari ini, dalam satu tempat." action={<span className="date-chip"><CalendarDays size={16} />{dateLabel(todayData.date || today())}</span>} />
+    <PageHeading kicker="WORKSPACE OVERVIEW" title="Dashboard" note="Pantau penjualan, stok, dan aktivitas usaha dari satu ruang kerja." action={<span className="date-chip"><CalendarDays size={16} />{dateLabel(todayData.date || today())}</span>} />
     <div className="metric-grid">
-      <Card className="metric-card metric-feature"><span className="metric-label">PENJUALAN HARI INI</span><strong>{money(todayData.revenue)}</strong><span className="metric-foot"><TrendingUp size={14} /> Uang masuk dari penjualan</span><div className="metric-stamp"><ReceiptText size={20} /></div></Card>
-      <Card className="metric-card"><span className="metric-label">LABA KOTOR</span><strong>{money(todayData.grossProfit)}</strong><span className="metric-foot">Setelah biaya bahan terjual</span><div className="metric-side-icon"><TrendingUp size={18} /></div></Card>
-      <Card className="metric-card"><span className="metric-label">BELANJA BAHAN</span><strong>{money(todayData.purchases)}</strong><span className="metric-foot">Pengeluaran hari ini</span><div className="metric-side-icon peach"><ShoppingBasket size={18} /></div></Card>
-      <Card className="metric-card"><span className="metric-label">BAHAN MENIPIS</span><strong>{state.lowStockCount ?? 0}</strong><span className="metric-foot">Perlu dicek sebelum belanja</span><div className="metric-side-icon alert"><Boxes size={18} /></div></Card>
+      <Card className="metric-card metric-feature"><span className="metric-label">TOTAL SALES</span><strong>{money(todayData.revenue)}</strong><span className="metric-foot"><TrendingUp size={14} /> Hari ini</span><div className="metric-stamp"><ReceiptText size={20} /></div></Card>
+      <Card className="metric-card"><span className="metric-label">GROSS PROFIT</span><strong>{money(todayData.grossProfit)}</strong><span className="metric-foot">Setelah biaya bahan terjual</span><div className="metric-side-icon"><TrendingUp size={18} /></div></Card>
+      <Card className="metric-card"><span className="metric-label">PURCHASES</span><strong>{money(todayData.purchases)}</strong><span className="metric-foot">Belanja bahan hari ini</span><div className="metric-side-icon peach"><ShoppingBasket size={18} /></div></Card>
+      <Card className="metric-card"><span className="metric-label">LOW STOCK</span><strong>{state.lowStockCount ?? 0}</strong><span className="metric-foot">Item perlu dicek</span><div className="metric-side-icon alert"><Boxes size={18} /></div></Card>
     </div>
+    <Card className="dashboard-chart-card">
+      <div className="card-heading dashboard-chart-heading"><div><span className="eyebrow">PERFORMANCE</span><h2>Sales overview</h2></div><span className="period-chip">This month</span></div>
+      <div className="dashboard-chart-legend"><span><i className="legend-dot sales" />Sales</span><span><i className="legend-dot purchases" />Purchases</span></div>
+      <div className="dashboard-chart" aria-label="Grafik penjualan dan belanja bulanan">
+        {chartData.length ? <svg className="sales-chart-svg" viewBox="0 0 720 205" role="img" aria-label="Grafik penjualan dan belanja bulanan">
+          <defs><linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f2bfd2" stopOpacity=".65" /><stop offset="100%" stopColor="#f2bfd2" stopOpacity=".08" /></linearGradient></defs>
+          {[28, 75, 122, 170].map((y) => <line key={y} x1="42" x2="678" y1={y} y2={y} stroke="#f2bfd2" strokeOpacity=".45" />)}
+          <polygon points={`42,170 ${salesPoints} 678,170`} fill="url(#salesFill)" />
+          <polyline points={salesPoints} fill="none" stroke="#f2bfd2" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={purchasePoints} fill="none" stroke="#fdcee0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+          {chartData.map((day, index) => <text key={day.label} x={chartData.length <= 1 ? 360 : 42 + (index / (chartData.length - 1)) * 636} y="198" textAnchor="middle" fill="#8b6072" fontSize="10">{day.label}</text>)}
+          <text x="4" y="31" fill="#8b6072" fontSize="10">{chartMax >= 1000 ? `${Math.round(chartMax / 1000)}k` : chartMax}</text><text x="14" y="174" fill="#8b6072" fontSize="10">0</text>
+        </svg> : <Empty title="Belum ada data grafik" text="Penjualan dan belanja akan membentuk grafik setelah ada transaksi." />}
+      </div>
+    </Card>
     <div className="dashboard-bottom">
-      <Card className="table-card"><div className="card-heading"><div><span className="eyebrow">PERHATIAN</span><h2>Stok perlu diisi</h2></div><Link href="/stok" className="inline-link">Lihat semua <ArrowRight size={15} /></Link></div>
+      <Card className="table-card"><div className="card-heading"><div><span className="eyebrow">OVERVIEW</span><h2>Stock overview</h2></div><Link href="/stok" className="inline-link">View products <ArrowRight size={15} /></Link></div>
         {low.length ? <div className="stock-list">{low.slice(0, 5).map((i) => <div className="stock-row" key={i.id}><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><span className="stock-name"><b>{i.name}</b><small>Minimum {i.minStock} {i.unit}</small></span><span className="stock-value">{i.stock} <small>{i.unit}</small></span><span className="status-pill status-low">Menipis</span></div>)}</div> : <Empty title="Stok aman" text="Belum ada bahan yang perlu segera dibeli." />}
       </Card>
-      <Card className="table-card"><div className="card-heading"><div><span className="eyebrow">AKTIVITAS TERBARU</span><h2>Catatan terakhir</h2></div><Link href="/laporan" className="inline-link">Laporan <ArrowRight size={15} /></Link></div>
+      <Card className="table-card"><div className="card-heading"><div><span className="eyebrow">ACTIVITY</span><h2>Recent activity</h2></div><Link href="/laporan" className="inline-link">View reports <ArrowRight size={15} /></Link></div>
         {recent.length ? <div className="activity-list">{recent.map((r) => <div className="activity-row" key={r.id}><span className={`activity-icon ${r.kind}`} >{r.kind === 'sale' ? <ArrowDownLeft size={16} /> : <ShoppingBasket size={16} />}</span><div className="activity-name"><b>{r.title}</b><small>{dateLabel(r.date)} · {r.detail}</small></div><strong className={r.kind === 'sale' ? 'positive' : ''}>{money(r.amount)}</strong></div>)}</div> : <Empty title="Belum ada transaksi" text="Belanja dan penjualan yang dicatat akan tampil di sini." />}
       </Card>
     </div>
@@ -378,10 +425,10 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
   return <>
     <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => openModal('new')}><Plus size={17} /> Tambah bahan</Button>} />
     <Card className="table-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><button type="button" className={`filter-chip ${stockFilter === 'low' ? 'is-active' : ''}`} aria-pressed={stockFilter === 'low'} onClick={() => setStockFilter((value) => value === 'low' ? 'all' : 'low')}><AlertCircle size={14} /> Stok menipis</button></div><span className="result-count">{visible.length} bahan</span></div>
-      {visible.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#e11d48' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={visible.length} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
+      {visible.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#613248' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={visible.length} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
-      <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" onBlur={(e) => { const value = e.currentTarget.value.trim(); setNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.' : ''); }} />{nameError && <small className="form-hint" style={{ color: '#b42318' }}>{nameError}</small>}</Field>
+      <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" onBlur={(e) => { const value = e.currentTarget.value.trim(); setNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.' : ''); }} />{nameError && <small className="form-hint" style={{ color: '#613248' }}>{nameError}</small>}</Field>
       <Field label="Kategori"><FieldSelect disabled={readOnly} name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan"><FieldSelect disabled={readOnly} name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput disabled={readOnly} name="stock" type="number" min="0" step="any" defaultValue="" placeholder="Masukkan jumlah stok" required /></Field>}
@@ -493,7 +540,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
         const estimatedGrossProfit = p.sellingPrice - unitCost;
         const marginPercent = p.sellingPrice > 0 ? (estimatedGrossProfit / p.sellingPrice) * 100 : 0;
         return <Card className="product-card" key={p.id}>
-          <div className="product-top"><span className="product-illustration"><CookingPot size={21} /></span><div style={{ display: 'flex', gap: '4px' }}>{!readOnly && <><button className="icon-button" aria-label={`Ubah ${p.name}`} onClick={() => openEditProduct(p)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Hapus ${p.name}`} onClick={() => handleDeleteProduct(p.id, p.name)} style={{ color: '#e11d48' }}><Trash2 size={16} /></button></>}</div></div>
+          <div className="product-top"><span className="product-illustration"><CookingPot size={21} /></span><div style={{ display: 'flex', gap: '4px' }}>{!readOnly && <><button className="icon-button" aria-label={`Ubah ${p.name}`} onClick={() => openEditProduct(p)}><Pencil size={16} /></button><button className="icon-button" aria-label={`Hapus ${p.name}`} onClick={() => handleDeleteProduct(p.id, p.name)} style={{ color: '#613248' }}><Trash2 size={16} /></button></>}</div></div>
           <h2>{p.name}</h2>
           <span className="status-pill status-ok">{p.needsRecipe ? 'Produk olahan' : 'Produk jadi'}</span>
           <div className="product-price">{money(p.sellingPrice)} <small>/ unit</small></div>
@@ -580,7 +627,7 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
   };
   return <><PageHeading kicker="PENJUALAN HARIAN" title="Catat Penjualan" note="Simpan transaksi meski stok kurang; periksa warning untuk bahan atau produk yang perlu diisi." />
     <div className="entry-layout"><Card className="entry-card"><div className="card-heading"><div><span className="eyebrow">TRANSAKSI BARU</span><h2>Penjualan</h2></div><span className="step-number">01</span></div><form onSubmit={submit} className="form-stack" onInput={() => setUnsavedChanges(true)} onChange={() => setUnsavedChanges(true)}>
-      <div><span className="mb-2 block text-xs font-semibold text-gray-600">Kategori penjualan</span><div className="flex flex-wrap gap-2" role="group" aria-label="Kategori penjualan">{(['Makanan', 'Parfum'] as const).map((category) => <button key={category} disabled={readOnly} type="button" aria-pressed={kategoriPenjualan === category} className={`rounded-full px-4 py-2 text-sm font-semibold transition-colors ${kategoriPenjualan === category ? 'bg-[#2A3F32] text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`} onClick={() => { setKategoriPenjualan(category); setLines([{ productId: safeProducts.find((product) => product.businessType === category)?.id || 0, quantity: '' }]); setError(''); setDone(''); setWarnings([]); }}>{category}</button>)}</div></div>
+      <div><span className="mb-2 block text-xs font-semibold text-gray-600">Kategori penjualan</span><div className="flex flex-wrap gap-2" role="group" aria-label="Kategori penjualan">{(['Makanan', 'Parfum'] as const).map((category) => <button key={category} disabled={readOnly} type="button" aria-pressed={kategoriPenjualan === category} className={`category-pill ${kategoriPenjualan === category ? 'is-active' : ''}`} onClick={() => { setKategoriPenjualan(category); setLines([{ productId: safeProducts.find((product) => product.businessType === category)?.id || 0, quantity: '' }]); setError(''); setDone(''); setWarnings([]); }}>{category}</button>)}</div></div>
       <Field label="Tanggal"><FieldInput disabled={readOnly} type="date" required value={date} onChange={(e) => setDate(e.target.value)} /></Field><div className="line-head"><b>Produk terjual</b><span>Harga mengikuti daftar produk</span></div>
       {lines.map((l, idx) => <div className="sale-line" key={idx}><Field label="Produk"><FieldSelect disabled={readOnly} required value={l.productId || ''} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, productId: Number(e.target.value) } : item))}><option value="" disabled>Pilih produk</option>{availableProducts.map((p) => <option value={p.id} key={p.id}>{p.name} • {money(p.sellingPrice)}{p.needsRecipe ? ' • olahan' : ` • stok ${p.stock}`}</option>)}</FieldSelect></Field><Field label="Jumlah"><FieldInput disabled={readOnly} required type="number" min="1" step="1" value={l.quantity} onChange={(e) => setLines(lines.map((item, i) => i === idx ? { ...item, quantity: e.target.value === '' ? '' : Number(e.target.value) } : item))} /></Field><button className="remove-line" type="button" disabled={readOnly || lines.length === 1} aria-label="Hapus produk" onClick={() => setLines(lines.filter((_, i) => i !== idx))}><X size={16} /></button></div>)}
       <button className="add-line" type="button" disabled={readOnly || !availableProducts.length} onClick={() => setLines([...lines, { productId: availableProducts[0]?.id || 0, quantity: '' }])}><CirclePlus size={16} /> Tambah produk</button>
@@ -653,14 +700,40 @@ function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: 
   </>;
 }
 
-function ReportPage() {
+function ReportPage({ isAdmin = false }: { isAdmin?: boolean }) {
   const [startDate, setStart] = useState(`${today().slice(0, 7)}-01`), [endDate, setEnd] = useState(today());
   const params = useMemo(() => ({ startDate, endDate }), [startDate, endDate]);
   const query = useGetFinanceReport(params);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   const r = query.data;
   const safeDays = r?.days || [];
+  const exportBackup = async () => {
+    if (!isAdmin || exporting) return;
+    setExporting(true);
+    setExportError('');
+    try {
+      const response = await fetch('/api/erp/export', { headers: authHeaders() });
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Gagal mengunduh export data.');
+      }
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `kasapink-erp-export-${today()}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } catch (error) {
+      setExportError(errText(error));
+    } finally {
+      setExporting(false);
+    }
+  };
   return <><PageHeading kicker="ANGKA USAHA" title="Laporan keuangan" note="Ringkasan penjualan, belanja, dan laba kotor sesuai tanggal." />
-    <Card className="report-filter"><div><span className="eyebrow">PERIODE LAPORAN</span><h2>Pilih rentang tanggal</h2></div><div className="date-range"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={(e) => setStart(e.target.value)} /></Field><span className="range-separator">sampai</span><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={(e) => setEnd(e.target.value)} /></Field></div></Card>
+    <Card className="report-filter"><div><span className="eyebrow">PERIODE LAPORAN</span><h2>Pilih rentang tanggal</h2></div><div className="date-range"><Field label="Dari"><FieldInput type="date" value={startDate} max={endDate} onChange={(e) => setStart(e.target.value)} /></Field><span className="range-separator">sampai</span><Field label="Sampai"><FieldInput type="date" value={endDate} min={startDate} max={today()} onChange={(e) => setEnd(e.target.value)} /></Field></div>{isAdmin && <button type="button" className="button button-secondary report-export-button" onClick={() => void exportBackup()} disabled={exporting}><Download size={15} />{exporting ? 'Menyiapkan…' : 'Export data'}</button>}</Card>
+    {exportError && <div className="error-panel"><AlertCircle size={18} /><div><b>Export gagal</b><p>{exportError}</p></div></div>}
     {query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : r && <>
       <div className="report-metrics"><Card className="report-total"><span className="metric-label">TOTAL PENJUALAN</span><strong>{money(r.revenue)}</strong><small>Pemasukan dari produk terjual</small></Card><Card className="report-total"><span className="metric-label">HARGA POKOK TERJUAL</span><strong>{money(r.costOfGoodsSold)}</strong><small>Biaya bahan untuk produk terjual</small></Card><Card className="report-total"><span className="metric-label">BELANJA BAHAN</span><strong>{money(r.purchases)}</strong><small>Total pembelian bahan baku</small></Card><Card className="report-total highlight"><span className="metric-label">LABA KOTOR</span><strong>{money(r.grossProfit)}</strong><small>Penjualan dikurangi harga pokok</small></Card></div>
       <Card className="table-card"><div className="card-heading"><div><span className="eyebrow">RINCIAN HARIAN</span><h2>Pergerakan per hari</h2></div><span className="period-chip">{dateLabel(r.startDate)} — {dateLabel(r.endDate)}</span></div>{safeDays.length ? <div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>PENJUALAN</th><th>HARGA POKOK</th><th>BELANJA</th><th>LABA KOTOR</th></tr></thead><tbody>{safeDays.map((d) => <tr key={d.date}><td><b>{dateLabel(d.date)}</b></td><td>{money(d.revenue)}</td><td>{money(d.costOfGoodsSold)}</td><td>{money(d.purchases)}</td><td><b>{money(d.grossProfit)}</b></td></tr>)}</tbody></table></div> : <Empty title="Belum ada catatan pada periode ini" text="Coba pilih rentang tanggal yang berbeda." />}</Card>
@@ -1237,7 +1310,7 @@ function AppContent({ onLogout, user }: { onLogout: () => void; user: AppUser })
     <Route path="/prep" component={() => <PrepPage readOnly={user.role === 'testing'} />} />
     <Route path="/kontrol-fnb" component={() => <FnbControlPage readOnly={user.role === 'testing'} />} />
     <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />} />
-    <Route path="/laporan" component={ReportPage} />
+    <Route path="/laporan" component={() => <ReportPage isAdmin={user.role === 'admin'} />} />
     <Route path="/users" component={() => user.role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
 
     <Route component={() => <div className="not-found"><span className="eyebrow">HALAMAN TIDAK ADA</span><h1>Sepertinya tersesat.</h1><Link href="/" className="inline-link">Kembali ke ringkasan <ArrowRight size={16} /></Link></div>} />
@@ -1297,17 +1370,15 @@ function App() {
 
   const handleAccountLogout = useCallback(async () => {
     if (logoutPending.current) return;
-    const token = localStorage.getItem('kasapink_token');
-    if (!token) { handleLogout(); return; }
     logoutPending.current = true;
     try {
       const response = await fetch('/api/logout', {
         method: 'POST',
-        headers: { Authorization: `Bearer ${token}` },
+        credentials: 'include',
         signal: AbortSignal.timeout(10000),
       });
       if (!response.ok && response.status !== 401) throw new Error('Logout gagal.');
-      if (localStorage.getItem('kasapink_token') === token) handleLogout();
+      handleLogout();
     } catch {
       window.alert('Belum dapat mengakhiri sesi di server. Periksa koneksi dan coba lagi.');
     } finally {
@@ -1317,7 +1388,6 @@ function App() {
 
   const saveSession = useCallback((data: { token: string; user: AppUser }) => {
     client.clear();
-    localStorage.setItem('kasapink_token', data.token);
     localStorage.setItem('kasapink_user', JSON.stringify(data.user));
     localStorage.setItem('kasapink_auth', 'true');
     localStorage.setItem(LAST_ACTIVITY_KEY, String(Date.now()));
@@ -1332,13 +1402,12 @@ function App() {
         const setupResponse = await fetch('/api/setup/status');
         const setup = await setupResponse.json().catch(() => ({}));
         if (active) setSetupAvailable(Boolean(setup.needsAdmin && setup.setupEnabled));
-        const token = localStorage.getItem('kasapink_token');
         const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY));
-        if (!token || !Number.isFinite(lastActivity) || Date.now() - lastActivity >= AUTO_LOGOUT_MS) {
+        if (!Number.isFinite(lastActivity) || Date.now() - lastActivity >= AUTO_LOGOUT_MS) {
           handleLogout();
           return;
         }
-        const response = await fetch('/api/me', { headers: { Authorization: `Bearer ${token}` } });
+        const response = await fetch('/api/me', { credentials: 'include' });
         if (!response.ok) { handleLogout(); return; }
         const data = await response.json();
         if (active) {

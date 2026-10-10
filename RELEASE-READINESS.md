@@ -45,3 +45,23 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 3. Verify the changed frontend/auth behavior on an isolated preview before production rollout. Local PostgreSQL tests do not verify Neon TLS connectivity or Vercel runtime behavior of the new code.
 4. When deployed, tokens issued by the old implementation will be rejected; users must log in again. The revision mechanism requires no new columns in the inspected account schema.
 5. Commit, push, and deploy remain subject to the user's original restrictions until explicitly authorized. No cloud variables, branches, or deployment settings were changed during this review.
+
+## 11-point implementation checklist
+
+- [x] 1. Dangerous `clear-all` is disabled unless `ALLOW_DANGEROUS_CLEAR_ALL=true`; it has no UI entry point.
+- [x] 2. Admin JSON export is available from the Reports page and `/api/erp/export`; `backup:erp` creates a local `pg_dump`; `restore:erp` is local-only and requires two explicit confirmation variables.
+- [x] 3. ERP mutations write actor, route, method, status, and request details to `audit_log`; admins can inspect `/api/erp/audit-log`; exports include audit records.
+- [x] 4. Sale lines persist a costing snapshot containing product, ingredient, preparation, units, conversion factors, and average costs at sale time.
+- [x] 5. Disposable PostgreSQL integration coverage exercises the complete F&B path: ingredient → product → purchase/sale → preparation recipe/batch → preparation product → F&B report.
+- [x] 6. Browser sessions use an HttpOnly `kasapink_session` cookie with SameSite protection; client code no longer stores JWTs in localStorage.
+- [x] 7. Moving-average regression tests cover negative stock, recovery receipts, standard weighted average, preparation conversion, and concurrent sales.
+- [x] 8. Integration coverage verifies `testing` can read but cannot mutate; admin performs the protected mutations.
+- [x] 9. Final UI palette lock, login illustration, responsive styles, chart colors, action states, and semantic color contrast cleanup are applied.
+- [x] 10. `/api/healthz` remains liveness; `/api/readyz` checks PostgreSQL readiness; pino request logging, migration sequence checks, and security smoke checks are available.
+- [x] 11. Final local verification passed: typecheck, frontend build, API build, unit tests, auth session tests, disposable PostgreSQL F&B integration test, and security/API smoke test.
+
+### Verification notes
+
+- Frontend build succeeds with one existing nonfatal Vite sourcemap warning in `src/components/ui/tooltip.tsx`.
+- Cloud preview/production was not used for authenticated writes. No main-branch change, Neon production write, Vercel change, commit, push, or deployment was performed.
+- Before real release, configure a separate preview database/JWT secret, apply migrations through the release process, run the same verification against preview, then obtain explicit deployment approval.

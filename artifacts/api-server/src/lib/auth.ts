@@ -35,7 +35,15 @@ export function createToken(user: SessionUser, res?: Response): string | null {
     revision: sessionRevision(user, secret), iat: now, exp: now + 60 * 60,
   }));
   const content = `${header}.${payload}`;
-  return `${content}.${createHmac("sha256", secret).update(content).digest("base64url")}`;
+  const token = `${content}.${createHmac("sha256", secret).update(content).digest("base64url")}`;
+  res?.cookie("kasapink_session", token, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 60 * 60 * 1000,
+    path: "/",
+  });
+  return token;
 }
 
 function verifyTokenValue(token: string): JwtPayload | null {
@@ -71,7 +79,9 @@ function verifyTokenValue(token: string): JwtPayload | null {
 export async function verifyToken(req: AuthRequest, res: Response, next: NextFunction): Promise<void> {
   if (!getSecret(res)) return;
   const header = req.headers.authorization;
-  const token = header?.startsWith("Bearer ") ? header.slice(7).trim() : "";
+  const token = header?.startsWith("Bearer ")
+    ? header.slice(7).trim()
+    : typeof req.cookies?.kasapink_session === "string" ? req.cookies.kasapink_session : "";
   const user = token ? verifyTokenValue(token) : null;
   if (!user) {
     res.status(401).json({ error: "Sesi tidak valid atau sudah berakhir. Silakan login kembali." });

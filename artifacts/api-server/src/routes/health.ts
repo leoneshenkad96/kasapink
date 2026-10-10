@@ -1,5 +1,6 @@
 import { Router, type IRouter } from "express";
 import { HealthCheckResponse, LegacyHealthCheckResponse } from "@workspace/api-zod";
+import { pool } from "@workspace/db";
 
 const router: IRouter = Router();
 
@@ -14,6 +15,15 @@ router.get("/health", (_req, res) => {
     timestamp: new Date(),
   });
   res.json(data);
+});
+
+router.get("/readyz", async (_req, res) => {
+  try {
+    await pool.query("select 1");
+    res.json({ status: "ok", database: "ready" });
+  } catch (error) {
+    res.status(503).json({ status: "degraded", database: "unavailable" });
+  }
 });
 
 export default router;

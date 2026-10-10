@@ -251,6 +251,7 @@ export const salesDetailsTable = pgTable("erp_sales_details", {
   unitPrice: money("unit_price"),
   revenue: money("revenue"),
   costOfGoodsSold: money("cost_of_goods_sold"),
+  costingSnapshot: text("costing_snapshot"),
 });
 
 export const stockMovementsTable = pgTable(

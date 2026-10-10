@@ -192,7 +192,7 @@ ALTER TABLE "erp_preparation_batches" ADD CONSTRAINT "erp_preparation_batches_pr
 ALTER TABLE "erp_stock_movements" ADD CONSTRAINT "erp_stock_movements_ingredient_id_erp_ingredients_id_fk" FOREIGN KEY ("ingredient_id") REFERENCES "public"."erp_ingredients"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "erp_waste" ADD CONSTRAINT "erp_waste_ingredient_id_erp_ingredients_id_fk" FOREIGN KEY ("ingredient_id") REFERENCES "public"."erp_ingredients"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "erp_waste" ADD CONSTRAINT "erp_waste_preparation_id_erp_preparations_id_fk" FOREIGN KEY ("preparation_id") REFERENCES "public"."erp_preparations"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
-CREATE INDEX "erp_prep_stock_movements_preparation_date_idx" ON "erp_preparation_stock_movements" USING btree ("preparation_id" int4_ops,"date" int4_ops);--> statement-breakpoint
+CREATE INDEX "erp_prep_stock_movements_preparation_date_idx" ON "erp_preparation_stock_movements" USING btree ("preparation_id" int4_ops,"date" date_ops);--> statement-breakpoint
 CREATE INDEX "erp_operating_expenses_date_idx" ON "erp_operating_expenses" USING btree ("date" date_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "erp_prep_recipe_preparation_ingredient_unique" ON "erp_preparation_recipe_items" USING btree ("preparation_id" int4_ops,"ingredient_id" int4_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "erp_ingredients_name_unique" ON "erp_ingredients" USING btree ("name" text_ops);--> statement-breakpoint
@@ -203,8 +203,8 @@ CREATE INDEX "erp_sales_date_idx" ON "erp_sales" USING btree ("date" date_ops);-
 CREATE UNIQUE INDEX "erp_users_username_unique" ON "erp_users" USING btree ("username" text_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "erp_preparations_name_unique" ON "erp_preparations" USING btree ("name" text_ops);--> statement-breakpoint
 CREATE UNIQUE INDEX "erp_preparation_batches_batch_number_unique" ON "erp_preparation_batches" USING btree ("batch_number" text_ops);--> statement-breakpoint
-CREATE INDEX "erp_preparation_batches_preparation_date_idx" ON "erp_preparation_batches" USING btree ("preparation_id" int4_ops,"date" int4_ops);--> statement-breakpoint
+CREATE INDEX "erp_preparation_batches_preparation_date_idx" ON "erp_preparation_batches" USING btree ("preparation_id" int4_ops,"date" date_ops);--> statement-breakpoint
 CREATE INDEX "erp_purchases_date_idx" ON "erp_purchases" USING btree ("date" date_ops);--> statement-breakpoint
-CREATE INDEX "erp_stock_movements_ingredient_date_idx" ON "erp_stock_movements" USING btree ("ingredient_id" int4_ops,"date" int4_ops);--> statement-breakpoint
+CREATE INDEX "erp_stock_movements_ingredient_date_idx" ON "erp_stock_movements" USING btree ("ingredient_id" int4_ops,"date" date_ops);--> statement-breakpoint
 CREATE INDEX "erp_waste_date_idx" ON "erp_waste" USING btree ("date" date_ops);
 */

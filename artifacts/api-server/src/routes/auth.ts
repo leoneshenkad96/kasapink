@@ -85,6 +85,7 @@ router.get("/me", verifyToken, (req: AuthRequest, res) => {
 router.post("/logout", verifyToken, async (req: AuthRequest, res) => {
   await db.update(usersTable).set({ updatedAt: nextSessionRevision() })
     .where(currentSession(req));
+  res.clearCookie("kasapink_session", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
   return res.status(204).end();
 });
 

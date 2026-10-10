@@ -16,22 +16,17 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
     if (!passwordsMatch || newPassword.length < 8) return;
     setSaving(true);
     setMessage(null);
-    const currentToken = localStorage.getItem('kasapink_token');
     try {
       const response = await fetch('/api/users/change-password', {
         method: 'PUT',
         headers: {
-          Authorization: `Bearer ${currentToken || ''}`,
           'Content-Type': 'application/json',
         },
+        credentials: 'include',
         body: JSON.stringify({ oldPassword, newPassword }),
       });
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Gagal mengganti password.');
-      if (typeof data.token !== 'string' || !data.token) throw new Error('Sesi baru tidak tersedia. Silakan login kembali.');
-      if (localStorage.getItem('kasapink_token') === currentToken) {
-        localStorage.setItem('kasapink_token', data.token);
-      }
       setOldPassword('');
       setNewPassword('');
       setConfirmPassword('');

@@ -25,6 +25,7 @@ import {
 } from "@workspace/api-zod";
 import {
   db,
+  auditLogTable,
   ingredientsTable,
   productsTable,
   purchaseDetailsTable,
@@ -42,10 +43,35 @@ import {
   stockMovementsTable,
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
-import { checkRole, requireOperationalRole, verifyToken } from "../lib/auth";
+import { checkRole, requireOperationalRole, verifyToken, type AuthRequest } from "../lib/auth";
+import { preparationComponentCost } from "../lib/costing";
+import { movingAverageAfterReceipt } from "../lib/moving-average";
 
 const router: IRouter = Router();
 router.use(verifyToken, requireOperationalRole("admin", "user"));
+
+router.use((req, res, next) => {
+  if (["GET", "HEAD", "OPTIONS"].includes(req.method)) {
+    next();
+    return;
+  }
+  res.on("finish", () => {
+    const actor = (req as AuthRequest).authUser;
+    if (!actor || res.statusCode >= 500) return;
+    const details = req.body && typeof req.body === "object"
+      ? JSON.stringify(req.body)
+      : undefined;
+    void db.insert(auditLogTable).values({
+      actorId: actor.id,
+      actorUsername: actor.username,
+      method: req.method,
+      path: req.path,
+      statusCode: res.statusCode,
+      details,
+    }).catch((error: unknown) => req.log?.warn({ err: error }, "ERP audit log write failed"));
+  });
+  next();
+});
 
 class HttpError extends Error {
   constructor(
@@ -443,6 +469,51 @@ router.get(
       endDate: dateKey(validated.endDate),
       days: validated.days.map((day) => ({ ...day, date: dateKey(day.date) })),
     });
+  }),
+);
+
+router.get(
+  "/erp/export",
+  checkRole("admin"),
+  safe(async (_req, res) => {
+    const [ingredients, products, preparations, recipeItems, preparationRecipeItems, productPreparationItems,
+      preparationBatches, purchases, purchaseDetails, sales, salesDetails, stockMovements,
+      preparationStockMovements, waste, operatingExpenses, auditLogs] = await Promise.all([
+      db.select().from(ingredientsTable),
+      db.select().from(productsTable),
+      db.select().from(preparationsTable),
+      db.select().from(recipeItemsTable),
+      db.select().from(preparationRecipeItemsTable),
+      db.select().from(productPreparationItemsTable),
+      db.select().from(preparationBatchesTable),
+      db.select().from(purchasesTable),
+      db.select().from(purchaseDetailsTable),
+      db.select().from(salesTable),
+      db.select().from(salesDetailsTable),
+      db.select().from(stockMovementsTable),
+      db.select().from(preparationStockMovementsTable),
+      db.select().from(wasteTable),
+      db.select().from(operatingExpensesTable),
+      db.select().from(auditLogTable),
+    ]);
+    res.setHeader("Content-Disposition", `attachment; filename="kasapink-erp-export-${jakartaToday()}.json"`);
+    res.json({
+      schemaVersion: 1,
+      exportedAt: new Date().toISOString(),
+      data: { ingredients, products, preparations, recipeItems, preparationRecipeItems, productPreparationItems,
+        preparationBatches, purchases, purchaseDetails, sales, salesDetails, stockMovements,
+        preparationStockMovements, waste, operatingExpenses, auditLogs },
+    });
+  }),
+);
+
+router.get(
+  "/erp/audit-log",
+  checkRole("admin"),
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 100), 1), 500);
+    const rows = await db.select().from(auditLogTable).orderBy(desc(auditLogTable.createdAt)).limit(limit);
+    res.json({ items: rows });
   }),
 );
 
@@ -873,9 +944,13 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     const unitCost = roundMoney(totalCost / parsed.data.actualQty);
     const yieldPercentage = roundMoney((parsed.data.actualQty / parsed.data.targetQty) * 1000) / 10;
     const newStock = number(prep.stock) + parsed.data.actualQty;
-    const newAverageCost = newStock > 0
-      ? roundMoney((number(prep.stock) * number(prep.averageCost) + totalCost) / newStock)
-      : unitCost;
+    const newAverageCost = movingAverageAfterReceipt({
+      stockBefore: number(prep.stock),
+      averageCostBefore: number(prep.averageCost),
+      quantityReceived: parsed.data.actualQty,
+      receiptTotalCost: totalCost,
+      round: roundMoney,
+    });
     const batchNumber = `P-${dateKey(parsed.data.date).replaceAll("-", "")}-${preparationId}-${Date.now()}`;
     const [batch] = await tx.insert(preparationBatchesTable).values({
       preparationId, batchNumber, date: dateKey(parsed.data.date), targetQty: String(parsed.data.targetQty),
@@ -1031,7 +1106,13 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
       const ing = ingredientById.get(r.ingredientId!); return sum + (ing ? number(r.qtyRequired) * number(r.conversionFactor) * number(ing.averageCost) : 0);
     }, 0);
     const prepCost = productPreps.filter((r) => r.productId === line.productId).reduce((sum, r) => {
-      const p = prepById.get(r.preparationId); return sum + (p ? number(r.qtyRequired) * number(p.averageCost) : 0);
+      const p = prepById.get(r.preparationId);
+      return sum + (p ? preparationComponentCost({
+        quantityRequired: number(r.qtyRequired),
+        conversionFactor: number(r.conversionFactor),
+        quantity: 1,
+        averageCost: number(p.averageCost),
+      }) : 0);
     }, 0);
     row.theoreticalCogs += (ingCost + prepCost) * line.quantity;
     menuMap.set(line.productId, row);
@@ -1226,10 +1307,13 @@ router.post(
         const oldAverageCost = number(ingredient.averageCost);
         const unitCost = line.totalCost / line.quantity;
         const newStock = oldStock + line.quantity;
-        const newAverageCost =
-          newStock > 0
-            ? roundMoney((oldStock * oldAverageCost + line.totalCost) / newStock)
-            : roundMoney(unitCost);
+        const newAverageCost = movingAverageAfterReceipt({
+          stockBefore: oldStock,
+          averageCostBefore: oldAverageCost,
+          quantityReceived: line.quantity,
+          receiptTotalCost: line.totalCost,
+          round: roundMoney,
+        });
         details.push({
           purchaseId: purchase.id,
           ingredientId: line.ingredientId,
@@ -1558,6 +1642,20 @@ router.post(
         const quantity = quantities.get(productId)!;
         const unitPrice = number(product.sellingPrice);
         const recipe = recipesByProduct.get(productId) ?? [];
+        const costingSnapshot = {
+          capturedAt: new Date().toISOString(),
+          productAverageCost: number(product.averageCost),
+          ingredients: recipe.filter((item) => item.ingredientId).map((item) => {
+            const ingredient = ingredientById.get(item.ingredientId!)!;
+            return { ingredientId: item.ingredientId, quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
+              conversionFactor: number(item.conversionFactor), averageCost: number(ingredient.averageCost), category: ingredient.category };
+          }),
+          preparations: productPrepRows.filter((row) => row.productId === productId).map((item) => {
+            const prep = preparationById.get(item.preparationId);
+            return { preparationId: item.preparationId, quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
+              conversionFactor: number(item.conversionFactor), averageCost: prep ? number(prep.averageCost) : 0 };
+          }),
+        };
         const costOfGoodsSold = product.needsRecipe
           ? recipe.reduce((sum, item) => {
             if (!item.ingredientId) return sum;
@@ -1566,7 +1664,12 @@ router.post(
             return sum + number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(ingredient.averageCost);
           }, productPrepRows.filter((row) => row.productId === productId).reduce((sum, item) => {
             const prep = preparationById.get(item.preparationId);
-            return sum + (prep ? number(item.qtyRequired) * number(item.conversionFactor) * quantity * number(prep.averageCost) : 0);
+            return sum + (prep ? preparationComponentCost({
+              quantityRequired: number(item.qtyRequired),
+              conversionFactor: number(item.conversionFactor),
+              quantity,
+              averageCost: number(prep.averageCost),
+            }) : 0);
           }, 0))
           : number(product.averageCost) * quantity;
         return {
@@ -1576,6 +1679,7 @@ router.post(
           unitPrice,
           revenue: roundMoney(unitPrice * quantity),
           costOfGoodsSold: roundMoney(costOfGoodsSold),
+          costingSnapshot: JSON.stringify(costingSnapshot),
         };
       });
       const totalRevenue = roundMoney(saleLines.reduce((sum, line) => sum + line.revenue, 0));
@@ -1599,6 +1703,7 @@ router.post(
           unitPrice: String(line.unitPrice),
           revenue: String(line.revenue),
           costOfGoodsSold: String(line.costOfGoodsSold),
+          costingSnapshot: line.costingSnapshot,
         })),
       );
       for (const [productId, soldQuantity] of quantities) {
