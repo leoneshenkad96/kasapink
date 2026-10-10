@@ -171,10 +171,6 @@ function Shell({ children, connected, onLogout, user }: { children: React.ReactN
         <span className="brand-mark"><CookingPot size={21} /></span>
         <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
       </Link>
-      <div className="sidebar-profile">
-        <span className="profile-avatar">{user.username.slice(0, 1).toUpperCase()}</span>
-        <span><b>{user.username}</b><small>{user.role === 'admin' ? 'Business owner' : 'Read only'}</small></span>
-      </div>
       <div className="side-caption">MENU UTAMA</div>
       <nav className="side-nav">
         {visibleNavItems.map(({ href, label, icon: Icon, children }) => children ? <div className={`nav-group ${children.some((child) => child.href === path) ? 'nav-group-active' : ''}`} key={href}>
