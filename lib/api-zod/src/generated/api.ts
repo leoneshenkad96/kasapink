@@ -414,6 +414,50 @@ export const RecordPurchaseResponse = zod.object({
 
 
 /**
+ * @summary List sales with date range and server-side pagination
+ */
+export const listSalesQueryStartDateDefault = new Date("2000-01-01");
+export const listSalesQueryLimitDefault = 50;
+export const listSalesQueryLimitMax = 200;
+
+export const listSalesQueryOffsetDefault = 0;
+export const listSalesQueryOffsetMin = 0;
+
+
+
+export const ListSalesQueryParams = zod.object({
+  "startDate": zod.date().default(listSalesQueryStartDateDefault),
+  "endDate": zod.date().optional(),
+  "limit": zod.coerce.number().int().min(1).max(listSalesQueryLimitMax).default(listSalesQueryLimitDefault),
+  "offset": zod.coerce.number().int().min(listSalesQueryOffsetMin).default(listSalesQueryOffsetDefault)
+})
+
+export const ListSalesResponse = zod.object({
+  "items": zod.array(zod.object({
+  "id": zod.number().int(),
+  "date": zod.coerce.date(),
+  "totalRevenue": zod.number(),
+  "totalCostOfGoodsSold": zod.number(),
+  "grossProfit": zod.number(),
+  "warnings": zod.array(zod.string()).optional(),
+  "items": zod.array(zod.object({
+  "productId": zod.number().int(),
+  "productName": zod.string(),
+  "quantity": zod.number().int(),
+  "unitPrice": zod.number(),
+  "revenue": zod.number(),
+  "costOfGoodsSold": zod.number()
+}))
+})),
+  "pagination": zod.object({
+  "limit": zod.number().int(),
+  "offset": zod.number().int(),
+  "total": zod.number().int()
+})
+})
+
+
+/**
  * @summary Record a sale, consume recipe stock, and calculate cost of goods sold atomically
  */
 

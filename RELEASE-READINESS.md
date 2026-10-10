@@ -87,6 +87,6 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Product list API and Produk & Resep UI now use server-side search, business-type filtering, and pagination.
 - [x] Palette lock checker (`pnpm check:palette`) prevents the removed yellow/olive legacy colors from returning and verifies the pink lock remains active.
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection.
-- [ ] Sales history and report-heavy tables still need server-side pagination if their volume grows beyond the bounded dashboard/state payload.
+- [x] Sales history now has a date-bounded server-side pagination endpoint and the Penjualan page consumes it; report-heavy tables remain date-bounded exports.
 - [ ] Production alerting still requires a deployment-specific monitoring target and credentials; no external monitoring was changed.
 - [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette is locked and the remaining inline/legacy color cleanup is tracked separately.

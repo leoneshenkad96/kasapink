@@ -526,6 +526,25 @@ export type ListProducts200 = {
   pagination: Pagination;
 };
 
+export type ListSalesParams = {
+startDate?: string;
+endDate?: string;
+/**
+ * @minimum 1
+ * @maximum 200
+ */
+limit?: number;
+/**
+ * @minimum 0
+ */
+offset?: number;
+};
+
+export type ListSales200 = {
+  items: Sale[];
+  pagination: Pagination;
+};
+
 export type GetFnbReportParams = {
 startDate: string;
 endDate: string;

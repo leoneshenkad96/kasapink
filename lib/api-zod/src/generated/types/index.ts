@@ -33,6 +33,8 @@ export * from './listIngredientsStockType';
 export * from './listProducts200';
 export * from './listProductsBusinessType';
 export * from './listProductsParams';
+export * from './listSales200';
+export * from './listSalesParams';
 export * from './pagination';
 export * from './product';
 export * from './productBusinessType';

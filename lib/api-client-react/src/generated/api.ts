@@ -41,6 +41,8 @@ import type {
   ListIngredientsParams,
   ListProducts200,
   ListProductsParams,
+  ListSales200,
+  ListSalesParams,
   Product,
   ProductInput,
   ProductUpdate,
@@ -1138,6 +1140,114 @@ export const useRecordPurchase = <TError = ErrorType<unknown>,
       > => {
       return useMutation(getRecordPurchaseMutationOptions(options), queryClient);
     }
+
+export const getListSalesUrl = (params?: ListSalesParams,) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? 'null' : String(value))
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0 ? `/api/erp/sales?${stringifiedParams}` : `/api/erp/sales`
+}
+
+/**
+ * @summary List sales with date range and server-side pagination
+ */
+export const listSales = async (params?: ListSalesParams, options?: Parameters<typeof customFetch>[1]): Promise<ListSales200> => {
+
+  return customFetch<ListSales200>(getListSalesUrl(params),
+  {
+    ...options,
+    method: 'GET'
+
+
+  }
+);}
+
+
+
+
+
+export const getListSalesQueryKey = (params?: ListSalesParams,) => {
+    return [
+    `/api/erp/sales`, ...(params ? [params] : [])
+    ] as const;
+    }
+
+
+export const getListSalesQueryOptions = <TData = Awaited<ReturnType<typeof listSales>>, TError = ErrorType<unknown>>(params?: ListSalesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSales>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+) => {
+
+const {query: queryOptions, request: requestOptions} = options ?? {};
+
+  const queryKey =  queryOptions?.queryKey ?? getListSalesQueryKey(params);
+
+
+
+    const queryFn: QueryFunction<Awaited<ReturnType<typeof listSales>>> = ({ signal }) => listSales(params, { signal, ...requestOptions });
+
+
+
+
+
+   return  { queryKey, queryFn, ...queryOptions} as UseQueryOptions<Awaited<ReturnType<typeof listSales>>, TError, TData> & { queryKey: DataTag<QueryKey, TData, TError> }
+}
+
+export type ListSalesQueryResult = NonNullable<Awaited<ReturnType<typeof listSales>>>
+export type ListSalesQueryError = ErrorType<unknown>
+
+
+export function useListSales<TData = Awaited<ReturnType<typeof listSales>>, TError = ErrorType<unknown>>(
+ params: undefined |  ListSalesParams, options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSales>>, TError, TData>> & Pick<
+        DefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSales>>,
+          TError,
+          Awaited<ReturnType<typeof listSales>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSales<TData = Awaited<ReturnType<typeof listSales>>, TError = ErrorType<unknown>>(
+ params?: ListSalesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSales>>, TError, TData>> & Pick<
+        UndefinedInitialDataOptions<
+          Awaited<ReturnType<typeof listSales>>,
+          TError,
+          Awaited<ReturnType<typeof listSales>>
+        > , 'initialData'
+      >, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+export function useListSales<TData = Awaited<ReturnType<typeof listSales>>, TError = ErrorType<unknown>>(
+ params?: ListSalesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSales>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
+/**
+ * @summary List sales with date range and server-side pagination
+ */
+
+export function useListSales<TData = Awaited<ReturnType<typeof listSales>>, TError = ErrorType<unknown>>(
+ params?: ListSalesParams, options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof listSales>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+ , queryClient?: QueryClient
+ ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {
+
+  const queryOptions = getListSalesQueryOptions(params,options)
+
+  const query = useQuery(queryOptions, queryClient) as  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> };
+
+  return withQueryKey(query, queryOptions.queryKey);
+}
+
+
+
+
+
+
 
 export const getRecordSaleUrl = () => {
 

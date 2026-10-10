@@ -1609,8 +1609,44 @@ router.delete(
   })
 );
 
-router.post(
+router.get(
+  "/erp/sales",
+  safe(async (req, res) => {
+    const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
+    const offset = Math.max(Number(req.query.offset ?? 0), 0);
+    const startDate = String(req.query.startDate ?? "2000-01-01");
+    const endDate = String(req.query.endDate ?? jakartaToday());
+    const [headers, totalRows] = await Promise.all([
+      db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)))
+        .orderBy(desc(salesTable.date), desc(salesTable.id)).limit(limit).offset(offset),
+      db.select({ total: count() }).from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))),
+    ]);
+    const ids = headers.map((row) => row.id);
+    const lines = ids.length ? await db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, ids)) : [];
+    const items = headers.map((sale) => {
+      const totalRevenue = number(sale.totalRevenue);
+      const totalCostOfGoodsSold = number(sale.totalCostOfGoodsSold);
+      return {
+        id: sale.id,
+        date: dateKey(sale.date),
+        totalRevenue,
+        totalCostOfGoodsSold,
+        grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
+        items: lines.filter((line) => line.salesId === sale.id).map((line) => ({
+          productId: line.productId,
+          productName: line.productName,
+          quantity: line.quantity,
+          unitPrice: number(line.unitPrice),
+          revenue: number(line.revenue),
+          costOfGoodsSold: number(line.costOfGoodsSold),
+        })),
+      };
+    });
+    res.json({ items, pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
+  }),
+);
 
+router.post(
   "/erp/sales",
   safe(async (req, res) => {
     const parsed = RecordSaleBody.safeParse(req.body);

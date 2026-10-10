@@ -9,7 +9,7 @@ import {
   useCreateProduct, useGetErpState, useGetFinanceReport, useRecordPurchase,
   useRecordSale, useRecordStockCount, useSaveProductRecipe, useUpdateIngredient,
   useUpdateProduct, getListIngredientsQueryKey, useListIngredients,
-  getListProductsQueryKey, useListProducts,
+  getListProductsQueryKey, useListProducts, getListSalesQueryKey, useListSales,
 } from '@workspace/api-client-react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-client-react';
@@ -258,6 +258,7 @@ function useRefresh() {
     void qc.invalidateQueries({ queryKey: getGetFinanceReportQueryKey() });
     void qc.invalidateQueries({ queryKey: getListIngredientsQueryKey() });
     void qc.invalidateQueries({ queryKey: getListProductsQueryKey() });
+    void qc.invalidateQueries({ queryKey: getListSalesQueryKey() });
   };
 }
 
@@ -626,15 +627,17 @@ function PurchasePage({ ingredients = [], readOnly = false }: { ingredients?: In
 function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boolean }) {
   const salesPageSize = 5;
   const safeProducts = state.products || [];
-  const recentSales = state.recentSales || [];
   const [salesPage, setSalesPage] = useState(1);
   const [kategoriPenjualan, setKategoriPenjualan] = useState<'Makanan' | 'Parfum'>('Makanan');
   const availableProducts = safeProducts.filter((product) => product.businessType === kategoriPenjualan);
+  const salesQuery = useListSales({ startDate: '2000-01-01', endDate: today(), limit: salesPageSize, offset: (salesPage - 1) * salesPageSize });
+  const recentSales = salesQuery.data?.items ?? (state.recentSales || []);
+  const salesTotal = salesQuery.data?.pagination.total ?? recentSales.length;
   const [date, setDate] = useState(today()), [lines, setLines] = useState<{ productId: number; quantity: number | '' }[]>([{ productId: safeProducts.find((product) => product.businessType === 'Makanan')?.id || 0, quantity: '' }]), [error, setError] = useState(''), [done, setDone] = useState(''), [warnings, setWarnings] = useState<string[]>([]);
   const mutation = useRecordSale(), refresh = useRefresh();
   const total = lines.reduce((n, l) => n + (safeProducts.find((p) => p.id === l.productId)?.sellingPrice || 0) * (Number(l.quantity) || 0), 0);
-  const pagedSales = recentSales.slice((salesPage - 1) * salesPageSize, salesPage * salesPageSize);
-  const salesTotalPages = Math.max(1, Math.ceil(recentSales.length / salesPageSize));
+  const pagedSales = recentSales;
+  const salesTotalPages = Math.max(1, Math.ceil(salesTotal / salesPageSize));
   useEffect(() => { if (salesPage > salesTotalPages) setSalesPage(salesTotalPages); }, [salesPage, salesTotalPages]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone(''); setWarnings([]);
@@ -654,8 +657,8 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
       {warnings.length > 0 && <div className="warning-panel" role="alert"><AlertCircle size={18} /><div><b>Transaksi tersimpan dengan catatan stok</b><ul>{warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul></div></div>}
       <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={readOnly || mutation.isPending || !availableProducts.length}>{mutation.isPending ? 'Menyimpan?' : 'Simpan penjualan'}</Button></div>
     </form></Card><aside className="side-tip"><div className="tip-symbol peach"><ReceiptText size={20} /></div><span className="eyebrow">SEBELUM MENYIMPAN</span><h3>Stok kurang tidak menghentikan transaksi</h3><p>Resep kosong atau stok minus akan ditampilkan sebagai warning setelah penjualan berhasil dicatat. Periksa dan sesuaikan stok secara berkala.</p><Link href="/produk" className="inline-link">Cek produk & resep <ArrowRight size={15} /></Link></aside></div>
-    <Card className="table-card sales-history"><div className="card-heading"><div><span className="eyebrow">RIWAYAT TRANSAKSI</span><h2>Penjualan terakhir</h2></div><span className="result-count">{recentSales.length} transaksi terbaru</span></div>
-      {recentSales.length ? <><div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>PRODUK</th><th>JUMLAH</th><th>PENJUALAN</th><th>LABA KOTOR</th><th>STATUS</th></tr></thead><tbody>{pagedSales.map((sale) => <tr key={sale.id}><td><b>{dateLabel(sale.date)}</b><small className="muted">#{sale.id}</small></td><td>{sale.items.map((item) => item.productName).join(', ') || '—'}</td><td>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</td><td><b>{money(sale.totalRevenue)}</b></td><td className="positive"><b>{money(sale.grossProfit)}</b></td><td><span className="status-pill status-ok">Tercatat</span></td></tr>)}</tbody></table></div><PaginationControls page={salesPage} totalItems={recentSales.length} pageSize={salesPageSize} onPageChange={setSalesPage} label="transaksi" /></> : <Empty title="Belum ada penjualan" text="Transaksi yang disimpan akan muncul di tabel ini." />}
+    <Card className="table-card sales-history"><div className="card-heading"><div><span className="eyebrow">RIWAYAT TRANSAKSI</span><h2>Penjualan terakhir</h2></div><span className="result-count">{salesTotal} transaksi</span></div>
+      {salesQuery.isError ? <ErrorPanel message={errText(salesQuery.error)} retry={() => void salesQuery.refetch()} /> : recentSales.length ? <><div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>PRODUK</th><th>JUMLAH</th><th>PENJUALAN</th><th>LABA KOTOR</th><th>STATUS</th></tr></thead><tbody>{pagedSales.map((sale) => <tr key={sale.id}><td><b>{dateLabel(sale.date)}</b><small className="muted">#{sale.id}</small></td><td>{sale.items.map((item) => item.productName).join(', ') || '—'}</td><td>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</td><td><b>{money(sale.totalRevenue)}</b></td><td className="positive"><b>{money(sale.grossProfit)}</b></td><td><span className="status-pill status-ok">Tercatat</span></td></tr>)}</tbody></table></div><PaginationControls page={salesPage} totalItems={salesTotal} pageSize={salesPageSize} onPageChange={setSalesPage} label="transaksi" /></> : <Empty title="Belum ada penjualan" text="Transaksi yang disimpan akan muncul di tabel ini." />}
     </Card>
   </>;
 }

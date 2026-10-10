@@ -187,6 +187,11 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   assert.equal(sale.status, 201);
   assert.equal(sale.body.totalCostOfGoodsSold, 500);
   assert.equal(sale.body.grossProfit, 500);
+  const salesPage = await request("/erp/sales?startDate=2026-10-10&endDate=2026-10-10&limit=1&offset=0", token);
+  assert.equal(salesPage.status, 200);
+  assert.equal(salesPage.body.items[0].id, sale.body.id);
+  assert.equal(salesPage.body.pagination.limit, 1);
+  assert.ok(salesPage.body.pagination.total >= 1);
   const snapshot = await pool.query("SELECT costing_snapshot FROM erp_sales_details WHERE sales_id = $1", [sale.body.id]);
   assert.equal(snapshot.rows.length, 1);
   assert.equal(JSON.parse(snapshot.rows[0].costing_snapshot).ingredients[0].conversionFactor, 1);
