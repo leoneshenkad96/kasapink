@@ -228,6 +228,17 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   });
   assert.equal(preparation.status, 201);
   const preparationId = preparation.body.id;
+  const duplicatePrepRecipe = await request(`/erp/preparations/${preparationId}/recipe`, token, "PUT", {
+    items: [
+      { ingredientId, qtyRequired: 1, recipeUnit: "kg" },
+      { ingredientId, qtyRequired: 1, recipeUnit: "kg" },
+    ],
+  });
+  assert.equal(duplicatePrepRecipe.status, 400);
+  const incompatiblePrepRecipe = await request(`/erp/preparations/${preparationId}/recipe`, token, "PUT", {
+    items: [{ ingredientId, qtyRequired: 1, recipeUnit: "liter" }],
+  });
+  assert.equal(incompatiblePrepRecipe.status, 400);
   const prepRecipe = await request(`/erp/preparations/${preparationId}/recipe`, token, "PUT", {
     items: [{ ingredientId, qtyRequired: 1, recipeUnit: "kg" }],
   });
@@ -244,6 +255,13 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
     items: [{ preparationId, qtyRequired: 1, recipeUnit: "kg" }],
   });
   assert.equal(prepProductLink.status, 200);
+  const duplicatePrepProductLink = await request(`/erp/products/${prepProduct.body.id}/preparations`, token, "PUT", {
+    items: [
+      { preparationId, qtyRequired: 1, recipeUnit: "kg" },
+      { preparationId, qtyRequired: 1, recipeUnit: "kg" },
+    ],
+  });
+  assert.equal(duplicatePrepProductLink.status, 400);
   const prepSale = await request("/erp/sales", token, "POST", {
     date: "2026-10-10", items: [{ productId: prepProduct.body.id, quantity: 1 }],
   });
