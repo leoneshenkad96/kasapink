@@ -6,7 +6,11 @@
     "build": "pnpm --filter @workspace/erp-rumahan-emak run build && node ./scripts/build-vercel-api.mjs",
     "typecheck:libs": "tsc --build",
     "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
-    "test:security": "node ./scripts/security-api-test.mjs"
+    "test:security": "node ./scripts/security-api-test.mjs",
+    "test:auth": "node --test ./scripts/auth-session.test.mjs",
+    "test:auth:postgres": "node --test ./scripts/auth-postgres.test.mjs",
+    "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local.ps1",
+    "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-local.ps1"
   },
   "private": true,
   "dependencies": {

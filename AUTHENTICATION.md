@@ -31,6 +31,16 @@ Apply `lib/db/migrations/0006_add_user_role.sql` to the production PostgreSQL da
 
 ## Security hardening
 
+### Session revocation
+
+Tokens are bound to the account's password hash and existing `updated_at` column through an HMAC revision. Neither the password hash nor the timestamp is included in public user responses. Password changes, admin resets/updates, and **Keluar semua sesi** invalidate prior tokens across devices. A password change returns a replacement token for the current browser. Logout requires a valid bearer token and acknowledges success after the revision is updated or a concurrent account update has already invalidated that revision; on network failure the browser asks the user to retry.
+
+Concurrent logout/password-change requests only update the revision that was authenticated, so a delayed request cannot overwrite a newer account revision. The 20-minute idle lock remains browser-local; it does not promise revocation on offline devices. JWT expiry remains one hour.
+
+No new schema migration is required for this change: it uses `erp_users.updated_at` and `password_hash` already declared in the schema. When this version is deployed, older tokens without a revision are rejected and users must log in again. Verify those existing columns on the intended database before rollout. Do not apply introspection-generated SQL as an incremental migration.
+
+Run `pnpm test:auth` for isolated HTTP tests of the real auth router against an in-memory database double. Run `pnpm test:auth:postgres` to exercise the real Drizzle/PostgreSQL path against a new disposable local cluster. The latter covers concurrent bootstrap, authorization, timestamp precision and monotonicity, logout, password changes including simultaneous requests, admin resets, role changes and account deletion. See `DEVELOPMENT.md` for executable prerequisites and isolation guarantees. These local tests do not establish the actual Neon production schema, TLS connectivity, or Vercel deployment behavior.
+
 The API now applies production security controls:
 - JWT_SECRET must be at least 32 characters. Access tokens expire after 1 hour.
 - Login and admin-bootstrap endpoints are rate-limited in production.

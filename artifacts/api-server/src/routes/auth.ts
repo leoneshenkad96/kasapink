@@ -1,11 +1,17 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { timingSafeEqual } from "node:crypto";
 import { Router } from "express";
 import bcrypt from "bcryptjs";
-import { count, eq, sql } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import { db, usersTable } from "@workspace/db";
 import { checkRole, createToken, type AuthRequest, verifyToken } from "../lib/auth";
 
 const router = Router();
+// Millisecond precision matches JS Date; always advance, even within one tick.
+const nextSessionRevision = () => sql`greatest(date_trunc('milliseconds', clock_timestamp()), ${usersTable.updatedAt} + interval '1 millisecond')`;
+const currentSession = (req: AuthRequest) => and(
+  eq(usersTable.id, req.authUser!.id),
+  sql`date_trunc('milliseconds', ${usersTable.updatedAt}) = ${req.authUpdatedAt!.toISOString()}::timestamptz`,
+);
 const publicUser = (user: { id: number; username: string; role: "admin" | "testing" | "user" }) => ({
   id: user.id,
   username: user.username,
@@ -36,7 +42,7 @@ router.post("/setup/admin", async (req, res) => {
   if (!setupToken || !constantTimeEqual(suppliedToken, setupToken)) {
     return res.status(403).json({ error: "Token setup admin salah atau belum diatur." });
   }
-  if (!username || username.length > 80 || password.length < 8) {
+  if (!username || username.length > 80 || password.length < 8 || password.length > 128) {
     return res.status(400).json({ error: "Username wajib diisi dan password minimal 8 karakter." });
   }
 
@@ -47,7 +53,8 @@ router.post("/setup/admin", async (req, res) => {
     if (Number(result.total) > 0) return null;
     const [created] = await tx.insert(usersTable)
       .values({ username, passwordHash, role: "admin" })
-      .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role });
+      .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role,
+        passwordHash: usersTable.passwordHash, updatedAt: usersTable.updatedAt });
     return created;
   });
   if (!user) return res.status(409).json({ error: "Admin sudah dibuat. Silakan login." });
@@ -66,7 +73,7 @@ router.post("/login", async (req, res) => {
   if (!user || !(await bcrypt.compare(password, user.passwordHash))) {
     return res.status(401).json({ error: "Username atau password salah." });
   }
-  const token = createToken(publicUser(user), res);
+  const token = createToken(user, res);
   if (!token) return;
   return res.json({ token, user: publicUser(user) });
 });
@@ -75,7 +82,11 @@ router.get("/me", verifyToken, (req: AuthRequest, res) => {
   res.json({ user: req.authUser });
 });
 
-router.post("/logout", (_req, res) => res.status(204).end());
+router.post("/logout", verifyToken, async (req: AuthRequest, res) => {
+  await db.update(usersTable).set({ updatedAt: nextSessionRevision() })
+    .where(currentSession(req));
+  return res.status(204).end();
+});
 
 router.put("/users/change-password", verifyToken, async (req: AuthRequest, res) => {
   const oldPassword = typeof req.body.oldPassword === "string" ? req.body.oldPassword : "";
@@ -95,8 +106,13 @@ router.put("/users/change-password", verifyToken, async (req: AuthRequest, res) 
   }
 
   const passwordHash = await bcrypt.hash(newPassword, 12);
-  await db.update(usersTable).set({ passwordHash }).where(eq(usersTable.id, req.authUser!.id));
-  return res.json({ message: "Password berhasil diganti." });
+  const [updatedUser] = await db.update(usersTable)
+    .set({ passwordHash, updatedAt: nextSessionRevision() })
+    .where(and(currentSession(req), eq(usersTable.passwordHash, user.passwordHash))).returning();
+  if (!updatedUser) return res.status(409).json({ error: "Akun sudah berubah. Silakan login kembali." });
+  const token = createToken(updatedUser, res);
+  if (!token) return;
+  return res.json({ token, message: "Password berhasil diganti. Sesi di perangkat lain telah diakhiri." });
 });
 
 router.get("/users", verifyToken, checkRole("admin"), async (_req, res) => {
@@ -127,7 +143,9 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReques
     return res.status(400).json({ error: "Role akun admin yang sedang digunakan tidak dapat diturunkan." });
   }
 
-  const values: { role: "admin" | "testing" | "user"; passwordHash?: string } = { role };
+  const values: { role: "admin" | "testing" | "user"; passwordHash?: string; updatedAt: ReturnType<typeof nextSessionRevision> } = {
+    role, updatedAt: nextSessionRevision(),
+  };
   if (newPassword) values.passwordHash = await bcrypt.hash(newPassword, 12);
   const [updatedUser] = await db.update(usersTable)
     .set(values)

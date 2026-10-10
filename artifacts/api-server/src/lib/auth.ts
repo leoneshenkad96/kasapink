@@ -5,8 +5,9 @@ import { db, usersTable } from "@workspace/db";
 
 export type UserRole = "admin" | "testing" | "user";
 export type AuthUser = { id: number; username: string; role: UserRole };
-export type AuthRequest = Request & { authUser?: AuthUser };
-type JwtPayload = AuthUser & { iat: number; exp: number };
+export type AuthRequest = Request & { authUser?: AuthUser; authUpdatedAt?: Date };
+export type SessionUser = AuthUser & { passwordHash: string; updatedAt: Date };
+type JwtPayload = AuthUser & { iat: number; exp: number; revision: string };
 const base64url = (value: string | Buffer) => Buffer.from(value).toString("base64url");
 
 function getSecret(res?: Response): string | null {
@@ -16,17 +17,28 @@ function getSecret(res?: Response): string | null {
   return null;
 }
 
-export function createToken(user: AuthUser, res?: Response): string | null {
+// Bind each token to the current credentials and account revision without
+// putting the password hash in a readable JWT payload.
+function sessionRevision(user: SessionUser, secret: string): string {
+  return createHmac("sha256", secret)
+    .update(JSON.stringify([user.id, user.passwordHash, user.updatedAt.toISOString()]))
+    .digest("base64url");
+}
+
+export function createToken(user: SessionUser, res?: Response): string | null {
   const secret = getSecret(res);
   if (!secret) return null;
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "HS256", typ: "JWT" }));
-  const payload = base64url(JSON.stringify({ ...user, iat: now, exp: now + 60 * 60 }));
+  const payload = base64url(JSON.stringify({
+    id: user.id, username: user.username, role: user.role,
+    revision: sessionRevision(user, secret), iat: now, exp: now + 60 * 60,
+  }));
   const content = `${header}.${payload}`;
   return `${content}.${createHmac("sha256", secret).update(content).digest("base64url")}`;
 }
 
-function verifyTokenValue(token: string): AuthUser | null {
+function verifyTokenValue(token: string): JwtPayload | null {
   const secret = getSecret();
   if (!secret) return null;
   const parts = token.split(".");
@@ -42,12 +54,17 @@ function verifyTokenValue(token: string): AuthUser | null {
     if (
       jwtHeader.alg !== "HS256" ||
       !Number.isSafeInteger(data.id) ||
-      !data.username ||
+      data.id <= 0 ||
+      typeof data.username !== "string" || !data.username ||
       !["admin", "testing", "user"].includes(data.role) ||
       !Number.isInteger(data.iat) ||
+      data.iat > Math.floor(Date.now() / 1000) ||
+      !Number.isInteger(data.exp) ||
+      data.exp <= data.iat ||
+      typeof data.revision !== "string" ||
       data.exp <= Math.floor(Date.now() / 1000)
     ) return null;
-    return { id: data.id, username: data.username, role: data.role };
+    return data;
   } catch { return null; }
 }
 
@@ -62,17 +79,20 @@ export async function verifyToken(req: AuthRequest, res: Response, next: NextFun
   }
 
   const [currentUser] = await db
-    .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
+    .select({ id: usersTable.id, username: usersTable.username, role: usersTable.role,
+      passwordHash: usersTable.passwordHash, updatedAt: usersTable.updatedAt })
     .from(usersTable)
     .where(eq(usersTable.id, user.id))
     .limit(1);
 
-  if (!currentUser || currentUser.username !== user.username || currentUser.role !== user.role) {
+  if (!currentUser || currentUser.username !== user.username || currentUser.role !== user.role ||
+      sessionRevision(currentUser, getSecret()!) !== user.revision) {
     res.status(401).json({ error: "Sesi tidak lagi berlaku. Silakan login kembali." });
     return;
   }
 
-  req.authUser = currentUser;
+  req.authUser = { id: currentUser.id, username: currentUser.username, role: currentUser.role };
+  req.authUpdatedAt = currentUser.updatedAt;
   next();
 }
 

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type React from 'react';
 import { QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
 import { ErrorBoundary } from '@/components/error-boundary';
@@ -169,10 +169,10 @@ function Shell({ children, connected, onLogout, role }: { children: React.ReactN
 
           <button
             onClick={onLogout}
-            title="Kunci Aplikasi"
+            title="Akhiri semua sesi akun ini"
             style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 10px', backgroundColor: 'rgba(225, 29, 72, 0.08)', color: '#e11d48', border: '1px solid rgba(225, 29, 72, 0.2)', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: '500', transition: 'all 0.2s', marginLeft: '6px' }}
           >
-            <LogOut size={14} /> Kunci
+            <LogOut size={14} /> Keluar semua sesi
           </button>
         </div>
       </header>
@@ -1197,10 +1197,20 @@ function AppRoutes({ isAuthenticated, authReady, user, setupAvailable, onLogin, 
   setPasswordInput: (val: string) => void; errorMsg: string; onLogout: () => void;
 }) {
   const [location, setLocation] = useLocation();
+  const redirectTarget = !authReady
+    ? null
+    : !isAuthenticated && location !== '/login'
+      ? '/login'
+      : isAuthenticated && (location === '/login' || (user?.role !== 'admin' && location === '/users'))
+        ? '/'
+        : null;
+
+  useEffect(() => {
+    if (redirectTarget) setLocation(redirectTarget);
+  }, [redirectTarget, setLocation]);
+
   if (!authReady) return <LoadingPanel />;
-  if (!isAuthenticated && location !== '/login') setLocation('/login');
-  if (isAuthenticated && location === '/login') setLocation('/');
-  if (isAuthenticated && user?.role !== 'admin' && location === '/users') setLocation('/');
+  if (redirectTarget) return <LoadingPanel />;
   if (!isAuthenticated) return <LoginPage onLogin={onLogin} onSetup={onSetup} setupAvailable={setupAvailable}
     usernameInput={usernameInput} setUsernameInput={setUsernameInput} passwordInput={passwordInput}
     setPasswordInput={setPasswordInput} errorMsg={errorMsg} />;
@@ -1218,17 +1228,40 @@ function App() {
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+  const logoutPending = useRef(false);
 
   const handleLogout = useCallback(() => {
     localStorage.removeItem('kasapink_token');
     localStorage.removeItem('kasapink_user');
     localStorage.removeItem('kasapink_auth');
     localStorage.removeItem(LAST_ACTIVITY_KEY);
+    client.clear();
     setCurrentUser(null);
     setIsAuthenticated(false);
   }, []);
 
+  const handleAccountLogout = useCallback(async () => {
+    if (logoutPending.current) return;
+    const token = localStorage.getItem('kasapink_token');
+    if (!token) { handleLogout(); return; }
+    logoutPending.current = true;
+    try {
+      const response = await fetch('/api/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!response.ok && response.status !== 401) throw new Error('Logout gagal.');
+      if (localStorage.getItem('kasapink_token') === token) handleLogout();
+    } catch {
+      window.alert('Belum dapat mengakhiri sesi di server. Periksa koneksi dan coba lagi.');
+    } finally {
+      logoutPending.current = false;
+    }
+  }, [handleLogout]);
+
   const saveSession = useCallback((data: { token: string; user: AppUser }) => {
+    client.clear();
     localStorage.setItem('kasapink_token', data.token);
     localStorage.setItem('kasapink_user', JSON.stringify(data.user));
     localStorage.setItem('kasapink_auth', 'true');
@@ -1341,7 +1374,7 @@ function App() {
             setupAvailable={setupAvailable} onLogin={handleLogin} onSetup={handleSetup}
             usernameInput={usernameInput} setUsernameInput={setUsernameInput}
             passwordInput={passwordInput} setPasswordInput={setPasswordInput}
-            errorMsg={errorMsg} onLogout={handleLogout} />
+            errorMsg={errorMsg} onLogout={() => { void handleAccountLogout(); }} />
         </WouterRouter>
         <Toaster />
       </TooltipProvider>
