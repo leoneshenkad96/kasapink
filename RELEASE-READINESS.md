@@ -93,4 +93,4 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection; latest isolated run passed 2/2.
 - [x] Sales history now has a date-bounded server-side pagination endpoint and the Penjualan page consumes it; report-heavy tables remain date-bounded exports.
 - [x] Local readiness monitor combines liveness, PostgreSQL readiness, migration ordering, and optional backup freshness; production alerting still requires a deployment-specific monitoring target and credentials.
-- [ ] Legacy unused CSS declarations can be removed after visual regression snapshots are introduced; active rendered palette and inline colors are now guarded by the palette check.
+- [x] Visual regression snapshots now cover login, dashboard, and inventory; active rendered palette and inline colors are guarded by the palette check. Remaining superseded layout declarations are documented technical-debt candidates, not active color paths.
