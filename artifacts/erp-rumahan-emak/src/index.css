@@ -3,7 +3,7 @@
 @import 'tw-animate-css';
 @plugin "@tailwindcss/typography";
 
-.readonly-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; padding: 11px 14px; border: 1px solid #e8d28c; border-radius: 10px; background: #fff8dc; color: #624b0b; font-size: 13px; }
+.readonly-notice { display: flex; align-items: center; gap: 8px; margin-bottom: 18px; padding: 11px 14px; border: 1px solid #f2bfd2; border-radius: 10px; background: #fdcee0; color: #613248; font-size: 13px; }
 .testing-readonly form { pointer-events: none; opacity: .62; }
 .testing-readonly .page-heading .heading-action,
 .testing-readonly .icon-button,
@@ -1247,6 +1247,7 @@ body { background: linear-gradient(135deg, #91acef 0%, #b9caf2 100%); }
 }
 
 /* Palette lock must remain last so legacy component rules cannot reintroduce colors. */
+.danger-action, .form-hint.error { color:#613248; }
 body { background:#f2bfd2; }
 .app-shell, .main-area { background:#f9f5f6; }
 .sidebar { background:#f8e7ed; border-color:#f2bfd2; }

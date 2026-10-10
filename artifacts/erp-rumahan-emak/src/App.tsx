@@ -8,7 +8,7 @@ import {
   getGetErpStateQueryKey, getGetFinanceReportQueryKey, useHealthCheck, useCreateIngredient,
   useCreateProduct, useGetErpState, useGetFinanceReport, useRecordPurchase,
   useRecordSale, useRecordStockCount, useSaveProductRecipe, useUpdateIngredient,
-  useUpdateProduct,
+  useUpdateProduct, getListIngredientsQueryKey, useListIngredients,
 } from '@workspace/api-client-react';
 import { setAuthTokenGetter } from '@workspace/api-client-react';
 import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-client-react';
@@ -255,6 +255,7 @@ function useRefresh() {
   return () => {
     void qc.invalidateQueries({ queryKey: getGetErpStateQueryKey() });
     void qc.invalidateQueries({ queryKey: getGetFinanceReportQueryKey() });
+    void qc.invalidateQueries({ queryKey: getListIngredientsQueryKey() });
   };
 }
 
@@ -349,7 +350,6 @@ type PriceTrend = { ingredientId: number; ingredientName: string; unit: string; 
 
 function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum'; readOnly?: boolean }) {
   const pageSize = 10;
-  const safeIngredients = ingredients || [];
   const [modal, setModal] = useState<Ingredient | 'new' | null>(null);
   const [search, setSearch] = useState('');
   const [stockFilter, setStockFilter] = useState<'all' | 'low'>('all');
@@ -361,6 +361,13 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
   const [nameError, setNameError] = useState('');
   const [formDirty, setFormDirty] = useState(false);
   const [priceTrends, setPriceTrends] = useState<PriceTrend[]>([]);
+  const ingredientQuery = useListIngredients({
+    stockType,
+    search: search.trim() || undefined,
+    lowStock: stockFilter === 'low' || undefined,
+    limit: pageSize,
+    offset: (page - 1) * pageSize,
+  });
   useEffect(() => {
     let active = true;
     fetch('/api/erp/price-trends', { headers: authHeaders(), cache: 'no-store' })
@@ -369,9 +376,9 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
       .catch(() => { if (active) setPriceTrends([]); });
     return () => { active = false; };
   }, []);
-  const visible = safeIngredients.filter((x) => x.stockType === stockType && `${x.name} ${x.category}`.toLowerCase().includes(search.toLowerCase()) && (stockFilter === 'all' || x.stock <= x.minStock));
-  const totalPages = Math.max(1, Math.ceil(visible.length / pageSize));
-  const pagedIngredients = visible.slice((page - 1) * pageSize, page * pageSize);
+  const pagedIngredients = ingredientQuery.data?.items ?? ingredients.filter((x) => x.stockType === stockType);
+  const totalItems = ingredientQuery.data?.pagination.total ?? pagedIngredients.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   useEffect(() => { setPage(1); }, [search, stockFilter, stockType]);
   useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
@@ -424,8 +431,8 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
 
   return <>
     <PageHeading kicker={`STOK ${stockType.toUpperCase()}`} title="Stok Bahan" note={`Pantau persediaan dan biaya bahan ${stockType.toLowerCase()}.`} action={<Button onClick={() => openModal('new')}><Plus size={17} /> Tambah bahan</Button>} />
-    <Card className="table-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Cari nama atau kategori..." /></div><button type="button" className={`filter-chip ${stockFilter === 'low' ? 'is-active' : ''}`} aria-pressed={stockFilter === 'low'} onClick={() => setStockFilter((value) => value === 'low' ? 'all' : 'low')}><AlertCircle size={14} /> Stok menipis</button></div><span className="result-count">{visible.length} bahan</span></div>
-      {visible.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#613248' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={visible.length} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
+    <Card className="table-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Cari nama atau kategori..." /></div><button type="button" className={`filter-chip ${stockFilter === 'low' ? 'is-active' : ''}`} aria-pressed={stockFilter === 'low'} onClick={() => { setStockFilter((value) => value === 'low' ? 'all' : 'low'); setPage(1); }}><AlertCircle size={14} /> Stok menipis</button></div><span className="result-count">{totalItems} bahan</span></div>
+      {ingredientQuery.isError ? <ErrorPanel message={errText(ingredientQuery.error)} retry={() => void ingredientQuery.refetch()} /> : pagedIngredients.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#613248' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={totalItems} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
       <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" onBlur={(e) => { const value = e.currentTarget.value.trim(); setNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.' : ''); }} />{nameError && <small className="form-hint" style={{ color: '#613248' }}>{nameError}</small>}</Field>
