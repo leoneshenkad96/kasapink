@@ -17,12 +17,18 @@ export function getPool(): pg.Pool {
       );
     }
 
-    const isLocalDatabase =
-      databaseUrl.includes("localhost") ||
-      databaseUrl.includes("127.0.0.1");
+    const connectionUrl = new URL(databaseUrl);
+    const isLocalDatabase = ["localhost", "127.0.0.1", "::1"].includes(
+      connectionUrl.hostname,
+    );
+
+    // pg-connection-string emits a forward-compatibility warning for
+    // sslmode=require. Remote connections use an explicit strict TLS config
+    // below, so remove the query option instead of relying on its semantics.
+    if (!isLocalDatabase) connectionUrl.searchParams.delete("sslmode");
 
     _pool = new Pool({
-      connectionString: databaseUrl,
+      connectionString: connectionUrl.toString(),
       ...(isLocalDatabase
         ? {}
         : {

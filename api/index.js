@@ -46678,9 +46678,13 @@ function getPool() {
         "DATABASE_URL must be set. Did you forget to provision a database?"
       );
     }
-    const isLocalDatabase = databaseUrl.includes("localhost") || databaseUrl.includes("127.0.0.1");
+    const connectionUrl = new URL(databaseUrl);
+    const isLocalDatabase = ["localhost", "127.0.0.1", "::1"].includes(
+      connectionUrl.hostname
+    );
+    if (!isLocalDatabase) connectionUrl.searchParams.delete("sslmode");
     _pool = new Pool3({
-      connectionString: databaseUrl,
+      connectionString: connectionUrl.toString(),
       ...isLocalDatabase ? {} : {
         ssl: { rejectUnauthorized: true },
         enableChannelBinding: true
