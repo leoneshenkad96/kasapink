@@ -81,6 +81,7 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Production `clear-all` guard: returns unavailable in production regardless of the dangerous flag.
 - [x] Negative-stock policy: non-admin operational users receive 409; admins may continue and receive an explicit override warning; testing remains read-only.
 - [x] Recipe version records are created for product and preparation recipe changes; F&B theoretical HPP uses sale-time costing snapshots so historical cost does not change after editing a recipe.
+- [x] Recipe validation rejects duplicate ingredients/preparations and incompatible recipe units with a client-safe 400 response; integration coverage exercises both rejection paths.
 - [x] Delete-sale integration coverage verifies direct product stock restoration and deletion audit capture.
 - [x] Audit schema now supports before/after data and reason; recipe changes, role changes, and sale deletion populate the extended fields.
 - [x] Backup freshness check is available through `pnpm backup:check`.
