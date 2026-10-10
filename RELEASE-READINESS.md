@@ -85,6 +85,7 @@ Environment metadata shows one sensitive `DATABASE_URL` entry and one sensitive 
 - [x] Backup freshness check is available through `pnpm backup:check`.
 - [x] Ingredient and audit-log APIs now support bounded server-side pagination; ingredient search, stock type, and low-stock filters are queryable without loading the full table.
 - [x] Product list API and Produk & Resep UI now use server-side search, business-type filtering, and pagination.
+- [x] Palette lock checker (`pnpm check:palette`) prevents the removed yellow/olive legacy colors from returning and verifies the pink lock remains active.
 - [x] Playwright browser automation covers admin login/dashboard/inventory search+filter and testing-role read-only/admin denial/API mutation rejection.
 - [ ] Sales history and report-heavy tables still need server-side pagination if their volume grows beyond the bounded dashboard/state payload.
 - [ ] Production alerting still requires a deployment-specific monitoring target and credentials; no external monitoring was changed.

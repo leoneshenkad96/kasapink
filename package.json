@@ -9,6 +9,7 @@
     "test:erp:postgres": "node --test ./scripts/erp-postgres.test.mjs",
     "test:security": "node ./scripts/security-api-test.mjs",
     "test:e2e": "playwright test",
+    "check:palette": "node ./scripts/check-palette.mjs",
     "test:auth": "node --test ./scripts/auth-session.test.mjs",
     "test:auth:postgres": "node --test ./scripts/auth-postgres.test.mjs",
     "backup:erp": "node ./scripts/backup-erp.mjs",
