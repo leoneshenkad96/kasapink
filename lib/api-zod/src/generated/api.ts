@@ -582,6 +582,9 @@ export const GetFnbReportResponse = zod.object({
   "unallocatedSharedExpenses": zod.number().describe('Shared expenses left unallocated when period revenue is zero.'),
   "netProfit": zod.number(),
   "wasteCount": zod.number().int(),
+  "varianceValuationBasis": zod.enum(['transaction_time']).describe('Variance uses costs captured when sales and stock movements occurred.'),
+  "snapshotCoverage": zod.number().describe('Percentage of F&B sale lines with complete immutable recipe snapshots.'),
+  "incompleteSnapshotLines": zod.number().int(),
   "recipeUsageVariance": zod.array(zod.object({
   "itemType": zod.enum(['ingredient', 'preparation']),
   "itemId": zod.number().int(),
@@ -590,6 +593,8 @@ export const GetFnbReportResponse = zod.object({
   "actualQty": zod.number(),
   "theoreticalQty": zod.number(),
   "varianceQty": zod.number(),
+  "actualCost": zod.number().describe('Actual movement value using the unit cost captured at each movement.'),
+  "theoreticalCost": zod.number().describe('Theoretical usage value using costs captured in the sale snapshot.'),
   "varianceCost": zod.number()
 })),
   "inventoryVariance": zod.array(zod.object({
@@ -600,6 +605,8 @@ export const GetFnbReportResponse = zod.object({
   "actualQty": zod.number(),
   "theoreticalQty": zod.number(),
   "varianceQty": zod.number(),
+  "actualCost": zod.number().describe('Actual movement value using the unit cost captured at each movement.'),
+  "theoreticalCost": zod.number().describe('Theoretical usage value using costs captured in the sale snapshot.'),
   "varianceCost": zod.number()
 })).describe('Legacy alias for recipeUsageVariance.'),
   "stockOpnameVariance": zod.array(zod.object({

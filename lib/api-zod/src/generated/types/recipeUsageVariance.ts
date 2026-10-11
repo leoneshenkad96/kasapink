@@ -15,5 +15,9 @@ export interface RecipeUsageVariance {
   actualQty: number;
   theoreticalQty: number;
   varianceQty: number;
+  /** Actual movement value using the unit cost captured at each movement. */
+  actualCost: number;
+  /** Theoretical usage value using costs captured in the sale snapshot. */
+  theoreticalCost: number;
   varianceCost: number;
 }

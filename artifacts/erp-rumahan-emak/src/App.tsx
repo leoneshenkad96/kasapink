@@ -1265,6 +1265,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
         <Card className="fnb-kpi fnb-kpi-primary"><span>LABA BERSIH</span><strong>{money(report.netProfit)}</strong><small>Biaya {money(report.operatingExpenses)} · alokasi bersama {Number(report.sharedExpenseAllocationRate)||0}%</small></Card>
       </div>
       {Number(report.unallocatedSharedExpenses)>0&&<div className="warning-panel" role="status"><AlertCircle size={18}/><div><b>Biaya bersama belum dialokasikan</b><p>{money(report.unallocatedSharedExpenses)} tidak masuk laba bersih F&amp;B karena periode ini belum memiliki omzet sebagai dasar alokasi.</p></div></div>}
+      {Number(report.incompleteSnapshotLines)>0&&<div className="warning-panel" role="status"><AlertCircle size={18}/><div><b>Snapshot historis belum lengkap</b><p>{report.incompleteSnapshotLines} baris penjualan lama tidak memiliki snapshot resep lengkap. Cakupan laporan {Number(report.snapshotCoverage)||0}%; sistem tidak memakai resep terkini sebagai pengganti.</p></div></div>}
 
       <Card className="fnb-score-card">
         <div className="fnb-score-head">
@@ -1298,8 +1299,8 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
 
       <Card className="fnb-section-card">
         <div className="fnb-section-head">
-          <div><span className="eyebrow">RECIPE USAGE VARIANCE</span><h2>Pemakaian aktual vs teoritis</h2><p>Selisih actual usage dikurangi theoretical usage dari resep dan penjualan.</p></div>
-          <span className="fnb-count">Aktual − teoritis</span>
+          <div><span className="eyebrow">RECIPE USAGE VARIANCE</span><h2>Pemakaian aktual vs teoritis</h2><p>Teoritis memakai snapshot resep saat penjualan; nilai rupiah memakai HPP saat transaksi.</p></div>
+          <span className="fnb-count">Harga saat transaksi</span>
         </div>
         <div className="fnb-variance-list">{recipeVariance.slice((recipeVariancePage-1)*fnbPageSize,recipeVariancePage*fnbPageSize).map((v:any)=><div className="fnb-variance-row" key={v.itemType+'-'+v.itemId}>
           <div><b>{v.itemName}</b><small>{v.itemType==='preparation'?'Prep':'Bahan'} · {v.unit}</small></div>
@@ -1309,7 +1310,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
         </div>)}</div>
         <div className="fnb-variance-labels"><span>ITEM</span><span>AKTUAL</span><span>TEORITIS</span><span>SELISIH</span><span>DAMPAK</span></div>
         <PaginationControls page={recipeVariancePage} totalItems={recipeVariance.length} pageSize={fnbPageSize} onPageChange={setRecipeVariancePage} label="item" />
-        <p className="helper-text fnb-note">Variance positif berarti pemakaian aktual lebih tinggi dari kebutuhan resep. Prep yang dibuat sebelum periode juga bisa memengaruhi angka ini.</p>
+        <p className="helper-text fnb-note">Variance positif berarti nilai pemakaian aktual lebih tinggi dari kebutuhan snapshot resep. Prep yang dibuat sebelum periode juga bisa memengaruhi angka ini.</p>
       </Card>
 
       <Card className="fnb-section-card">
