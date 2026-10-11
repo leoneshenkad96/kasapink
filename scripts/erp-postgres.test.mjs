@@ -86,7 +86,7 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   pool = loaded.exports.getPool();
 
   await applySqlFile(pool, path.join(root, "lib/db/drizzle/0000_pink_deathstrike.sql"));
-  for (const name of ["0002_product_modes.sql", "0003_ingredient_stock_type.sql", "0004_product_business_type.sql", "0005_user_roles.sql", "0006_add_user_role.sql", "0007_recipe_units.sql", "0008_preparations.sql", "0010_product_preparations.sql", "0011_fnb_controls.sql", "0012_product_prep_units.sql", "0013_preparation_yield.sql", "0014_stock_count_variance.sql", "0015_production_schema_compat.sql", "0016_fix_date_index_operator_classes.sql", "0017_audit_log.sql", "0018_sales_costing_snapshot.sql", "0019_recipe_versions.sql", "0020_audit_before_after.sql"]) {
+  for (const name of ["0002_product_modes.sql", "0003_ingredient_stock_type.sql", "0004_product_business_type.sql", "0005_user_roles.sql", "0006_add_user_role.sql", "0007_recipe_units.sql", "0008_preparations.sql", "0010_product_preparations.sql", "0011_fnb_controls.sql", "0012_product_prep_units.sql", "0013_preparation_yield.sql", "0014_stock_count_variance.sql", "0015_production_schema_compat.sql", "0016_fix_date_index_operator_classes.sql", "0017_audit_log.sql", "0018_sales_costing_snapshot.sql", "0019_recipe_versions.sql", "0020_audit_before_after.sql", "0021_business_line_snapshots.sql"]) {
     await applySqlFile(pool, path.join(root, "lib/db/migrations", name));
   }
 

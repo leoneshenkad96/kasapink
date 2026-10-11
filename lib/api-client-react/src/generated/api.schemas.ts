@@ -406,12 +406,23 @@ export type FnbReportWasteItem = {
   note: string | null;
 };
 
+export type FnbReportExpensesItemBusinessType = typeof FnbReportExpensesItemBusinessType[keyof typeof FnbReportExpensesItemBusinessType];
+
+
+export const FnbReportExpensesItemBusinessType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+  Bersama: 'Bersama',
+} as const;
+
 export type FnbReportExpensesItem = {
   id: number;
   date: string;
   category: string;
   description: string;
   amount: number;
+  businessType: FnbReportExpensesItemBusinessType;
+  allocatedAmount: number;
 };
 
 export interface FnbReport {
@@ -426,6 +437,13 @@ export interface FnbReport {
   wasteCost: number;
   grossProfit: number;
   operatingExpenses: number;
+  directExpenses: number;
+  sharedExpenses: number;
+  allocatedSharedExpenses: number;
+  /** Percentage of period revenue attributable to F&B. */
+  sharedExpenseAllocationRate: number;
+  /** Shared expenses left unallocated when period revenue is zero. */
+  unallocatedSharedExpenses: number;
   netProfit: number;
   wasteCount: number;
   recipeUsageVariance: RecipeUsageVariance[];

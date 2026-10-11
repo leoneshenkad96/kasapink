@@ -1179,6 +1179,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
   const [expenseCategory,setExpenseCategory]=useState('Gas');
   const [expenseDescription,setExpenseDescription]=useState('');
   const [expenseAmount,setExpenseAmount]=useState('');
+  const [expenseBusinessType,setExpenseBusinessType]=useState<'Makanan'|'Parfum'|'Bersama'>('Makanan');
   const [error,setError]=useState('');
 
   const load=useCallback(async()=>{
@@ -1224,7 +1225,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
   const addExpense=async()=>{
     try{
       const r=await fetch('/api/erp/expenses',{method:'POST',headers:{...authHeaders(),'Content-Type':'application/json'},body:JSON.stringify({
-        date:endDate,category:expenseCategory,description:expenseDescription,amount:Number(expenseAmount)
+        date:endDate,category:expenseCategory,description:expenseDescription,amount:Number(expenseAmount),businessType:expenseBusinessType
       })});
       const d=await r.json().catch(()=>({}));
       if(!r.ok)throw new Error(d.error||'Gagal mencatat biaya.');
@@ -1261,8 +1262,9 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
         <Card className="fnb-kpi"><span>PENJUALAN</span><strong>{money(report.revenue)}</strong><small>{report.menus?.reduce((n:any,m:any)=>n+Number(m.quantity||0),0)||0} porsi terjual</small></Card>
         <Card className="fnb-kpi"><span>HPP AKTUAL</span><strong>{money(report.actualCogs)}</strong><small>Food cost {actualFc}%</small></Card>
         <Card className="fnb-kpi"><span>WASTE</span><strong>{money(report.wasteCost)}</strong><small>{report.wasteCount} catatan</small></Card>
-        <Card className="fnb-kpi fnb-kpi-primary"><span>LABA BERSIH</span><strong>{money(report.netProfit)}</strong><small>Setelah biaya operasional</small></Card>
+        <Card className="fnb-kpi fnb-kpi-primary"><span>LABA BERSIH</span><strong>{money(report.netProfit)}</strong><small>Biaya {money(report.operatingExpenses)} · alokasi bersama {Number(report.sharedExpenseAllocationRate)||0}%</small></Card>
       </div>
+      {Number(report.unallocatedSharedExpenses)>0&&<div className="warning-panel" role="status"><AlertCircle size={18}/><div><b>Biaya bersama belum dialokasikan</b><p>{money(report.unallocatedSharedExpenses)} tidak masuk laba bersih F&amp;B karena periode ini belum memiliki omzet sebagai dasar alokasi.</p></div></div>}
 
       <Card className="fnb-score-card">
         <div className="fnb-score-head">
@@ -1337,6 +1339,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
         <Card className="fnb-action-card">
           <div className="fnb-action-head"><div className="fnb-action-icon"><ReceiptText size={17}/></div><div><span className="eyebrow">BIAYA USAHA</span><h2>Catat pengeluaran</h2><p>Gas, listrik, air, transport, dan biaya di luar bahan.</p></div></div>
           <div className="fnb-form-grid">
+            <Field label="Untuk lini"><select disabled={readOnly} className="input" value={expenseBusinessType} onChange={e=>setExpenseBusinessType(e.target.value as 'Makanan'|'Parfum'|'Bersama')}><option value="Makanan">F&amp;B</option><option value="Parfum">Parfum</option><option value="Bersama">Bersama</option></select></Field>
             <Field label="Kategori"><FieldInput disabled={readOnly} value={expenseCategory} onChange={e=>setExpenseCategory(e.target.value)} placeholder="Gas, listrik, air..." /></Field>
             <Field label="Keterangan"><FieldInput disabled={readOnly} value={expenseDescription} onChange={e=>setExpenseDescription(e.target.value)} placeholder="Contoh: isi ulang gas" /></Field>
             <Field label="Nominal"><FieldInput disabled={readOnly} type="number" min="1" value={expenseAmount} onChange={e=>setExpenseAmount(e.target.value)} placeholder="0" /></Field>

@@ -1175,6 +1175,7 @@ type ExpenseBodyData = {
   category: string;
   description: string;
   amount: number;
+  businessType: "Makanan" | "Parfum" | "Bersama";
 };
 type ValidationResult<T> = { success: true; data: T } | { success: false; error: { message: string } };
 
@@ -1206,11 +1207,13 @@ function parseExpenseBody(input: unknown): ValidationResult<ExpenseBodyData> {
   const category = typeof body.category === "string" ? body.category.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const amount = Number(body.amount);
+  const businessType = body.businessType;
   if (!date) return { success: false, error: { message: "Tanggal biaya operasional tidak valid." } };
   if (!category || category.length > 80) return { success: false, error: { message: "Kategori biaya wajib diisi dan maksimal 80 karakter." } };
   if (!description || description.length > 200) return { success: false, error: { message: "Deskripsi biaya wajib diisi dan maksimal 200 karakter." } };
   if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: { message: "Nominal biaya harus lebih besar dari 0." } };
-  return { success: true, data: { date, category, description, amount } };
+  if (businessType !== "Makanan" && businessType !== "Parfum" && businessType !== "Bersama") return { success: false, error: { message: "Lini bisnis biaya tidak valid." } };
+  return { success: true, data: { date, category, description, amount, businessType } };
 }
 
 router.post("/erp/waste", safe(async (req, res) => {
@@ -1258,9 +1261,9 @@ router.post("/erp/expenses", safe(async (req, res) => {
   const parsed = parseExpenseBody(req.body);
   if (!parsed.success) return invalid(res, parsed.error.message);
   const [row] = await db.insert(operatingExpensesTable).values({
-    date: dateKey(parsed.data.date), category: parsed.data.category.trim(), description: parsed.data.description.trim(), amount: String(roundMoney(parsed.data.amount)),
+    date: dateKey(parsed.data.date), category: parsed.data.category.trim(), description: parsed.data.description.trim(), amount: String(roundMoney(parsed.data.amount)), businessType: parsed.data.businessType,
   }).returning();
-  res.status(201).json({ id: row.id, date: row.date, category: row.category, description: row.description, amount: number(row.amount) });
+  res.status(201).json({ id: row.id, date: row.date, category: row.category, description: row.description, amount: number(row.amount), businessType: row.businessType });
 }));
 
 router.get("/erp/fnb-report", safe(async (req, res) => {
@@ -1273,7 +1276,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   }
   const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
   const saleIds = sales.map((x) => x.id);
-  const [details, ingredients, recipes, productPreps, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
+  const [allDetails, ingredients, recipes, productPreps, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
     saleIds.length ? db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)) : Promise.resolve([]),
     db.select().from(ingredientsTable),
     db.select().from(recipeItemsTable),
@@ -1284,8 +1287,10 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     db.select().from(stockMovementsTable).where(and(gte(stockMovementsTable.date, startDate), lte(stockMovementsTable.date, endDate))),
     db.select().from(preparationStockMovementsTable).where(and(gte(preparationStockMovementsTable.date, startDate), lte(preparationStockMovementsTable.date, endDate))),
   ]);
+  const details = allDetails.filter((line) => line.businessType === "Makanan");
   const ingredientById = new Map(ingredients.map((x) => [x.id, x]));
   const prepById = new Map(preps.map((x) => [x.id, x]));
+  const fnbWaste = waste.filter((row) => row.preparationId != null || (row.ingredientId != null && ingredientById.get(row.ingredientId)?.stockType === "Makanan"));
   const saleQty = new Map<number, number>();
   for (const line of details) saleQty.set(line.productId, (saleQty.get(line.productId) ?? 0) + line.quantity);
   const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; actualCogs: number; theoreticalCogs: number }>();
@@ -1315,7 +1320,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   }
   const actualIngredient = new Map<number, number>();
   for (const m of ingredientMovements) {
-    if (["sale", "prep_production", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
+    if (ingredientById.get(m.ingredientId)?.stockType === "Makanan" && ["sale", "prep_production", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
       actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + Math.abs(number(m.quantityDelta)));
     }
   }
@@ -1344,7 +1349,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   }).sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost)).slice(0, 50);
   const recipeUsageVariance = [...ingredientVariance, ...prepVariance];
   const stockOpnameVariance = [
-    ...ingredientMovements.filter((movement) => movement.movementType === "adjustment").map((movement) => {
+    ...ingredientMovements.filter((movement) => movement.movementType === "adjustment" && ingredientById.get(movement.ingredientId)?.stockType === "Makanan").map((movement) => {
       const ingredient = ingredientById.get(movement.ingredientId);
       const varianceQty = number(movement.quantityDelta);
       const unitCost = movement.unitCost == null ? null : number(movement.unitCost);
@@ -1372,25 +1377,35 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     }),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.movementId - a.movementId);
 
-  const revenue = roundMoney(sales.reduce((sum, x) => sum + number(x.totalRevenue), 0));
-  const actualCogs = roundMoney(sales.reduce((sum, x) => sum + number(x.totalCostOfGoodsSold), 0));
+  const revenue = roundMoney(details.reduce((sum, x) => sum + number(x.revenue), 0));
+  let totalBusinessRevenueRaw = 0;
+  for (const line of allDetails) totalBusinessRevenueRaw += number(line.revenue);
+  const totalBusinessRevenue = roundMoney(totalBusinessRevenueRaw);
+  const actualCogs = roundMoney(details.reduce((sum, x) => sum + number(x.costOfGoodsSold), 0));
   const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum, x) => sum + x.theoreticalCogs, 0));
-  const wasteCost = roundMoney(waste.reduce((sum, x) => sum + number(x.totalCost), 0));
-  const expenseTotal = roundMoney(expenses.reduce((sum, x) => sum + number(x.amount), 0));
+  const wasteCost = roundMoney(fnbWaste.reduce((sum, x) => sum + number(x.totalCost), 0));
+  const sharedExpenseAllocationRate = totalBusinessRevenue > 0 ? revenue / totalBusinessRevenue : 0;
+  const directExpenses = roundMoney(expenses.filter((x) => x.businessType === "Makanan").reduce((sum, x) => sum + number(x.amount), 0));
+  const sharedExpenses = roundMoney(expenses.filter((x) => x.businessType === "Bersama").reduce((sum, x) => sum + number(x.amount), 0));
+  const allocatedSharedExpenses = roundMoney(sharedExpenses * sharedExpenseAllocationRate);
+  const unallocatedSharedExpenses = totalBusinessRevenue > 0 ? 0 : sharedExpenses;
+  const expenseTotal = roundMoney(directExpenses + allocatedSharedExpenses);
   const grossProfit = roundMoney(revenue - actualCogs);
   res.json({
     startDate, endDate, revenue, actualCogs, theoreticalCogs,
     actualFoodCostPercentage: revenue > 0 ? roundMoney(actualCogs / revenue * 100) : 0,
     theoreticalFoodCostPercentage: revenue > 0 ? roundMoney(theoreticalCogs / revenue * 100) : 0,
     foodCostVariance: roundMoney(actualCogs - theoreticalCogs),
-    wasteCost, grossProfit, operatingExpenses: expenseTotal, netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
-    wasteCount: waste.length,
+    wasteCost, grossProfit, operatingExpenses: expenseTotal, directExpenses, sharedExpenses, allocatedSharedExpenses,
+    sharedExpenseAllocationRate: roundMoney(sharedExpenseAllocationRate * 100), unallocatedSharedExpenses,
+    netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
+    wasteCount: fnbWaste.length,
     recipeUsageVariance,
     inventoryVariance: recipeUsageVariance,
     stockOpnameVariance,
     menus: [...menuMap.values()].map((x) => ({ ...x, revenue: roundMoney(x.revenue), actualCogs: roundMoney(x.actualCogs), theoreticalCogs: roundMoney(x.theoreticalCogs), grossProfit: roundMoney(x.revenue - x.actualCogs), foodCostPercentage: x.revenue > 0 ? roundMoney(x.actualCogs / x.revenue * 100) : 0 })),
-    waste: waste.map((x) => ({ id: x.id, date: x.date, itemType: x.ingredientId ? "ingredient" : "preparation", itemId: x.ingredientId ?? x.preparationId, quantity: number(x.quantity), unit: x.unit, totalCost: number(x.totalCost), reason: x.reason, note: x.note })),
-    expenses: expenses.map((x) => ({ id: x.id, date: x.date, category: x.category, description: x.description, amount: number(x.amount) })),
+    waste: fnbWaste.map((x) => ({ id: x.id, date: x.date, itemType: x.ingredientId ? "ingredient" : "preparation", itemId: x.ingredientId ?? x.preparationId, quantity: number(x.quantity), unit: x.unit, totalCost: number(x.totalCost), reason: x.reason, note: x.note })),
+    expenses: expenses.filter((x) => x.businessType !== "Parfum").map((x) => ({ id: x.id, date: x.date, category: x.category, description: x.description, amount: number(x.amount), businessType: x.businessType, allocatedAmount: x.businessType === "Makanan" ? number(x.amount) : roundMoney(number(x.amount) * sharedExpenseAllocationRate) })),
   });
 }));
 
@@ -1899,6 +1914,7 @@ router.post(
         return {
           productId,
           productName: product.name,
+          businessType: product.businessType,
           quantity,
           unitPrice,
           revenue: roundMoney(unitPrice * quantity),
@@ -1928,6 +1944,7 @@ router.post(
           revenue: String(line.revenue),
           costOfGoodsSold: String(line.costOfGoodsSold),
           costingSnapshot: line.costingSnapshot,
+          businessType: line.businessType,
         })),
       );
       for (const [productId, soldQuantity] of quantities) {

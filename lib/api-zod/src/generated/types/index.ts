@@ -12,6 +12,7 @@ export * from './error';
 export * from './financeReport';
 export * from './fnbReport';
 export * from './fnbReportExpensesItem';
+export * from './fnbReportExpensesItemBusinessType';
 export * from './fnbReportMenusItem';
 export * from './fnbReportWasteItem';
 export * from './fnbReportWasteItemItemType';

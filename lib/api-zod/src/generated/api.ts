@@ -575,6 +575,11 @@ export const GetFnbReportResponse = zod.object({
   "wasteCost": zod.number(),
   "grossProfit": zod.number(),
   "operatingExpenses": zod.number(),
+  "directExpenses": zod.number(),
+  "sharedExpenses": zod.number(),
+  "allocatedSharedExpenses": zod.number(),
+  "sharedExpenseAllocationRate": zod.number().describe('Percentage of period revenue attributable to F&B.'),
+  "unallocatedSharedExpenses": zod.number().describe('Shared expenses left unallocated when period revenue is zero.'),
   "netProfit": zod.number(),
   "wasteCount": zod.number().int(),
   "recipeUsageVariance": zod.array(zod.object({
@@ -636,7 +641,9 @@ export const GetFnbReportResponse = zod.object({
   "date": zod.coerce.date(),
   "category": zod.string(),
   "description": zod.string(),
-  "amount": zod.number()
+  "amount": zod.number(),
+  "businessType": zod.enum(['Makanan', 'Parfum', 'Bersama']),
+  "allocatedAmount": zod.number()
 }))
 })
 
