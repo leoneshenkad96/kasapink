@@ -15,7 +15,7 @@ const mockDb = String.raw`
   import { auditLogTable, usersTable } from './lib/db/src/schema/users.ts';
   import { PgDialect } from 'drizzle-orm/pg-core';
   export { auditLogTable, usersTable };
-  export const state = { user: null, writes: 0, beforeWrite: null };
+  export const state = { user: null, writes: 0, beforeWrite: null, auditRows: [] };
   const dialect = new PgDialect();
   const field = (column) => Object.keys(usersTable).find(k => usersTable[k] === column);
   // Evaluate only the equality/AND predicates used by this auth router. Fail
@@ -42,7 +42,10 @@ const mockDb = String.raw`
     ? Object.fromEntries(Object.entries(fields).map(([key, column]) => [key, row[field(column)]]))
     : { ...row };
   export const db = {
-    insert() { return { values() { return Promise.resolve(); } }; },
+    insert(table) { return { values(row) {
+      if (table === auditLogTable) state.auditRows.push({ ...row });
+      return Promise.resolve();
+    } }; },
     select(fields) {
       let condition;
       const query = {
@@ -117,7 +120,28 @@ test('authentication sessions through the real HTTP router', async (t) => {
     id: 1, username: 'test-user', role: 'admin',
     passwordHash: await bcrypt.hash(password, 4), updatedAt: new Date('2026-01-01T00:00:00Z'),
   };
-  const reset = () => { state.user = { ...baseline }; state.writes = 0; state.beforeWrite = null; };
+  const reset = () => {
+    state.user = { ...baseline };
+    state.writes = 0;
+    state.beforeWrite = null;
+    state.auditRows = [];
+  };
+  const assertSafeAudit = (secrets, expectedResult) => {
+    assert.equal(state.auditRows.length, 1);
+    const row = state.auditRows[0];
+    assert.equal(row.beforeData, undefined);
+    assert.equal(row.afterData, undefined);
+    assert.equal(row.reason, undefined);
+    const details = JSON.parse(row.details);
+    assert.equal(details.result, expectedResult);
+    assert.ok(Object.keys(details).every(key => [
+      'targetUserId', 'targetUsername', 'roleBefore', 'roleAfter', 'passwordChanged', 'result',
+    ].includes(key)));
+    const serialized = JSON.stringify(row);
+    for (const secret of secrets) assert.equal(serialized.includes(secret), false);
+    assert.equal(/password_hash|\$2[aby]\$|authorization|bearer|cookie|token/i.test(serialized), false);
+    return details;
+  };
   const request = async (route, token, method = 'GET', body) => {
     const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {
       method, headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}), 'Content-Type': 'application/json' },
@@ -167,13 +191,23 @@ test('authentication sessions through the real HTTP router', async (t) => {
   await t.test('password change revokes prior tokens and returns a working replacement', async () => {
     reset();
     const oldToken = createToken(state.user);
+    const newPassword = 'New-local-password-456';
     const result = await request('/users/change-password', oldToken, 'PUT', {
-      oldPassword: password, newPassword: 'New-local-password-456',
+      oldPassword: password, newPassword,
     });
     assert.equal(result.status, 200);
     assert.equal((await request('/me', oldToken)).status, 401);
     assert.equal((await request('/me', result.body.token)).status, 200);
-    assert.equal(await bcrypt.compare('New-local-password-456', state.user.passwordHash), true);
+    assert.equal(await bcrypt.compare(newPassword, state.user.passwordHash), true);
+    const audit = assertSafeAudit([password, newPassword, oldToken, state.user.passwordHash], 'success');
+    assert.deepEqual(audit, {
+      targetUserId: 1,
+      targetUsername: 'test-user',
+      roleBefore: 'admin',
+      roleAfter: 'admin',
+      passwordChanged: true,
+      result: 'success',
+    });
   });
   await t.test('wrong password cannot change credentials or revoke a valid session', async () => {
     reset();
@@ -183,6 +217,8 @@ test('authentication sessions through the real HTTP router', async (t) => {
     })).status, 400);
     assert.equal(state.writes, 0);
     assert.equal((await request('/me', token)).status, 200);
+    const audit = assertSafeAudit(['wrong', 'New-local-password-456', token, state.user.passwordHash], 'rejected');
+    assert.equal(audit.passwordChanged, true);
   });
   await t.test('delayed logout cannot revoke a newer account revision', async () => {
     reset();
@@ -209,6 +245,10 @@ test('authentication sessions through the real HTTP router', async (t) => {
     assert.equal((await request('/users/1', token, 'PUT', {
       role: 'admin', newPassword: 'Reset-local-password-789',
     })).status, 200);
+    const audit = assertSafeAudit(['Reset-local-password-789', token, state.user.passwordHash], 'success');
+    assert.equal(audit.passwordChanged, true);
+    assert.equal(audit.roleBefore, 'admin');
+    assert.equal(audit.roleAfter, 'admin');
     assert.equal((await request('/me', token)).status, 401);
     const fresh = createToken(state.user);
     state.user.role = 'testing';
