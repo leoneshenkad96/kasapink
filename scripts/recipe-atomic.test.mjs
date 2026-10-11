@@ -9,7 +9,7 @@ import { PGlite } from '@electric-sql/pglite';
 import express from 'express';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-test('actual recipe HTTP handler saves atomically and rolls back a failed version write', async t => {
+test('recipe and ingredient unit rules use atomic HTTP transactions', async t => {
   const pg = new PGlite();
   await pg.waitReady;
   const originalSecret = process.env.JWT_SECRET;
@@ -36,13 +36,55 @@ test('actual recipe HTTP handler saves atomically and rolls back a failed versio
   const loaded = new Module(filename); loaded.filename=filename; loaded.paths=Module._nodeModulePaths(root); loaded.require=createRequire(filename); loaded._compile(compiled.outputFiles[0].text, filename);
   const user = (await pg.query(`INSERT INTO erp_users (username,password_hash,role) VALUES ('recipe-admin','test-hash','admin') RETURNING id,username,password_hash,role,updated_at`)).rows[0];
   const token = loaded.exports.createToken({id:user.id, username:user.username,role:user.role,passwordHash:user.password_hash,updatedAt:new Date(user.updated_at)});
-  await pg.exec(`INSERT INTO erp_ingredients (name,category,unit,stock,average_cost) VALUES ('Bengkoang','Sayuran','kg',10,20000),('Kemasan','Kemasan','pack',10,500); INSERT INTO erp_products (name,selling_price) VALUES ('Pangsit Ayam',15000);`);
+  await pg.exec(`INSERT INTO erp_ingredients (name,category,unit,stock,average_cost) VALUES
+    ('Bengkoang','Sayuran','kg',10,20000),
+    ('Kemasan','Kemasan','pack',10,500),
+    ('Bahan Baru','Sayuran','kg',0,0),
+    ('Bahan Resep','Sayuran','kg',0,0),
+    ('Bahan Historis','Sayuran','kg',0,0);
+    INSERT INTO erp_products (name,selling_price) VALUES ('Pangsit Ayam',15000);`);
   const app=express(); app.use(express.json()); app.use((req,_res,next) => {req.log={error(){},warn(){}};next();}); app.use('/api',loaded.exports.router);
   server=await new Promise(resolve => { const s=app.listen(0,'127.0.0.1',() => resolve(s)); });
+  const call = async (route, method='GET', body) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...(body ? {body:JSON.stringify(body)} : {})}); return {status:response.status,body:await response.json()}; };
   const save = async items => { const response=await fetch(`http://127.0.0.1:${server.address().port}/api/erp/products/1/recipe`, {method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({items})}); return {status:response.status,body:await response.json()}; };
+
+  const unusedUnitChange = await call('/erp/ingredients/3','PATCH',{unit:'gram'});
+  assert.equal(unusedUnitChange.status,200);
+  assert.equal(unusedUnitChange.body.unit,'gram');
+
+  const stockedBefore = (await pg.query('SELECT name,unit,stock,average_cost FROM erp_ingredients WHERE id=1')).rows[0];
+  const stockedUnitChange = await call('/erp/ingredients/1','PATCH',{unit:'gram',name:'Tidak Boleh Tersimpan'});
+  assert.equal(stockedUnitChange.status,409);
+  assert.match(stockedUnitChange.body.error,/memiliki stok/);
+  assert.deepEqual((await pg.query('SELECT name,unit,stock,average_cost FROM erp_ingredients WHERE id=1')).rows[0],stockedBefore);
+
+  const sameUnitUpdate = await call('/erp/ingredients/1','PATCH',{unit:'kg',minStock:2});
+  assert.equal(sameUnitUpdate.status,200);
+  assert.equal(sameUnitUpdate.body.unit,'kg');
+  assert.equal(sameUnitUpdate.body.minStock,2);
+
+  await pg.exec(`INSERT INTO erp_recipe_items (product_id,ingredient_id,qty_required,recipe_unit,conversion_factor)
+    VALUES (1,4,1,'kg',1)`);
+  const recipeUnitChange = await call('/erp/ingredients/4','PATCH',{unit:'gram'});
+  assert.equal(recipeUnitChange.status,409);
+  assert.match(recipeUnitChange.body.error,/digunakan dalam resep/);
+  await pg.exec('DELETE FROM erp_recipe_items WHERE ingredient_id=4');
+
+  await pg.exec(`INSERT INTO erp_stock_movements (date,ingredient_id,movement_type,quantity_delta,stock_before,stock_after,unit_cost)
+    VALUES ('2026-10-11',5,'opname',0,0,0,0)`);
+  const historyUnitChange = await call('/erp/ingredients/5','PATCH',{unit:'gram'});
+  assert.equal(historyUnitChange.status,409);
+  assert.match(historyUnitChange.body.error,/riwayat transaksi/);
+
+  const listed = await call('/erp/ingredients?limit=20');
+  assert.equal(listed.status,200);
+  const listedById = new Map(listed.body.items.map(item => [item.id,item]));
+  assert.equal(listedById.get(1).unitLocked,true);
+  assert.equal(listedById.get(3).unitLocked,false);
+  assert.equal(listedById.get(5).unitLocked,true);
+
   assert.equal((await save([{ingredientId:1,qtyRequired:250,recipeUnit:'gram'}])).status,200);
   assert.equal((await save([{ingredientId:1,qtyRequired:0.0001,recipeUnit:'kg'}])).status,400);
-  const call = async (route, method='GET', body) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...(body ? {body:JSON.stringify(body)} : {})}); return {status:response.status,body:await response.json()}; };
   const sale = await call('/erp/sales','POST',{date:'2026-10-11',items:[{productId:1,quantity:2}]});
   assert.equal(sale.status,201); assert.equal(sale.body.totalCostOfGoodsSold,10000);
   const before=(await pg.query('SELECT * FROM erp_recipe_items ORDER BY id')).rows;

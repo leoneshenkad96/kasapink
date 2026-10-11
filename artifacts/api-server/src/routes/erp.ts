@@ -599,7 +599,27 @@ router.get(
       db.select().from(ingredientsTable).where(where).orderBy(asc(ingredientsTable.name)).limit(limit).offset(offset),
       db.select({ total: count() }).from(ingredientsTable).where(where),
     ]);
-    res.json({ items: rows.map(asIngredient), pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
+    const ids = rows.map((row) => row.id);
+    const usedIds = new Set<number>();
+    if (ids.length) {
+      const usages = await Promise.all([
+        db.select({ ingredientId: recipeItemsTable.ingredientId }).from(recipeItemsTable).where(inArray(recipeItemsTable.ingredientId, ids)),
+        db.select({ ingredientId: preparationRecipeItemsTable.ingredientId }).from(preparationRecipeItemsTable).where(inArray(preparationRecipeItemsTable.ingredientId, ids)),
+        db.select({ ingredientId: purchaseDetailsTable.ingredientId }).from(purchaseDetailsTable).where(inArray(purchaseDetailsTable.ingredientId, ids)),
+        db.select({ ingredientId: stockMovementsTable.ingredientId }).from(stockMovementsTable).where(inArray(stockMovementsTable.ingredientId, ids)),
+        db.select({ ingredientId: wasteTable.ingredientId }).from(wasteTable).where(inArray(wasteTable.ingredientId, ids)),
+      ]);
+      for (const usage of usages.flat()) {
+        if (usage.ingredientId !== null) usedIds.add(usage.ingredientId);
+      }
+    }
+    res.json({
+      items: rows.map((row) => ({
+        ...asIngredient(row),
+        unitLocked: Math.abs(number(row.stock)) > 1e-9 || usedIds.has(row.id),
+      })),
+      pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) },
+    });
   }),
 );
 
@@ -658,12 +678,62 @@ router.patch(
     if (body.data.stockType !== undefined) update.stockType = body.data.stockType;
     if (body.data.unit !== undefined) update.unit = body.data.unit;
     if (body.data.minStock !== undefined) update.minStock = String(body.data.minStock);
-    const [row] = await db
-      .update(ingredientsTable)
-      .set(update)
-      .where(eq(ingredientsTable.id, params.data.ingredientId))
-      .returning();
-    if (!row) throw new HttpError("Bahan tidak ditemukan.", 404);
+    const row = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(ingredientsTable)
+        .where(eq(ingredientsTable.id, params.data.ingredientId))
+        .for("update");
+      if (!current) throw new HttpError("Bahan tidak ditemukan.", 404);
+
+      if (update.unit !== undefined && update.unit !== current.unit) {
+        const lockReasons: string[] = [];
+        if (Math.abs(number(current.stock)) > 1e-9) lockReasons.push("masih memiliki stok");
+
+        const [productRecipe] = await tx
+          .select({ id: recipeItemsTable.id })
+          .from(recipeItemsTable)
+          .where(eq(recipeItemsTable.ingredientId, current.id))
+          .limit(1);
+        const [preparationRecipe] = await tx
+          .select({ id: preparationRecipeItemsTable.id })
+          .from(preparationRecipeItemsTable)
+          .where(eq(preparationRecipeItemsTable.ingredientId, current.id))
+          .limit(1);
+        if (productRecipe || preparationRecipe) lockReasons.push("digunakan dalam resep");
+
+        const [purchase] = await tx
+          .select({ id: purchaseDetailsTable.id })
+          .from(purchaseDetailsTable)
+          .where(eq(purchaseDetailsTable.ingredientId, current.id))
+          .limit(1);
+        const [movement] = await tx
+          .select({ id: stockMovementsTable.id })
+          .from(stockMovementsTable)
+          .where(eq(stockMovementsTable.ingredientId, current.id))
+          .limit(1);
+        const [wasteEntry] = await tx
+          .select({ id: wasteTable.id })
+          .from(wasteTable)
+          .where(eq(wasteTable.ingredientId, current.id))
+          .limit(1);
+        if (purchase || movement || wasteEntry) lockReasons.push("memiliki riwayat transaksi");
+
+        if (lockReasons.length) {
+          throw new HttpError(
+            `Satuan ${current.name} tidak dapat diubah karena ${lockReasons.join(" dan ")}. Gunakan aksi konversi satuan khusus agar stok, HPP, minimum stok, dan resep tetap konsisten.`,
+            409,
+          );
+        }
+      }
+
+      const [updated] = await tx
+        .update(ingredientsTable)
+        .set(update)
+        .where(eq(ingredientsTable.id, params.data.ingredientId))
+        .returning();
+      return updated;
+    });
     res.json(UpdateIngredientResponse.parse(asIngredient(row)));
   }),
 );
@@ -818,18 +888,13 @@ router.put(
         .where(eq(productsTable.id, params.data.productId))
         .for("update");
       if (!product) throw new HttpError("Produk tidak ditemukan.", 404);
-      if (ids.length) {
-        const rows = await tx
-          .select({ id: ingredientsTable.id, category: ingredientsTable.category })
-          .from(ingredientsTable)
-          .where(inArray(ingredientsTable.id, ids));
-        if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
-        if (rows.some((row) => isOperationalIngredient(row.category))) {
-          throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
-        }
-      }
       const rows = ids.length
-        ? await tx.select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids))
+        ? await tx
+          .select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name })
+          .from(ingredientsTable)
+          .where(inArray(ingredientsTable.id, ids))
+          .orderBy(asc(ingredientsTable.id))
+          .for("update")
         : [];
       if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
       if (rows.some((row) => isOperationalIngredient(row.category))) {
@@ -985,7 +1050,7 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
     const beforeRecipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     const rows = ids.length ? await tx.select({
       id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, category: ingredientsTable.category,
-    }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)) : [];
+    }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)).orderBy(asc(ingredientsTable.id)).for("update") : [];
     if (rows.length !== ids.length) throw new HttpError("Ada bahan prep yang tidak ditemukan.", 400);
     const map = new Map(rows.map((r) => [r.id, r]));
     const recipeRows = parsed.data.items.map((item) => {
