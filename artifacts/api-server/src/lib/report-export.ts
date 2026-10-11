@@ -1,15 +1,26 @@
-export type ReportTable = { title: string; columns: string[]; rows: Array<Array<string | number>> };
+export type ReportTable = {
+  title: string;
+  subtitle?: string;
+  columns: string[];
+  rows: Array<Array<string | number>>;
+  decimalColumns?: string[];
+  summary?: Array<{ label: string; value: string }>;
+};
 
 function escapeHtml(value: string): string {
   return value.replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character] ?? character);
 }
 
 function escapePdf(value: string): string {
-  return value.replace(/\\/g, "\\\\").replace(/[()]/g, (character) => `\\${character}`);
+  return value.normalize("NFKD").replace(/[^\x20-\x7E]/g, " ").replace(/\\/g, "\\\\").replace(/[()]/g, (character) => `\\${character}`);
 }
 
 export function toCsv(table: ReportTable): string {
-  return [table.columns, ...table.rows].map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(",")).join("\r\n");
+  const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
+  return [table.columns, ...table.rows].map((row, rowIndex) => row.map((value, columnIndex) => {
+    const formatted = rowIndex > 0 && decimalIndexes.has(columnIndex) && typeof value === "number" ? value.toFixed(2) : String(value);
+    return `"${formatted.replace(/"/g, '""')}"`;
+  }).join(",")).join("\r\n");
 }
 
 export function toExcelHtml(table: ReportTable): string {
@@ -17,16 +28,69 @@ export function toExcelHtml(table: ReportTable): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#613248}table{border-collapse:collapse}th,td{border:1px solid #f2bfd2;padding:6px 9px}th{background:#f8e7ed}</style></head><body><h1>${escapeHtml(table.title)}</h1><table>${row(table.columns, true)}${table.rows.map((values) => row(values)).join("")}</table></body></html>`;
 }
 
+const pdfText = (text: string, x: number, y: number, size = 9, bold = false, color = "0.38 0.20 0.28") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg ${x} ${y} Td (${escapePdf(text)}) Tj ET`;
+
 export function toPdf(table: ReportTable): Buffer {
-  const lines = [table.title, `Dibuat: ${new Date().toISOString()}`, "", table.columns.join(" | "), ...table.rows.map((row) => row.join(" | "))];
-  const pages: string[][] = [];
-  for (let index = 0; index < lines.length; index += 42) pages.push(lines.slice(index, index + 42));
-  const objects: string[] = ["<< /Type /Catalog /Pages 2 0 R >>", "<< /Type /Pages /Kids [" + pages.map((_, index) => `${5 + index * 2} 0 R`).join(" ") + `] /Count ${pages.length} >>`, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"];
-  for (const page of pages) {
-    const content = ["BT", "/F1 9 Tf", "45 760 Td", ...page.map((line, index) => `${index ? "0 -17 Td" : ""} (${escapePdf(line.slice(0, 150))}) Tj`), "ET"].join(" ");
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R >> >> /Contents ${objects.length + 2} 0 R >>`);
+  const pageWidth = 595;
+  const left = 36;
+  const usableWidth = pageWidth - left * 2;
+  const columnWidth = usableWidth / Math.max(table.columns.length, 1);
+  const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
+  const rowsPerPage = table.summary?.length ? 22 : 28;
+  const chunks: Array<Array<Array<string | number>>> = [];
+  for (let index = 0; index < Math.max(table.rows.length, 1); index += rowsPerPage) chunks.push(table.rows.slice(index, index + rowsPerPage));
+  const pages = chunks.map((rows, pageIndex) => {
+    const commands: string[] = ["q", "0.38 0.20 0.28 rg", `0 742 ${pageWidth} 100 re f`, "Q"];
+    commands.push(pdfText(table.title, left, 798, 21, true, "1 1 1"));
+    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, 776, 9, false, "0.98 0.91 0.94"));
+    commands.push(pdfText(`Dibuat ${new Date().toISOString().slice(0, 10)}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.98 0.91 0.94"));
+
+    let y = 716;
+    if (pageIndex === 0 && table.summary?.length) {
+      const gap = 8;
+      const cardWidth = (usableWidth - gap * (table.summary.length - 1)) / table.summary.length;
+      table.summary.forEach((item, index) => {
+        const x = left + index * (cardWidth + gap);
+        commands.push("q", "0.98 0.91 0.94 rg", `${x} ${y - 48} ${cardWidth} 48 re f`, "Q");
+        commands.push(pdfText(item.label.toUpperCase(), x + 9, y - 17, 7, true, "0.55 0.38 0.45"));
+        commands.push(pdfText(item.value, x + 9, y - 36, 11, true));
+      });
+      y -= 72;
+    }
+
+    commands.push("q", "0.95 0.75 0.82 rg", `${left} ${y - 22} ${usableWidth} 22 re f`, "Q");
+    table.columns.forEach((column, index) => commands.push(pdfText(column.slice(0, 18), left + index * columnWidth + 5, y - 15, 7, true)));
+    y -= 22;
+    rows.forEach((row, rowIndex) => {
+      if (rowIndex % 2 === 1) commands.push("q", "0.98 0.96 0.97 rg", `${left} ${y - 20} ${usableWidth} 20 re f`, "Q");
+      row.forEach((value, index) => {
+        const formatted = decimalIndexes.has(index) && typeof value === "number"
+          ? `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          : String(value);
+        commands.push(pdfText(formatted.slice(0, 22), left + index * columnWidth + 5, y - 14, 7));
+      });
+      commands.push("q", "0.95 0.75 0.82 RG", "0.3 w", `${left} ${y - 20} m ${left + usableWidth} ${y - 20} l S`, "Q");
+      y -= 20;
+    });
+    commands.push(pdfText("Kasapink ERP  |  Laporan dibuat otomatis dari data sistem", left, 24, 7, false, "0.55 0.38 0.45"));
+    return commands.join("\n");
+  });
+
+  const objects: string[] = [
+    "<< /Type /Catalog /Pages 2 0 R >>",
+    "",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+  ];
+  const pageIds: number[] = [];
+  pages.forEach((content) => {
+    const pageId = objects.length + 1;
+    const contentId = pageId + 1;
+    pageIds.push(pageId);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`);
     objects.push(`<< /Length ${Buffer.byteLength(content, "utf8")} >>\nstream\n${content}\nendstream`);
-  }
+  });
+  objects[1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
   let output = "%PDF-1.4\n";
   const offsets = [0];
   objects.forEach((object, index) => { offsets[index + 1] = Buffer.byteLength(output, "utf8"); output += `${index + 1} 0 obj\n${object}\nendobj\n`; });

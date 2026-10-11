@@ -552,22 +552,28 @@ router.get(
     const startDate = String(req.query.startDate ?? "2000-01-01");
     const endDate = String(req.query.endDate ?? jakartaToday());
     let table: ReportTable;
+    const formatRupiah = (value: number) => `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (type === "stock") {
       const rows = await db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name));
-      table = { title: "Kasapink - Stok bahan", columns: ["ID", "Nama", "Kategori", "Tipe stok", "Unit", "Stok", "Minimum", "HPP rata-rata"], rows: rows.map((row) => [row.id, row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost)]) };
+      table = { title: "Laporan Stok Bahan", subtitle: "Posisi persediaan dan nilai HPP rata-rata", columns: ["ID", "Nama", "Kategori", "Tipe stok", "Unit", "Stok", "Minimum", "HPP rata-rata"], decimalColumns: ["HPP rata-rata"], rows: rows.map((row) => [row.id, row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost)]) };
     } else if (type === "transactions") {
       const [purchases, sales] = await Promise.all([
         db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
         db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id)),
       ]);
-      table = { title: "Kasapink - Histori transaksi", columns: ["Tanggal", "Tipe", "Referensi", "Item", "Qty", "Nilai", "HPP", "Keterangan"], rows: [
+      table = { title: "Histori Transaksi", subtitle: `Periode ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Tipe", "Referensi", "Item", "Qty", "Nilai", "HPP", "Keterangan"], decimalColumns: ["Nilai", "HPP"], rows: [
         ...purchases.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Belanja", row.id, row.ingredientName, number(row.quantity), number(row.totalCost), "", row.supplierType]),
         ...sales.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Penjualan", row.id, row.productName, row.quantity, number(row.revenue), number(row.costOfGoodsSold), "Produk terjual"]),
       ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       };
     } else {
       const report = await financeReport(startDate, endDate);
-      table = { title: `Kasapink - Laporan keuangan ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], rows: report.days.map((day) => [day.date, day.revenue, day.costOfGoodsSold, day.purchases, day.grossProfit]) };
+      table = { title: "Laporan Keuangan", subtitle: `Periode ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], decimalColumns: ["Penjualan", "HPP", "Belanja", "Laba kotor"], summary: [
+        { label: "Penjualan", value: formatRupiah(report.revenue) },
+        { label: "HPP", value: formatRupiah(report.costOfGoodsSold) },
+        { label: "Belanja", value: formatRupiah(report.purchases) },
+        { label: "Laba kotor", value: formatRupiah(report.grossProfit) },
+      ], rows: report.days.map((day) => [day.date, day.revenue, day.costOfGoodsSold, day.purchases, day.grossProfit]) };
     }
     const stamp = `${type}-${startDate}-${endDate}`;
     if (format === "pdf") {

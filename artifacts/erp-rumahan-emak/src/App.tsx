@@ -784,6 +784,10 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [newYieldQty, setNewYieldQty] = useState('1');
   const [selectedPrep, setSelectedPrep] = useState<number | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [prepFormDirty, setPrepFormDirty] = useState(false);
+  const [prepNameError, setPrepNameError] = useState('');
+  const [prepDone, setPrepDone] = useState('');
+  const [savingPrep, setSavingPrep] = useState(false);
   const [recipeDraft, setRecipeDraft] = useState<Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }>>([]);
   const [targetQty, setTargetQty] = useState('');
   const [actualQty, setActualQty] = useState('');
@@ -828,22 +832,53 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
     setActualQty('');
   }, [selectedPrep]);
 
-  const savePrep = async () => {
-    if (readOnly || !newName.trim()) return;
+  const openPrepModal = () => {
+    setError('');
+    setPrepDone('');
+    setPrepNameError('');
+    setPrepFormDirty(false);
+    setUnsavedChanges(false);
+    setShowCreateForm(true);
+  };
+
+  const closePrepModal = () => {
+    if (prepFormDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
+    setShowCreateForm(false);
+    setPrepFormDirty(false);
+    setUnsavedChanges(false);
+  };
+
+  const savePrep = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const name = newName.trim();
+    if (readOnly || savingPrep) return;
+    if (!/^\p{Lu}/u.test(name)) {
+      setPrepNameError('Nama prep harus diawali huruf kapital. Contoh: Ayam Suwir.');
+      return;
+    }
+    setSavingPrep(true);
+    setError('');
     try {
       const r = await fetch('/api/erp/preparations', {
         method: 'POST',
         headers: { ...authHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name: newName.trim(), unit: newUnit, yieldQty: Number(newYieldQty) }),
+        body: JSON.stringify({ name, unit: newUnit, yieldQty: Number(newYieldQty) }),
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || 'Gagal membuat prep.');
       setNewName('');
+      setNewUnit('kg');
+      setNewYieldQty('1');
       setShowCreateForm(false);
+      setPrepFormDirty(false);
+      setUnsavedChanges(false);
       await load();
       setSelectedPrep(data.id);
+      setPrepDone(`Prep "${name}" berhasil ditambahkan.`);
     } catch (e) {
       setError(errText(e));
+    } finally {
+      setSavingPrep(false);
     }
   };
 
@@ -926,10 +961,11 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       kicker="PRODUKSI & PERSIAPAN"
       title="Stok Prep"
       note="Kelola bahan olahan yang dibuat dalam batch sebelum dipakai oleh produk jualan."
-      action={!readOnly ? <button className="button button-primary" type="button" onClick={() => setShowCreateForm((open) => !open)}><Plus size={15} /> {showCreateForm ? 'Tutup' : 'Buat prep'}</button> : undefined}
+      action={!readOnly ? <button className="button button-primary" type="button" onClick={openPrepModal}><Plus size={15} /> Add Prep</button> : undefined}
     />
 
     {error && <div className="error-panel"><AlertCircle size={20} /><div><b>Terjadi kendala</b><p>{error}</p></div></div>}
+    {prepDone && <div className="success-message"><Check size={16} />{prepDone}</div>}
 
     <section className="prep-hero">
       <div>
@@ -983,19 +1019,13 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       </div> : <Card><Empty title="Belum ada stok prep" text="Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi." /></Card>}
     </section>
 
-    {!readOnly && showCreateForm && <Card className="prep-create-card prep-create-card-open" id="prep-master-form">
-      <div className="prep-create-copy">
-        <span className="eyebrow">MASTER PREP</span>
-        <h2>Buat jenis prep baru</h2>
-        <p>Contoh: Nasi Matang, Ayam Suwir, Jamur Marinasi, atau Isian Lontong.</p>
-      </div>
-      <div className="prep-create-form">
-        <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Contoh: Ayam Suwir" /></Field>
-        <Field label="Satuan stok"><FieldInput value={newUnit} onChange={(e) => setNewUnit(e.target.value)} placeholder="kg, gram, pcs" /></Field>
-        <Field label="Hasil standar" hint="Hasil satu kali resep/batch."><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh 5" /></Field>
-        <div className="prep-create-submit"><button className="button button-primary" type="button" onClick={() => void savePrep()}><Plus size={15} /> Buat prep</button></div>
-      </div>
-    </Card>}
+    {!readOnly && showCreateForm && <Modal title="Add Prep" onClose={closePrepModal}><form className="form-stack" onInput={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onSubmit={savePrep}>
+      <p className="form-hint">Tambahkan bahan olahan yang dibuat dalam batch sebelum dipakai pada produk jualan.</p>
+      <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => { setNewName(e.target.value); setPrepNameError(''); }} onBlur={(e) => { const value = e.currentTarget.value.trim(); setPrepNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama prep harus diawali huruf kapital. Contoh: Ayam Suwir.' : ''); }} placeholder="Contoh: Ayam Suwir" required />{prepNameError && <small className="form-hint error">{prepNameError}</small>}</Field>
+      <Field label="Satuan stok"><FieldSelect value={newUnit} onChange={(e) => setNewUnit(e.target.value)} required>{STOCK_UNITS.Makanan.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</FieldSelect></Field>
+      <Field label="Hasil standar" hint="Hasil satu kali resep/batch."><FieldInput type="number" min="0.001" step="0.001" value={newYieldQty} onChange={(e) => setNewYieldQty(e.target.value)} placeholder="Contoh: 5" required /></Field>
+      <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={closePrepModal}>Batal</Button><Button type="submit" disabled={savingPrep}>{savingPrep ? 'Menyimpan…' : 'Simpan prep'}</Button></div>
+    </form></Modal>}
 
     {prep ? <section className="prep-workspace">
       <Card className="prep-detail-card">
