@@ -30,7 +30,8 @@ export const GetErpStateResponse = zod.object({
   "stock": zod.number(),
   "minStock": zod.number(),
   "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "averageCost": zod.number(),
+  "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })),
   "products": zod.array(zod.object({
   "id": zod.number().int(),
@@ -144,7 +145,8 @@ export const ListIngredientsResponse = zod.object({
   "stock": zod.number(),
   "minStock": zod.number(),
   "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "averageCost": zod.number(),
+  "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })),
   "pagination": zod.object({
   "limit": zod.number().int(),
@@ -190,7 +192,8 @@ export const CreateIngredientResponse = zod.object({
   "stock": zod.number(),
   "minStock": zod.number(),
   "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "averageCost": zod.number(),
+  "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
 
@@ -227,7 +230,8 @@ export const UpdateIngredientResponse = zod.object({
   "stock": zod.number(),
   "minStock": zod.number(),
   "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "averageCost": zod.number(),
+  "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
 
@@ -682,7 +686,8 @@ export const LegacyCreateIngredientResponse = zod.object({
   "stock": zod.number(),
   "minStock": zod.number(),
   "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "averageCost": zod.number(),
+  "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
 
@@ -719,7 +724,8 @@ export const LegacyUpdateIngredientResponse = zod.object({
   "stock": zod.number(),
   "minStock": zod.number(),
   "lastPrice": zod.number(),
-  "averageCost": zod.number()
+  "averageCost": zod.number(),
+  "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
 
