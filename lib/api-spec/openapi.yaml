@@ -816,6 +816,11 @@ components:
         wasteCost: { type: number }
         grossProfit: { type: number }
         operatingExpenses: { type: number }
+        directExpenses: { type: number }
+        sharedExpenses: { type: number }
+        allocatedSharedExpenses: { type: number }
+        sharedExpenseAllocationRate: { type: number, description: Percentage of period revenue attributable to F&B. }
+        unallocatedSharedExpenses: { type: number, description: Shared expenses left unallocated when period revenue is zero. }
         netProfit: { type: number }
         wasteCount: { type: integer }
         recipeUsageVariance:
@@ -868,8 +873,10 @@ components:
               category: { type: string }
               description: { type: string }
               amount: { type: number }
-            required: [id, date, category, description, amount]
-      required: [startDate, endDate, revenue, actualCogs, theoreticalCogs, actualFoodCostPercentage, theoreticalFoodCostPercentage, foodCostVariance, wasteCost, grossProfit, operatingExpenses, netProfit, wasteCount, recipeUsageVariance, inventoryVariance, stockOpnameVariance, menus, waste, expenses]
+              businessType: { type: string, enum: [Makanan, Parfum, Bersama] }
+              allocatedAmount: { type: number }
+            required: [id, date, category, description, amount, businessType, allocatedAmount]
+      required: [startDate, endDate, revenue, actualCogs, theoreticalCogs, actualFoodCostPercentage, theoreticalFoodCostPercentage, foodCostVariance, wasteCost, grossProfit, operatingExpenses, directExpenses, sharedExpenses, allocatedSharedExpenses, sharedExpenseAllocationRate, unallocatedSharedExpenses, netProfit, wasteCount, recipeUsageVariance, inventoryVariance, stockOpnameVariance, menus, waste, expenses]
     DailyFinance:
       type: object
       properties:

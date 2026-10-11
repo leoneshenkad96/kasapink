@@ -20,7 +20,8 @@
     "check:migrations": "node ./scripts/check-migrations.mjs",
     "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local.ps1",
     "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-local.ps1",
-    "test:recipe:atomic": "node --test scripts/recipe-atomic.test.mjs"
+    "test:recipe:atomic": "node --test scripts/recipe-atomic.test.mjs",
+    "test:fnb:isolation": "node --test scripts/fnb-business-isolation.test.mjs"
   },
   "private": true,
   "dependencies": {

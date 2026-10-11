@@ -23,6 +23,13 @@ export interface FnbReport {
   wasteCost: number;
   grossProfit: number;
   operatingExpenses: number;
+  directExpenses: number;
+  sharedExpenses: number;
+  allocatedSharedExpenses: number;
+  /** Percentage of period revenue attributable to F&B. */
+  sharedExpenseAllocationRate: number;
+  /** Shared expenses left unallocated when period revenue is zero. */
+  unallocatedSharedExpenses: number;
   netProfit: number;
   wasteCount: number;
   recipeUsageVariance: RecipeUsageVariance[];
