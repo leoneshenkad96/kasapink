@@ -7,7 +7,13 @@
  */
 
 export type ListSalesParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; backdating is allowed.
+ */
 startDate?: Date;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected.
+ */
 endDate?: Date;
 /**
  * @minimum 1

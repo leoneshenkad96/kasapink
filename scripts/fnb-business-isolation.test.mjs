@@ -131,8 +131,8 @@ test('F&B report uses immutable business snapshots and revenue-based shared cost
   assert.equal(afterProductEdit.body.revenue, 1000);
   assert.equal(afterProductEdit.body.recordedCogs, 400);
 
-  await pg.exec(`INSERT INTO erp_operating_expenses (date,category,description,amount,business_type) VALUES ('2026-10-13','Sewa','No-sales day',80,'Bersama')`);
-  const zeroRevenue = await call('/erp/fnb-report?startDate=2026-10-13&endDate=2026-10-13');
+  await pg.exec(`INSERT INTO erp_operating_expenses (date,category,description,amount,business_type) VALUES ('2026-10-11','Sewa','No-sales day',80,'Bersama')`);
+  const zeroRevenue = await call('/erp/fnb-report?startDate=2026-10-11&endDate=2026-10-11');
   assert.equal(zeroRevenue.body.operatingExpenses, 0);
   assert.equal(zeroRevenue.body.allocatedSharedExpenses, 0);
   assert.equal(zeroRevenue.body.unallocatedSharedExpenses, 80);

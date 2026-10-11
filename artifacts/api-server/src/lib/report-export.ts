@@ -1,3 +1,5 @@
+import { wibDateKey } from "./business-date";
+
 export type ReportTable = {
   title: string;
   subtitle?: string;
@@ -43,7 +45,7 @@ export function toPdf(table: ReportTable): Buffer {
     const commands: string[] = ["q", "0.38 0.20 0.28 rg", `0 742 ${pageWidth} 100 re f`, "Q"];
     commands.push(pdfText(table.title, left, 798, 21, true, "1 1 1"));
     commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, 776, 9, false, "0.98 0.91 0.94"));
-    commands.push(pdfText(`Dibuat ${new Date().toISOString().slice(0, 10)}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.98 0.91 0.94"));
+    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.98 0.91 0.94"));
 
     let y = 716;
     if (pageIndex === 0 && table.summary?.length) {

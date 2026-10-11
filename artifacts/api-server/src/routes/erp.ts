@@ -6,7 +6,6 @@ import {
   CreateProductBody,
   CreateProductResponse,
   GetErpStateResponse,
-  GetFinanceReportQueryParams,
   GetFinanceReportResponse,
   RecordPurchaseBody,
   RecordPurchaseResponse,
@@ -46,6 +45,7 @@ import {
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
 import { checkRole, requireOperationalRole, verifyToken, type AuthRequest } from "../lib/auth";
+import { isAllowedBusinessDate, wibDateKey } from "../lib/business-date";
 import { preparationComponentCost } from "../lib/costing";
 import { movingAverageAfterReceipt } from "../lib/moving-average";
 import { normalizeComputedQuantity, validStoredQuantity } from "../lib/quantity";
@@ -162,6 +162,13 @@ function dateKey(value: Date | string): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
 }
 
+function checkedBusinessDate(value: unknown, label: string): string {
+  if (!isAllowedBusinessDate(value)) {
+    throw new HttpError(`${label} wajib berformat YYYY-MM-DD, valid secara kalender, dan tidak boleh melewati hari ini di WIB.`, 400);
+  }
+  return value;
+}
+
 function asIngredient(row: typeof ingredientsTable.$inferSelect) {
   return {
     id: row.id,
@@ -257,18 +264,12 @@ async function ensureSeedData(): Promise<void> {
 
 
 function jakartaToday(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  return `${value("year")}-${value("month")}-${value("day")}`;
+  return wibDateKey();
 }
 
 function dateRange(startDate: string, endDate: string): string[] {
+  checkedBusinessDate(startDate, "Tanggal awal");
+  checkedBusinessDate(endDate, "Tanggal akhir");
   if (startDate > endDate) {
     throw new HttpError("Tanggal awal harus sebelum atau sama dengan tanggal akhir.", 400);
   }
@@ -473,15 +474,9 @@ router.get(
 router.get(
   "/erp/finance",
   safe(async (req, res) => {
-    const parsed = GetFinanceReportQueryParams.safeParse({
-      startDate: new Date(String(req.query.startDate ?? "")),
-      endDate: new Date(String(req.query.endDate ?? "")),
-    });
-    if (!parsed.success) {
-      invalid(res, parsed.error.message);
-      return;
-    }
-    const data = await financeReport(dateKey(parsed.data.startDate), dateKey(parsed.data.endDate));
+    const startDate = checkedBusinessDate(req.query.startDate, "Tanggal awal");
+    const endDate = checkedBusinessDate(req.query.endDate, "Tanggal akhir");
+    const data = await financeReport(startDate, endDate);
     const validated = GetFinanceReportResponse.parse(data);
     res.json({
       ...validated,
@@ -550,6 +545,11 @@ router.get(
     const format = String(req.query.format ?? "csv");
     const startDate = String(req.query.startDate ?? "2000-01-01");
     const endDate = String(req.query.endDate ?? jakartaToday());
+    if (type !== "stock") {
+      checkedBusinessDate(startDate, "Tanggal awal ekspor");
+      checkedBusinessDate(endDate, "Tanggal akhir ekspor");
+      if (startDate > endDate) throw new HttpError("Tanggal awal ekspor harus sebelum atau sama dengan tanggal akhir.", 400);
+    }
     let table: ReportTable;
     const formatRupiah = (value: number) => `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (type === "stock") {
@@ -995,10 +995,10 @@ const ProductPrepBody = {
   }
 };
 const BatchBody = {
-  safeParse(input: unknown): ParseResult<{ date: Date; targetQty: number; actualQty: number }> {
+  safeParse(input: unknown): ParseResult<{ date: string; targetQty: number; actualQty: number }> {
     const b = recordBody(input), d = b?.date;
-    const date = new Date(String(d ?? ""));
-    if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty) || !validStoredQuantity(b.targetQty, { allowNegative: false, allowZero: false }) || !validStoredQuantity(b.actualQty, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Tanggal, target, dan hasil aktual produksi wajib valid serta maksimal tiga angka desimal." } };
+    const date = typeof d === "string" && isAllowedBusinessDate(d) ? d : null;
+    if (!b || !date || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty) || !validStoredQuantity(b.targetQty, { allowNegative: false, allowZero: false }) || !validStoredQuantity(b.actualQty, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Tanggal wajib YYYY-MM-DD yang valid dan tidak boleh di masa depan; target serta hasil aktual wajib valid dengan maksimal tiga angka desimal." } };
     return { success: true, data: { date, targetQty: b.targetQty, actualQty: b.actualQty } };
   }
 };
@@ -1182,7 +1182,7 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
 
 
 type WasteBodyData = {
-  date: Date;
+  date: string;
   itemType: "ingredient" | "preparation";
   itemId: number;
   quantity: number;
@@ -1190,7 +1190,7 @@ type WasteBodyData = {
   note?: string;
 };
 type ExpenseBodyData = {
-  date: Date;
+  date: string;
   category: string;
   description: string;
   amount: number;
@@ -1237,20 +1237,15 @@ function parseCostingSnapshot(value: string | null): CostingSnapshot | null {
   }
 }
 
-function parseDateValue(value: unknown): Date | null {
-  const date = value instanceof Date ? value : new Date(String(value ?? ""));
-  return Number.isNaN(date.getTime()) ? null : date;
-}
-
 function parseWasteBody(input: unknown): ValidationResult<WasteBodyData> {
   const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
-  const date = parseDateValue(body.date);
+  const date = typeof body.date === "string" && isAllowedBusinessDate(body.date) ? body.date : null;
   const itemType = body.itemType;
   const itemId = Number(body.itemId);
   const quantity = Number(body.quantity);
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
   const note = body.note === undefined ? undefined : String(body.note);
-  if (!date) return { success: false, error: { message: "Tanggal waste tidak valid." } };
+  if (!date) return { success: false, error: { message: "Tanggal waste wajib YYYY-MM-DD yang valid dan tidak boleh di masa depan." } };
   if (itemType !== "ingredient" && itemType !== "preparation") return { success: false, error: { message: "Jenis item waste tidak valid." } };
   if (!Number.isSafeInteger(itemId) || itemId <= 0) return { success: false, error: { message: "ID item waste tidak valid." } };
   if (!validStoredQuantity(quantity, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Jumlah waste harus positif, maksimal tiga desimal, dan sesuai kapasitas penyimpanan." } };
@@ -1261,12 +1256,12 @@ function parseWasteBody(input: unknown): ValidationResult<WasteBodyData> {
 
 function parseExpenseBody(input: unknown): ValidationResult<ExpenseBodyData> {
   const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
-  const date = parseDateValue(body.date);
+  const date = typeof body.date === "string" && isAllowedBusinessDate(body.date) ? body.date : null;
   const category = typeof body.category === "string" ? body.category.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const amount = Number(body.amount);
   const businessType = body.businessType;
-  if (!date) return { success: false, error: { message: "Tanggal biaya operasional tidak valid." } };
+  if (!date) return { success: false, error: { message: "Tanggal biaya operasional wajib YYYY-MM-DD yang valid dan tidak boleh di masa depan." } };
   if (!category || category.length > 80) return { success: false, error: { message: "Kategori biaya wajib diisi dan maksimal 80 karakter." } };
   if (!description || description.length > 200) return { success: false, error: { message: "Deskripsi biaya wajib diisi dan maksimal 200 karakter." } };
   if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: { message: "Nominal biaya harus lebih besar dari 0." } };
@@ -1325,13 +1320,9 @@ router.post("/erp/expenses", safe(async (req, res) => {
 }));
 
 router.get("/erp/fnb-report", safe(async (req, res) => {
-  const startDate = String(req.query.startDate ?? "");
-  const endDate = String(req.query.endDate ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
-    startDate > endDate) {
-    return invalid(res, "Rentang tanggal tidak valid.");
-  }
+  const startDate = checkedBusinessDate(req.query.startDate, "Tanggal awal laporan F&B");
+  const endDate = checkedBusinessDate(req.query.endDate, "Tanggal akhir laporan F&B");
+  if (startDate > endDate) throw new HttpError("Tanggal awal laporan F&B harus sebelum atau sama dengan tanggal akhir.", 400);
   const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
   const saleIds = sales.map((x) => x.id);
   const [allDetails, ingredients, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
@@ -1531,6 +1522,7 @@ router.get(
 router.post(
   "/erp/purchases",
   safe(async (req, res) => {
+    checkedBusinessDate(recordBody(req.body)?.date, "Tanggal pembelian");
     const parsed = RecordPurchaseBody.safeParse(req.body);
     if (!parsed.success) {
       invalid(res, parsed.error.message);
@@ -1794,8 +1786,9 @@ router.get(
   safe(async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
     const offset = Math.max(Number(req.query.offset ?? 0), 0);
-    const startDate = String(req.query.startDate ?? "2000-01-01");
-    const endDate = String(req.query.endDate ?? jakartaToday());
+    const startDate = checkedBusinessDate(req.query.startDate ?? "2000-01-01", "Tanggal awal penjualan");
+    const endDate = checkedBusinessDate(req.query.endDate ?? jakartaToday(), "Tanggal akhir penjualan");
+    if (startDate > endDate) throw new HttpError("Tanggal awal penjualan harus sebelum atau sama dengan tanggal akhir.", 400);
     const [headers, totalRows] = await Promise.all([
       db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)))
         .orderBy(desc(salesTable.date), desc(salesTable.id)).limit(limit).offset(offset),
@@ -1829,6 +1822,7 @@ router.get(
 router.post(
   "/erp/sales",
   safe(async (req, res) => {
+    checkedBusinessDate(recordBody(req.body)?.date, "Tanggal penjualan");
     const parsed = RecordSaleBody.safeParse(req.body);
     if (!parsed.success) {
       invalid(res, parsed.error.message);
@@ -2143,6 +2137,7 @@ router.post(
 router.post(
   "/erp/stock-counts",
   safe(async (req, res) => {
+    checkedBusinessDate(recordBody(req.body)?.date, "Tanggal opname");
     const parsed = RecordStockCountBody.safeParse(req.body);
     if (!parsed.success) {
       invalid(res, parsed.error.message);
