@@ -166,8 +166,12 @@ export const createIngredientBodyStockTypeDefault = `Makanan`;
 export const createIngredientBodyUnitMax = 30;
 
 export const createIngredientBodyStockMin = 0;
+export const createIngredientBodyStockMax = 99999999999.999;
+export const createIngredientBodyStockMultipleOf = 0.001;
 
 export const createIngredientBodyMinStockMin = 0;
+export const createIngredientBodyMinStockMax = 99999999999.999;
+export const createIngredientBodyMinStockMultipleOf = 0.001;
 
 export const createIngredientBodyOpeningUnitCostMin = 0;
 
@@ -178,8 +182,8 @@ export const CreateIngredientBody = zod.object({
   "category": zod.string().min(1),
   "stockType": zod.enum(['Makanan', 'Parfum']).default(createIngredientBodyStockTypeDefault),
   "unit": zod.string().min(1).max(createIngredientBodyUnitMax),
-  "stock": zod.number().min(createIngredientBodyStockMin),
-  "minStock": zod.number().min(createIngredientBodyMinStockMin),
+  "stock": zod.number().min(createIngredientBodyStockMin).max(createIngredientBodyStockMax).multipleOf(createIngredientBodyStockMultipleOf),
+  "minStock": zod.number().min(createIngredientBodyMinStockMin).max(createIngredientBodyMinStockMax).multipleOf(createIngredientBodyMinStockMultipleOf),
   "openingUnitCost": zod.number().min(createIngredientBodyOpeningUnitCostMin)
 })
 
@@ -210,6 +214,8 @@ export const updateIngredientBodyNameMax = 120;
 export const updateIngredientBodyUnitMax = 30;
 
 export const updateIngredientBodyMinStockMin = 0;
+export const updateIngredientBodyMinStockMax = 99999999999.999;
+export const updateIngredientBodyMinStockMultipleOf = 0.001;
 
 
 
@@ -218,7 +224,7 @@ export const UpdateIngredientBody = zod.object({
   "category": zod.string().min(1).optional(),
   "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
   "unit": zod.string().min(1).max(updateIngredientBodyUnitMax).optional(),
-  "minStock": zod.number().min(updateIngredientBodyMinStockMin).optional()
+  "minStock": zod.number().min(updateIngredientBodyMinStockMin).max(updateIngredientBodyMinStockMax).multipleOf(updateIngredientBodyMinStockMultipleOf).optional()
 })
 
 export const UpdateIngredientResponse = zod.object({
@@ -282,6 +288,8 @@ export const createProductBodyBusinessTypeDefault = `Makanan`;
 export const createProductBodyNeedsRecipeDefault = true;
 export const createProductBodyStockDefault = 0;
 export const createProductBodyStockMin = 0;
+export const createProductBodyStockMax = 99999999999.999;
+export const createProductBodyStockMultipleOf = 0.001;
 
 export const createProductBodyAverageCostDefault = 0;
 export const createProductBodyAverageCostMin = 0;
@@ -294,7 +302,7 @@ export const CreateProductBody = zod.object({
   "sellingPrice": zod.number().min(createProductBodySellingPriceMin),
   "businessType": zod.enum(['Makanan', 'Parfum']).default(createProductBodyBusinessTypeDefault),
   "needsRecipe": zod.boolean().default(createProductBodyNeedsRecipeDefault),
-  "stock": zod.number().min(createProductBodyStockMin).default(createProductBodyStockDefault),
+  "stock": zod.number().min(createProductBodyStockMin).max(createProductBodyStockMax).multipleOf(createProductBodyStockMultipleOf).default(createProductBodyStockDefault),
   "averageCost": zod.number().min(createProductBodyAverageCostMin).default(createProductBodyAverageCostDefault),
   "autoRecipeIngredientId": zod.number().int().min(1).optional()
 })
@@ -322,6 +330,8 @@ export const updateProductBodyNameMax = 120;
 export const updateProductBodySellingPriceMin = 0;
 
 export const updateProductBodyStockMin = 0;
+export const updateProductBodyStockMax = 99999999999.999;
+export const updateProductBodyStockMultipleOf = 0.001;
 
 export const updateProductBodyAverageCostMin = 0;
 
@@ -332,7 +342,7 @@ export const UpdateProductBody = zod.object({
   "sellingPrice": zod.number().min(updateProductBodySellingPriceMin).optional(),
   "businessType": zod.enum(['Makanan', 'Parfum']).optional(),
   "needsRecipe": zod.boolean().optional(),
-  "stock": zod.number().min(updateProductBodyStockMin).optional(),
+  "stock": zod.number().min(updateProductBodyStockMin).max(updateProductBodyStockMax).multipleOf(updateProductBodyStockMultipleOf).optional(),
   "averageCost": zod.number().min(updateProductBodyAverageCostMin).optional()
 })
 
@@ -357,6 +367,8 @@ export const SaveProductRecipeParams = zod.object({
 export const saveProductRecipeBodyItemsItemRecipeUnitMax = 30;
 
 export const saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
+export const saveProductRecipeBodyItemsItemQtyRequiredMax = 99999999999.999;
+export const saveProductRecipeBodyItemsItemQtyRequiredMultipleOf = 0.001;
 
 
 
@@ -364,7 +376,7 @@ export const SaveProductRecipeBody = zod.object({
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
   "recipeUnit": zod.string().min(1).max(saveProductRecipeBodyItemsItemRecipeUnitMax),
-  "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
+  "qtyRequired": zod.number().gt(saveProductRecipeBodyItemsItemQtyRequiredExclusiveMin).max(saveProductRecipeBodyItemsItemQtyRequiredMax).multipleOf(saveProductRecipeBodyItemsItemQtyRequiredMultipleOf)
 }))
 })
 
@@ -385,6 +397,8 @@ export const SaveProductRecipeResponse = zod.array(SaveProductRecipeResponseItem
 export const recordPurchaseBodySupplierTypeMax = 120;
 
 export const recordPurchaseBodyItemsItemQuantityExclusiveMin = 0;
+export const recordPurchaseBodyItemsItemQuantityMax = 99999999999.999;
+export const recordPurchaseBodyItemsItemQuantityMultipleOf = 0.001;
 
 export const recordPurchaseBodyItemsItemTotalCostMin = 0;
 
@@ -396,7 +410,7 @@ export const RecordPurchaseBody = zod.object({
   "supplierType": zod.string().min(1).max(recordPurchaseBodySupplierTypeMax),
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
-  "quantity": zod.number().gt(recordPurchaseBodyItemsItemQuantityExclusiveMin),
+  "quantity": zod.number().gt(recordPurchaseBodyItemsItemQuantityExclusiveMin).max(recordPurchaseBodyItemsItemQuantityMax).multipleOf(recordPurchaseBodyItemsItemQuantityMultipleOf),
   "totalCost": zod.number().min(recordPurchaseBodyItemsItemTotalCostMin)
 })).min(1)
 })
@@ -500,13 +514,19 @@ export const RecordSaleResponse = zod.object({
  */
 
 export const recordStockCountBodyItemsItemOneCountedStockMin = 0;
+export const recordStockCountBodyItemsItemOneCountedStockMax = 99999999999.999;
+export const recordStockCountBodyItemsItemOneCountedStockMultipleOf = 0.001;
 
 
 export const recordStockCountBodyItemsItemTwoCountedStockMin = 0;
+export const recordStockCountBodyItemsItemTwoCountedStockMax = 99999999999.999;
+export const recordStockCountBodyItemsItemTwoCountedStockMultipleOf = 0.001;
 
 
 
 export const recordStockCountBodyItemsItemThreeCountedStockMin = 0;
+export const recordStockCountBodyItemsItemThreeCountedStockMax = 99999999999.999;
+export const recordStockCountBodyItemsItemThreeCountedStockMultipleOf = 0.001;
 
 export const recordStockCountBodyItemsMax = 100;
 
@@ -517,15 +537,15 @@ export const RecordStockCountBody = zod.object({
   "items": zod.array(zod.union([zod.object({
   "ingredientId": zod.number().int().min(1),
   "preparationId": zod.never().optional(),
-  "countedStock": zod.number().min(recordStockCountBodyItemsItemOneCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+  "countedStock": zod.number().min(recordStockCountBodyItemsItemOneCountedStockMin).max(recordStockCountBodyItemsItemOneCountedStockMax).multipleOf(recordStockCountBodyItemsItemOneCountedStockMultipleOf).optional().describe('Physical stock quantity, up to three decimal places.')
 }),zod.object({
   "ingredientId": zod.never().optional(),
   "preparationId": zod.number().int().min(1),
-  "countedStock": zod.number().min(recordStockCountBodyItemsItemTwoCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+  "countedStock": zod.number().min(recordStockCountBodyItemsItemTwoCountedStockMin).max(recordStockCountBodyItemsItemTwoCountedStockMax).multipleOf(recordStockCountBodyItemsItemTwoCountedStockMultipleOf).optional().describe('Physical stock quantity, up to three decimal places.')
 })]).and(zod.object({
   "ingredientId": zod.number().int().min(1).optional(),
   "preparationId": zod.number().int().min(1).optional(),
-  "countedStock": zod.number().min(recordStockCountBodyItemsItemThreeCountedStockMin).describe('Physical stock quantity, up to three decimal places.')
+  "countedStock": zod.number().min(recordStockCountBodyItemsItemThreeCountedStockMin).max(recordStockCountBodyItemsItemThreeCountedStockMax).multipleOf(recordStockCountBodyItemsItemThreeCountedStockMultipleOf).describe('Physical stock quantity, up to three decimal places.')
 }))).min(1).max(recordStockCountBodyItemsMax)
 })
 
@@ -674,8 +694,12 @@ export const legacyCreateIngredientBodyStockTypeDefault = `Makanan`;
 export const legacyCreateIngredientBodyUnitMax = 30;
 
 export const legacyCreateIngredientBodyStockMin = 0;
+export const legacyCreateIngredientBodyStockMax = 99999999999.999;
+export const legacyCreateIngredientBodyStockMultipleOf = 0.001;
 
 export const legacyCreateIngredientBodyMinStockMin = 0;
+export const legacyCreateIngredientBodyMinStockMax = 99999999999.999;
+export const legacyCreateIngredientBodyMinStockMultipleOf = 0.001;
 
 export const legacyCreateIngredientBodyOpeningUnitCostMin = 0;
 
@@ -686,8 +710,8 @@ export const LegacyCreateIngredientBody = zod.object({
   "category": zod.string().min(1),
   "stockType": zod.enum(['Makanan', 'Parfum']).default(legacyCreateIngredientBodyStockTypeDefault),
   "unit": zod.string().min(1).max(legacyCreateIngredientBodyUnitMax),
-  "stock": zod.number().min(legacyCreateIngredientBodyStockMin),
-  "minStock": zod.number().min(legacyCreateIngredientBodyMinStockMin),
+  "stock": zod.number().min(legacyCreateIngredientBodyStockMin).max(legacyCreateIngredientBodyStockMax).multipleOf(legacyCreateIngredientBodyStockMultipleOf),
+  "minStock": zod.number().min(legacyCreateIngredientBodyMinStockMin).max(legacyCreateIngredientBodyMinStockMax).multipleOf(legacyCreateIngredientBodyMinStockMultipleOf),
   "openingUnitCost": zod.number().min(legacyCreateIngredientBodyOpeningUnitCostMin)
 })
 
@@ -718,6 +742,8 @@ export const legacyUpdateIngredientBodyNameMax = 120;
 export const legacyUpdateIngredientBodyUnitMax = 30;
 
 export const legacyUpdateIngredientBodyMinStockMin = 0;
+export const legacyUpdateIngredientBodyMinStockMax = 99999999999.999;
+export const legacyUpdateIngredientBodyMinStockMultipleOf = 0.001;
 
 
 
@@ -726,7 +752,7 @@ export const LegacyUpdateIngredientBody = zod.object({
   "category": zod.string().min(1).optional(),
   "stockType": zod.enum(['Makanan', 'Parfum']).optional(),
   "unit": zod.string().min(1).max(legacyUpdateIngredientBodyUnitMax).optional(),
-  "minStock": zod.number().min(legacyUpdateIngredientBodyMinStockMin).optional()
+  "minStock": zod.number().min(legacyUpdateIngredientBodyMinStockMin).max(legacyUpdateIngredientBodyMinStockMax).multipleOf(legacyUpdateIngredientBodyMinStockMultipleOf).optional()
 })
 
 export const LegacyUpdateIngredientResponse = zod.object({
@@ -754,6 +780,8 @@ export const legacyCreateProductBodyBusinessTypeDefault = `Makanan`;
 export const legacyCreateProductBodyNeedsRecipeDefault = true;
 export const legacyCreateProductBodyStockDefault = 0;
 export const legacyCreateProductBodyStockMin = 0;
+export const legacyCreateProductBodyStockMax = 99999999999.999;
+export const legacyCreateProductBodyStockMultipleOf = 0.001;
 
 export const legacyCreateProductBodyAverageCostDefault = 0;
 export const legacyCreateProductBodyAverageCostMin = 0;
@@ -766,7 +794,7 @@ export const LegacyCreateProductBody = zod.object({
   "sellingPrice": zod.number().min(legacyCreateProductBodySellingPriceMin),
   "businessType": zod.enum(['Makanan', 'Parfum']).default(legacyCreateProductBodyBusinessTypeDefault),
   "needsRecipe": zod.boolean().default(legacyCreateProductBodyNeedsRecipeDefault),
-  "stock": zod.number().min(legacyCreateProductBodyStockMin).default(legacyCreateProductBodyStockDefault),
+  "stock": zod.number().min(legacyCreateProductBodyStockMin).max(legacyCreateProductBodyStockMax).multipleOf(legacyCreateProductBodyStockMultipleOf).default(legacyCreateProductBodyStockDefault),
   "averageCost": zod.number().min(legacyCreateProductBodyAverageCostMin).default(legacyCreateProductBodyAverageCostDefault),
   "autoRecipeIngredientId": zod.number().int().min(1).optional()
 })
@@ -794,6 +822,8 @@ export const legacyUpdateProductBodyNameMax = 120;
 export const legacyUpdateProductBodySellingPriceMin = 0;
 
 export const legacyUpdateProductBodyStockMin = 0;
+export const legacyUpdateProductBodyStockMax = 99999999999.999;
+export const legacyUpdateProductBodyStockMultipleOf = 0.001;
 
 export const legacyUpdateProductBodyAverageCostMin = 0;
 
@@ -804,7 +834,7 @@ export const LegacyUpdateProductBody = zod.object({
   "sellingPrice": zod.number().min(legacyUpdateProductBodySellingPriceMin).optional(),
   "businessType": zod.enum(['Makanan', 'Parfum']).optional(),
   "needsRecipe": zod.boolean().optional(),
-  "stock": zod.number().min(legacyUpdateProductBodyStockMin).optional(),
+  "stock": zod.number().min(legacyUpdateProductBodyStockMin).max(legacyUpdateProductBodyStockMax).multipleOf(legacyUpdateProductBodyStockMultipleOf).optional(),
   "averageCost": zod.number().min(legacyUpdateProductBodyAverageCostMin).optional()
 })
 
@@ -829,6 +859,8 @@ export const LegacySaveProductRecipeParams = zod.object({
 export const legacySaveProductRecipeBodyItemsItemRecipeUnitMax = 30;
 
 export const legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin = 0;
+export const legacySaveProductRecipeBodyItemsItemQtyRequiredMax = 99999999999.999;
+export const legacySaveProductRecipeBodyItemsItemQtyRequiredMultipleOf = 0.001;
 
 
 
@@ -836,7 +868,7 @@ export const LegacySaveProductRecipeBody = zod.object({
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
   "recipeUnit": zod.string().min(1).max(legacySaveProductRecipeBodyItemsItemRecipeUnitMax),
-  "qtyRequired": zod.number().gt(legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin)
+  "qtyRequired": zod.number().gt(legacySaveProductRecipeBodyItemsItemQtyRequiredExclusiveMin).max(legacySaveProductRecipeBodyItemsItemQtyRequiredMax).multipleOf(legacySaveProductRecipeBodyItemsItemQtyRequiredMultipleOf)
 }))
 })
 
@@ -857,6 +889,8 @@ export const LegacySaveProductRecipeResponse = zod.array(LegacySaveProductRecipe
 export const legacyRecordPurchaseBodySupplierTypeMax = 120;
 
 export const legacyRecordPurchaseBodyItemsItemQuantityExclusiveMin = 0;
+export const legacyRecordPurchaseBodyItemsItemQuantityMax = 99999999999.999;
+export const legacyRecordPurchaseBodyItemsItemQuantityMultipleOf = 0.001;
 
 export const legacyRecordPurchaseBodyItemsItemTotalCostMin = 0;
 
@@ -868,7 +902,7 @@ export const LegacyRecordPurchaseBody = zod.object({
   "supplierType": zod.string().min(1).max(legacyRecordPurchaseBodySupplierTypeMax),
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
-  "quantity": zod.number().gt(legacyRecordPurchaseBodyItemsItemQuantityExclusiveMin),
+  "quantity": zod.number().gt(legacyRecordPurchaseBodyItemsItemQuantityExclusiveMin).max(legacyRecordPurchaseBodyItemsItemQuantityMax).multipleOf(legacyRecordPurchaseBodyItemsItemQuantityMultipleOf),
   "totalCost": zod.number().min(legacyRecordPurchaseBodyItemsItemTotalCostMin)
 })).min(1)
 })
@@ -928,13 +962,19 @@ export const LegacyRecordSaleResponse = zod.object({
  */
 
 export const legacyRecordStockCountBodyItemsItemOneCountedStockMin = 0;
+export const legacyRecordStockCountBodyItemsItemOneCountedStockMax = 99999999999.999;
+export const legacyRecordStockCountBodyItemsItemOneCountedStockMultipleOf = 0.001;
 
 
 export const legacyRecordStockCountBodyItemsItemTwoCountedStockMin = 0;
+export const legacyRecordStockCountBodyItemsItemTwoCountedStockMax = 99999999999.999;
+export const legacyRecordStockCountBodyItemsItemTwoCountedStockMultipleOf = 0.001;
 
 
 
 export const legacyRecordStockCountBodyItemsItemThreeCountedStockMin = 0;
+export const legacyRecordStockCountBodyItemsItemThreeCountedStockMax = 99999999999.999;
+export const legacyRecordStockCountBodyItemsItemThreeCountedStockMultipleOf = 0.001;
 
 export const legacyRecordStockCountBodyItemsMax = 100;
 
@@ -945,15 +985,15 @@ export const LegacyRecordStockCountBody = zod.object({
   "items": zod.array(zod.union([zod.object({
   "ingredientId": zod.number().int().min(1),
   "preparationId": zod.never().optional(),
-  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemOneCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemOneCountedStockMin).max(legacyRecordStockCountBodyItemsItemOneCountedStockMax).multipleOf(legacyRecordStockCountBodyItemsItemOneCountedStockMultipleOf).optional().describe('Physical stock quantity, up to three decimal places.')
 }),zod.object({
   "ingredientId": zod.never().optional(),
   "preparationId": zod.number().int().min(1),
-  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemTwoCountedStockMin).optional().describe('Physical stock quantity, up to three decimal places.')
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemTwoCountedStockMin).max(legacyRecordStockCountBodyItemsItemTwoCountedStockMax).multipleOf(legacyRecordStockCountBodyItemsItemTwoCountedStockMultipleOf).optional().describe('Physical stock quantity, up to three decimal places.')
 })]).and(zod.object({
   "ingredientId": zod.number().int().min(1).optional(),
   "preparationId": zod.number().int().min(1).optional(),
-  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemThreeCountedStockMin).describe('Physical stock quantity, up to three decimal places.')
+  "countedStock": zod.number().min(legacyRecordStockCountBodyItemsItemThreeCountedStockMin).max(legacyRecordStockCountBodyItemsItemThreeCountedStockMax).multipleOf(legacyRecordStockCountBodyItemsItemThreeCountedStockMultipleOf).describe('Physical stock quantity, up to three decimal places.')
 }))).min(1).max(legacyRecordStockCountBodyItemsMax)
 })
 

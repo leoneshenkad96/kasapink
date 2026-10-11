@@ -571,8 +571,8 @@ components:
         category: { type: string, minLength: 1 }
         stockType: { type: string, enum: [Makanan, Parfum], default: Makanan }
         unit: { type: string, minLength: 1, maxLength: 30 }
-        stock: { type: number, minimum: 0 }
-        minStock: { type: number, minimum: 0 }
+        stock: { type: number, minimum: 0, maximum: 99999999999.999, multipleOf: 0.001 }
+        minStock: { type: number, minimum: 0, maximum: 99999999999.999, multipleOf: 0.001 }
         openingUnitCost: { type: number, minimum: 0 }
       required: [name, category, stockType, unit, stock, minStock, openingUnitCost]
     IngredientUpdate:
@@ -582,7 +582,7 @@ components:
         category: { type: string, minLength: 1 }
         stockType: { type: string, enum: [Makanan, Parfum] }
         unit: { type: string, minLength: 1, maxLength: 30 }
-        minStock: { type: number, minimum: 0 }
+        minStock: { type: number, minimum: 0, maximum: 99999999999.999, multipleOf: 0.001 }
     Product:
       type: object
       properties:
@@ -601,7 +601,7 @@ components:
         sellingPrice: { type: number, minimum: 0 }
         businessType: { type: string, enum: [Makanan, Parfum], default: Makanan }
         needsRecipe: { type: boolean, default: true }
-        stock: { type: number, minimum: 0, default: 0 }
+        stock: { type: number, minimum: 0, maximum: 99999999999.999, multipleOf: 0.001, default: 0 }
         averageCost: { type: number, minimum: 0, default: 0 }
         autoRecipeIngredientId: { type: integer, minimum: 1 }
       required: [name, sellingPrice, businessType]
@@ -612,7 +612,7 @@ components:
         sellingPrice: { type: number, minimum: 0 }
         businessType: { type: string, enum: [Makanan, Parfum] }
         needsRecipe: { type: boolean }
-        stock: { type: number, minimum: 0 }
+        stock: { type: number, minimum: 0, maximum: 99999999999.999, multipleOf: 0.001 }
         averageCost: { type: number, minimum: 0 }
     RecipeItem:
       type: object
@@ -629,7 +629,7 @@ components:
       properties:
         ingredientId: { type: integer }
         recipeUnit: { type: string, minLength: 1, maxLength: 30 }
-        qtyRequired: { type: number, exclusiveMinimum: 0 }
+        qtyRequired: { type: number, exclusiveMinimum: 0, maximum: 99999999999.999, multipleOf: 0.001 }
       required: [ingredientId, recipeUnit, qtyRequired]
     RecipeInput:
       type: object
@@ -643,7 +643,7 @@ components:
       type: object
       properties:
         ingredientId: { type: integer }
-        quantity: { type: number, exclusiveMinimum: 0 }
+        quantity: { type: number, exclusiveMinimum: 0, maximum: 99999999999.999, multipleOf: 0.001 }
         totalCost: { type: number, minimum: 0 }
       required: [ingredientId, quantity, totalCost]
     PurchaseInput:
@@ -730,6 +730,8 @@ components:
         countedStock:
           type: number
           minimum: 0
+          maximum: 99999999999.999
+          multipleOf: 0.001
           description: Physical stock quantity, up to three decimal places.
       required: [countedStock]
       oneOf:

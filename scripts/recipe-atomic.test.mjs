@@ -41,7 +41,8 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
     ('Kemasan','Kemasan','pack',10,500),
     ('Bahan Baru','Sayuran','kg',0,0),
     ('Bahan Resep','Sayuran','kg',0,0),
-    ('Bahan Historis','Sayuran','kg',0,0);
+    ('Bahan Historis','Sayuran','kg',0,0),
+    ('Batas Stok','Sayuran','kg',99999999999.999,1000);
     INSERT INTO erp_products (name,selling_price) VALUES ('Pangsit Ayam',15000);`);
   const app=express(); app.use(express.json()); app.use((req,_res,next) => {req.log={error(){},warn(){}};next();}); app.use('/api',loaded.exports.router);
   server=await new Promise(resolve => { const s=app.listen(0,'127.0.0.1',() => resolve(s)); });
@@ -82,6 +83,30 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   assert.equal(listedById.get(1).unitLocked,true);
   assert.equal(listedById.get(3).unitLocked,false);
   assert.equal(listedById.get(5).unitLocked,true);
+
+  const invalidIngredientPrecision = await call('/erp/ingredients','POST',{name:'Presisi Tidak Valid',category:'Sayuran',stockType:'Makanan',unit:'kg',stock:0.0001,minStock:0,openingUnitCost:0});
+  assert.equal(invalidIngredientPrecision.status,400);
+  const invalidIngredientOverflow = await call('/erp/ingredients','POST',{name:'Overflow Tidak Valid',category:'Sayuran',stockType:'Makanan',unit:'kg',stock:100000000000,minStock:0,openingUnitCost:0});
+  assert.equal(invalidIngredientOverflow.status,400);
+  assert.equal((await pg.query(`SELECT count(*)::int AS count FROM erp_ingredients WHERE name IN ('Presisi Tidak Valid','Overflow Tidak Valid')`)).rows[0].count,0);
+
+  const minStockBefore = (await pg.query('SELECT min_stock FROM erp_ingredients WHERE id=1')).rows[0].min_stock;
+  assert.equal((await call('/erp/ingredients/1','PATCH',{minStock:1.2345})).status,400);
+  assert.equal((await pg.query('SELECT min_stock FROM erp_ingredients WHERE id=1')).rows[0].min_stock,minStockBefore);
+
+  assert.equal((await save([{ingredientId:1,qtyRequired:0.001,recipeUnit:'gram'}])).status,400);
+  assert.equal((await pg.query('SELECT count(*)::int AS count FROM erp_recipe_items WHERE product_id=1')).rows[0].count,0);
+
+  const purchaseCountBefore = (await pg.query('SELECT count(*)::int AS count FROM erp_purchases')).rows[0].count;
+  const overflowPurchase = await call('/erp/purchases','POST',{date:'2026-10-11',supplierType:'QA',items:[{ingredientId:6,quantity:0.001,totalCost:1}]});
+  assert.equal(overflowPurchase.status,400);
+  assert.equal(Number((await pg.query('SELECT stock FROM erp_ingredients WHERE id=6')).rows[0].stock),99999999999.999);
+  assert.equal((await pg.query('SELECT count(*)::int AS count FROM erp_purchases')).rows[0].count,purchaseCountBefore);
+  assert.equal((await pg.query('SELECT count(*)::int AS count FROM erp_stock_movements WHERE ingredient_id=6')).rows[0].count,0);
+
+  assert.equal((await call('/erp/waste','POST',{date:'2026-10-11',itemType:'ingredient',itemId:1,quantity:0.0001,reason:'Uji presisi'})).status,400);
+  assert.equal((await call('/erp/preparations','POST',{name:'Prep Presisi Tidak Valid',unit:'kg',yieldQty:0.0001})).status,400);
+  assert.equal((await call('/erp/stock-counts','POST',{date:'2026-10-11',items:[{ingredientId:1,countedStock:100000000000}]})).status,400);
 
   assert.equal((await save([{ingredientId:1,qtyRequired:250,recipeUnit:'gram'}])).status,200);
   assert.equal((await save([{ingredientId:1,qtyRequired:0.0001,recipeUnit:'kg'}])).status,400);

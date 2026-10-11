@@ -21,9 +21,15 @@ export interface IngredientInput {
      * @maxLength 30
      */
   unit: string;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock: number;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   minStock: number;
   /** @minimum 0 */
   openingUnitCost: number;

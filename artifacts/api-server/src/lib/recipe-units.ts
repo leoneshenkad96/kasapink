@@ -1,3 +1,5 @@
+import { QUANTITY_MAX, validStoredQuantity } from './quantity';
+
 const UNIT_GROUPS: Record<string, { group: string; factor: number }> = {
   gram: { group: "weight", factor: 1 }, kg: { group: "weight", factor: 1000 },
   ml: { group: "volume", factor: 1 }, liter: { group: "volume", factor: 1000 },
@@ -13,6 +15,5 @@ export function recipeConversionFactor(recipeUnit: string, stockUnit: string): n
 
 // Recipe quantity columns are numeric(14,3); reject silent rounding to zero.
 export function validRecipeQuantity(value: number): boolean {
-  return Number.isFinite(value) && value >= 0.001 && value <= 99999999999.999
-    && Math.abs(value - Number(value.toFixed(3))) < 1e-9;
+  return value <= QUANTITY_MAX && validStoredQuantity(value, { allowNegative: false, allowZero: false });
 }
