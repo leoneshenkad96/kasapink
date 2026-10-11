@@ -1,6 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
-const ingredients = Array.from({ length: 45 }, (_, i) => ({ id: i + 1, name: i ? `Bahan ${String(i).padStart(2, '0')} dengan nama panjang untuk pengujian responsif` : 'Bengkoang', category: 'Sayuran', stockType: 'Makanan', unit: i === 1 ? 'pack' : 'kg', stock: 12.5, minStock: 1, averageCost: 20000, lastPrice: 20000 }));
+const ingredients = Array.from({ length: 45 }, (_, i) => ({ id: i + 1, name: i ? `Bahan ${String(i).padStart(2, '0')} dengan nama panjang untuk pengujian responsif` : 'Bengkoang', category: 'Sayuran', stockType: 'Makanan', unit: i === 1 ? 'pack' : 'kg', stock: 12.5, minStock: 1, averageCost: 20000, lastPrice: 20000, unitLocked: true }));
 const products = [{ id: 1, name: 'Pangsit Ayam dengan nama produk yang panjang', businessType: 'Makanan', sellingPrice: 15000, needsRecipe: true, stock: 0, averageCost: 0 }];
 const recipes = ingredients.slice(0, 30).map((item) => ({ productId: 1, ingredientId: item.id, ingredientName: item.name, ingredientUnit: item.unit, qtyRequired: 0.1, recipeUnit: item.unit }));
 const prep = { id: 1, name: 'Ayam suwir dengan nama prep panjang', unit: 'kg', yieldQty: 5, stock: 8.7, averageCost: 3130.43, active: true, recipe: [], products: [], batches: [] };
@@ -109,4 +109,14 @@ test('background health update preserves edited recipe draft', async ({ page }, 
   await expect(page.locator('.connection')).toHaveText('Tersambung');
   await expect(dialog).toBeVisible(); await expect(dialog.locator('.recipe-draft-row').first()).toContainText('0,5 kg');
   await page.screenshot({path: testInfo.outputPath('recipe-review.png')});
+});
+
+test('used ingredient exposes a locked unit with an explanation', async ({ page }) => {
+  await session(page);
+  await page.goto('/stok/makanan');
+  await page.getByRole('button', { name: 'Ubah Bengkoang' }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog.getByLabel('Satuan')).toBeDisabled();
+  await expect(dialog).toContainText('Satuan dikunci karena bahan sudah memiliki stok, transaksi, atau dipakai dalam resep.');
+  await expect(dialog.locator('input[type="hidden"][name="unit"]')).toHaveValue('kg');
 });
