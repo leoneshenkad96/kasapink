@@ -8,7 +8,10 @@
 
 export interface PurchaseLineInput {
   ingredientId: number;
-  /** @exclusiveMinimum 0 */
+  /**
+     * @maximum 99999999999.999
+     * @exclusiveMinimum 0
+     */
   quantity: number;
   /** @minimum 0 */
   totalCost: number;

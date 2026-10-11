@@ -14,6 +14,7 @@ export type StockCountLineInput = (unknown & {
   /**
      * Physical stock quantity, up to three decimal places.
      * @minimum 0
+     * @maximum 99999999999.999
      */
   countedStock: number;
 });

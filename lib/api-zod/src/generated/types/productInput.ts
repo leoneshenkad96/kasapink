@@ -17,7 +17,10 @@ export interface ProductInput {
   sellingPrice: number;
   businessType: ProductInputBusinessType;
   needsRecipe?: boolean;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock?: number;
   /** @minimum 0 */
   averageCost?: number;

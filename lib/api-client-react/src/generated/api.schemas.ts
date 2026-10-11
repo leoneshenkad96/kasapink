@@ -75,9 +75,15 @@ export interface IngredientInput {
      * @maxLength 30
      */
   unit: string;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock: number;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   minStock: number;
   /** @minimum 0 */
   openingUnitCost: number;
@@ -105,7 +111,10 @@ export interface IngredientUpdate {
      * @maxLength 30
      */
   unit?: string;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   minStock?: number;
 }
 
@@ -145,7 +154,10 @@ export interface ProductInput {
   sellingPrice: number;
   businessType: ProductInputBusinessType;
   needsRecipe?: boolean;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock?: number;
   /** @minimum 0 */
   averageCost?: number;
@@ -171,7 +183,10 @@ export interface ProductUpdate {
   sellingPrice?: number;
   businessType?: ProductUpdateBusinessType;
   needsRecipe?: boolean;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock?: number;
   /** @minimum 0 */
   averageCost?: number;
@@ -193,7 +208,10 @@ export interface RecipeLineInput {
      * @maxLength 30
      */
   recipeUnit: string;
-  /** @exclusiveMinimum 0 */
+  /**
+     * @maximum 99999999999.999
+     * @exclusiveMinimum 0
+     */
   qtyRequired: number;
 }
 
@@ -203,7 +221,10 @@ export interface RecipeInput {
 
 export interface PurchaseLineInput {
   ingredientId: number;
-  /** @exclusiveMinimum 0 */
+  /**
+     * @maximum 99999999999.999
+     * @exclusiveMinimum 0
+     */
   quantity: number;
   /** @minimum 0 */
   totalCost: number;
@@ -278,6 +299,7 @@ export type StockCountLineInput = (unknown & {
   /**
      * Physical stock quantity, up to three decimal places.
      * @minimum 0
+     * @maximum 99999999999.999
      */
   countedStock: number;
 });

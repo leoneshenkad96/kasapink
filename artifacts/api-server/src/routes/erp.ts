@@ -48,6 +48,7 @@ import { Router, type IRouter, type Request, type RequestHandler, type Response 
 import { checkRole, requireOperationalRole, verifyToken, type AuthRequest } from "../lib/auth";
 import { preparationComponentCost } from "../lib/costing";
 import { movingAverageAfterReceipt } from "../lib/moving-average";
+import { normalizeComputedQuantity, validStoredQuantity } from "../lib/quantity";
 import { toCsv, toExcelHtml, toPdf, type ReportTable } from "../lib/report-export";
 
 const router: IRouter = Router();
@@ -142,8 +143,19 @@ function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function roundQuantity(value: number): number {
-  return Math.round((value + Number.EPSILON) * 1000) / 1000;
+function checkedInputQuantity(value: number, label: string, options: { allowNegative?: boolean; allowZero?: boolean } = {}): number {
+  if (!validStoredQuantity(value, options)) {
+    throw new HttpError(`${label} harus sesuai numeric(14,3): maksimal tiga desimal dan tidak melebihi 99.999.999.999,999.`, 400);
+  }
+  return value;
+}
+
+function checkedComputedQuantity(value: number, label: string): number {
+  const normalized = normalizeComputedQuantity(value);
+  if (normalized === null) {
+    throw new HttpError(`${label} tidak dapat disimpan pada numeric(14,3) atau menjadi nol setelah pembulatan.`, 400);
+  }
+  return normalized;
 }
 
 function dateKey(value: Date | string): string {
@@ -632,6 +644,8 @@ router.post(
       return;
     }
     if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock, parsed.data.openingUnitCost], res)) return;
+    checkedInputQuantity(parsed.data.stock, "Stok awal", { allowNegative: false });
+    checkedInputQuantity(parsed.data.minStock, "Stok minimum", { allowNegative: false });
     const { openingUnitCost, ...ingredient } = parsed.data;
     const openingCost = String(roundMoney(openingUnitCost));
     const [row] = await db
@@ -666,6 +680,7 @@ router.patch(
       return;
     }
     if (!requireFiniteNumbers([body.data.minStock ?? 0], res)) return;
+    if (body.data.minStock !== undefined) checkedInputQuantity(body.data.minStock, "Stok minimum", { allowNegative: false });
     const update: {
       name?: string;
       category?: string;
@@ -771,6 +786,7 @@ router.post(
       return;
     }
     if (!requireFiniteNumbers([parsed.data.sellingPrice, parsed.data.stock, parsed.data.averageCost], res)) return;
+    if (!parsed.data.needsRecipe) checkedInputQuantity(parsed.data.stock, "Stok produk", { allowNegative: false });
     const row = await db.transaction(async (tx) => {
       if (parsed.data.autoRecipeIngredientId !== undefined) {
         const [ingredient] = await tx
@@ -835,6 +851,7 @@ router.patch(
       body.data.stock ?? 0,
       body.data.averageCost ?? 0,
     ], res)) return;
+    if (body.data.stock !== undefined) checkedInputQuantity(body.data.stock, "Stok produk", { allowNegative: false });
     const update: {
       name?: string;
       sellingPrice?: string;
@@ -908,6 +925,7 @@ router.put(
         if (conversionFactor === null) {
           throw new HttpError(`Satuan resep ${item.recipeUnit} tidak kompatibel dengan satuan stok ${ingredient.unit} untuk bahan ${ingredient.name}.`, 400);
         }
+        checkedComputedQuantity(item.qtyRequired * conversionFactor, `Hasil konversi resep ${ingredient.name}`);
         return { productId: params.data.productId, ingredientId: item.ingredientId, qtyRequired: String(item.qtyRequired), recipeUnit: item.recipeUnit, conversionFactor: String(conversionFactor) };
       });
       await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
@@ -954,7 +972,7 @@ function stringValue(value: unknown): value is string {
 const PrepBody = {
   safeParse(input: unknown): ParseResult<{ name: string; unit: string; yieldQty: number }> {
     const b = recordBody(input);
-    if (!b || !stringValue(b.name) || b.name.length > 120 || !stringValue(b.unit) || b.unit.length > 30 || !positiveNumber(b.yieldQty)) return { success: false, error: { message: "Nama, satuan, dan hasil standar prep wajib diisi dengan benar." } };
+    if (!b || !stringValue(b.name) || b.name.length > 120 || !stringValue(b.unit) || b.unit.length > 30 || !positiveNumber(b.yieldQty) || !validStoredQuantity(b.yieldQty, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Nama, satuan, dan hasil standar prep wajib valid serta maksimal tiga angka desimal." } };
     return { success: true, data: { name: b.name, unit: b.unit, yieldQty: b.yieldQty } };
   }
 };
@@ -980,7 +998,7 @@ const BatchBody = {
   safeParse(input: unknown): ParseResult<{ date: Date; targetQty: number; actualQty: number }> {
     const b = recordBody(input), d = b?.date;
     const date = new Date(String(d ?? ""));
-    if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty)) return { success: false, error: { message: "Tanggal, target, dan hasil aktual produksi wajib valid." } };
+    if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty) || !validStoredQuantity(b.targetQty, { allowNegative: false, allowZero: false }) || !validStoredQuantity(b.actualQty, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Tanggal, target, dan hasil aktual produksi wajib valid serta maksimal tiga angka desimal." } };
     return { success: true, data: { date, targetQty: b.targetQty, actualQty: b.actualQty } };
   }
 };
@@ -1058,6 +1076,7 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
       if (isOperationalIngredient(ingredient.category)) throw new HttpError("Bahan Mikro/Operasional tidak dapat dipakai sebagai bahan prep.", 400);
       const factor = recipeConversionFactor(item.recipeUnit, ingredient.unit);
       if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok ${ingredient.unit} untuk ${ingredient.name}.`, 400);
+      checkedComputedQuantity(item.qtyRequired * factor, `Hasil konversi resep prep ${ingredient.name}`);
       return { preparationId, ingredientId: item.ingredientId, qtyRequired: String(item.qtyRequired), recipeUnit: item.recipeUnit, conversionFactor: String(factor) };
     });
     await tx.delete(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
@@ -1090,7 +1109,7 @@ router.put("/erp/products/:productId/preparations", safe(async (req, res) => {
       const prep = map.get(item.preparationId)!;
       const factor = recipeConversionFactor(item.recipeUnit, prep.unit);
       if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok prep ${prep.unit} untuk ${prep.name}.`, 400);
-
+      checkedComputedQuantity(item.qtyRequired * factor, `Hasil konversi pemakaian prep ${prep.name}`);
     }
     await tx.delete(productPreparationItemsTable).where(eq(productPreparationItemsTable.productId, productId));
     if (parsed.data.items.length) await tx.insert(productPreparationItemsTable).values(parsed.data.items.map((x) => ({
@@ -1120,9 +1139,9 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     if (!Number.isFinite(scale) || scale <= 0) throw new HttpError("Hasil standar prep tidak valid.", 400);
     for (const line of recipe) {
       const ing = byId.get(line.ingredientId)!;
-      const used = number(line.qtyRequired) * number(line.conversionFactor) * scale;
+      const used = checkedComputedQuantity(number(line.qtyRequired) * number(line.conversionFactor) * scale, `Pemakaian bahan ${ing.name}`);
       totalCost += used * number(ing.averageCost);
-      const newStock = number(ing.stock) - used;
+      const newStock = checkedComputedQuantity(number(ing.stock) - used, `Stok akhir bahan ${ing.name}`);
       await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, ing.id));
       await tx.insert(stockMovementsTable).values({
         date: dateKey(parsed.data.date), ingredientId: ing.id, movementType: "prep_production",
@@ -1133,7 +1152,7 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     totalCost = roundMoney(totalCost);
     const unitCost = roundMoney(totalCost / parsed.data.actualQty);
     const yieldPercentage = roundMoney((parsed.data.actualQty / parsed.data.targetQty) * 1000) / 10;
-    const newStock = number(prep.stock) + parsed.data.actualQty;
+    const newStock = checkedComputedQuantity(number(prep.stock) + parsed.data.actualQty, `Stok akhir prep ${prep.name}`);
     const newAverageCost = movingAverageAfterReceipt({
       stockBefore: number(prep.stock),
       averageCostBefore: number(prep.averageCost),
@@ -1234,7 +1253,7 @@ function parseWasteBody(input: unknown): ValidationResult<WasteBodyData> {
   if (!date) return { success: false, error: { message: "Tanggal waste tidak valid." } };
   if (itemType !== "ingredient" && itemType !== "preparation") return { success: false, error: { message: "Jenis item waste tidak valid." } };
   if (!Number.isSafeInteger(itemId) || itemId <= 0) return { success: false, error: { message: "ID item waste tidak valid." } };
-  if (!Number.isFinite(quantity) || quantity <= 0) return { success: false, error: { message: "Jumlah waste harus lebih besar dari 0." } };
+  if (!validStoredQuantity(quantity, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Jumlah waste harus positif, maksimal tiga desimal, dan sesuai kapasitas penyimpanan." } };
   if (!reason || reason.length > 120) return { success: false, error: { message: "Alasan waste wajib diisi dan maksimal 120 karakter." } };
   if (note !== undefined && note.length > 500) return { success: false, error: { message: "Catatan waste maksimal 500 karakter." } };
   return { success: true, data: { date, itemType, itemId, quantity, reason, note } };
@@ -1264,7 +1283,7 @@ router.post("/erp/waste", safe(async (req, res) => {
       const [item] = await tx.select().from(ingredientsTable).where(eq(ingredientsTable.id, parsed.data.itemId)).for("update");
       if (!item) throw new HttpError("Bahan tidak ditemukan.", 404);
       unit = item.unit; unitCost = number(item.averageCost);
-      const newStock = number(item.stock) - parsed.data.quantity;
+      const newStock = checkedComputedQuantity(number(item.stock) - parsed.data.quantity, `Stok akhir bahan ${item.name}`);
       await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, item.id));
       await tx.insert(stockMovementsTable).values({
         date: dateKey(parsed.data.date), ingredientId: item.id, movementType: "waste",
@@ -1275,7 +1294,7 @@ router.post("/erp/waste", safe(async (req, res) => {
       const [item] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, parsed.data.itemId)).for("update");
       if (!item) throw new HttpError("Prep tidak ditemukan.", 404);
       unit = item.unit; unitCost = number(item.averageCost);
-      const newStock = number(item.stock) - parsed.data.quantity;
+      const newStock = checkedComputedQuantity(number(item.stock) - parsed.data.quantity, `Stok akhir prep ${item.name}`);
       await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, item.id));
       await tx.insert(preparationStockMovementsTable).values({
         date: dateKey(parsed.data.date), preparationId: item.id, movementType: "waste",
@@ -1520,6 +1539,7 @@ router.post(
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
     if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.ingredientId, item.quantity, item.totalCost]), res)) return;
+    for (const line of parsed.data.items) checkedInputQuantity(line.quantity, "Jumlah pembelian", { allowNegative: false, allowZero: false });
     const lines = parsed.data.items;
     const aggregated = new Map<number, { quantity: number; totalCost: number }>();
     for (const line of lines) {
@@ -1530,7 +1550,7 @@ router.post(
     }
     const purchaseLines = [...aggregated.entries()]
       .sort(([a], [b]) => a - b)
-      .map(([ingredientId, values]) => ({ ingredientId, ...values }));
+      .map(([ingredientId, values]) => ({ ingredientId, ...values, quantity: checkedComputedQuantity(values.quantity, "Total jumlah pembelian bahan") }));
     const ingredientIds = purchaseLines.map((line) => line.ingredientId);
     const result = await db.transaction(async (tx) => {
       const locked = await tx
@@ -1562,7 +1582,7 @@ router.post(
         const oldStock = number(ingredient.stock);
         const oldAverageCost = number(ingredient.averageCost);
         const unitCost = line.totalCost / line.quantity;
-        const newStock = oldStock + line.quantity;
+        const newStock = checkedComputedQuantity(oldStock + line.quantity, `Stok akhir bahan ${ingredient.name}`);
         const newAverageCost = movingAverageAfterReceipt({
           stockBefore: oldStock,
           averageCostBefore: oldAverageCost,
@@ -1665,8 +1685,9 @@ router.delete(
           .for("update");
 
         if (product && !product.needsRecipe) {
+          const restoredStock = checkedComputedQuantity(number(product.stock) + line.quantity, `Stok pemulihan produk ${product.name}`);
           await tx.update(productsTable)
-            .set({ stock: String(number(product.stock) + line.quantity) })
+            .set({ stock: String(restoredStock) })
             .where(eq(productsTable.id, product.id));
         }
       }
@@ -1686,8 +1707,9 @@ router.delete(
           .for("update");
         if (!prep) continue;
         const restored = -number(movement.quantityDelta);
+        const restoredStock = checkedComputedQuantity(number(prep.stock) + restored, `Stok pemulihan prep ${prep.name}`);
         await tx.update(preparationsTable)
-          .set({ stock: String(number(prep.stock) + restored) })
+          .set({ stock: String(restoredStock) })
           .where(eq(preparationsTable.id, prep.id));
       }
       await tx.delete(preparationStockMovementsTable).where(and(
@@ -1712,8 +1734,9 @@ router.delete(
         if (!ingredient) continue;
 
         const restored = -number(movement.quantityDelta);
+        const restoredStock = checkedComputedQuantity(number(ingredient.stock) + restored, `Stok pemulihan bahan ${ingredient.name}`);
         await tx.update(ingredientsTable)
-          .set({ stock: String(number(ingredient.stock) + restored) })
+          .set({ stock: String(restoredStock) })
           .where(eq(ingredientsTable.id, ingredient.id));
       }
 
@@ -1816,7 +1839,11 @@ router.post(
     if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.productId, item.quantity]), res)) return;
     const quantities = new Map<number, number>();
     for (const line of parsed.data.items) {
-      quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+      const aggregatedQuantity = (quantities.get(line.productId) ?? 0) + line.quantity;
+      if (!Number.isSafeInteger(aggregatedQuantity) || aggregatedQuantity > 2_147_483_647) {
+        throw new HttpError("Jumlah penjualan produk melebihi kapasitas integer database.", 400);
+      }
+      quantities.set(line.productId, aggregatedQuantity);
     }
     const productIds = [...quantities.keys()].sort((a, b) => a - b);
     const result = await db.transaction(async (tx) => {
@@ -1867,6 +1894,9 @@ router.post(
           );
         }
       }
+      for (const [ingredientId, required] of requiredByIngredient) {
+        requiredByIngredient.set(ingredientId, checkedComputedQuantity(required, `Total kebutuhan bahan #${ingredientId}`));
+      }
       for (const [productId, soldQuantity] of quantities) {
         const product = productRows.find((row) => row.id === productId)!;
         if (!product.needsRecipe) continue;
@@ -1876,6 +1906,9 @@ router.post(
             (requiredByPreparation.get(item.preparationId) ?? 0) + number(item.qtyRequired) * number(item.conversionFactor) * soldQuantity,
           );
         }
+      }
+      for (const [preparationId, required] of requiredByPreparation) {
+        requiredByPreparation.set(preparationId, checkedComputedQuantity(required, `Total kebutuhan prep #${preparationId}`));
       }
 
       const requestedPreparationIds = [...requiredByPreparation.keys()].sort((a, b) => a - b);
@@ -2031,9 +2064,10 @@ router.post(
       for (const [productId, soldQuantity] of quantities) {
         const product = productById.get(productId)!;
         if (!product.needsRecipe) {
+          const newStock = checkedComputedQuantity(number(product.stock) - soldQuantity, `Stok akhir produk ${product.name}`);
           await tx
             .update(productsTable)
-            .set({ stock: String(number(product.stock) - soldQuantity) })
+            .set({ stock: String(newStock) })
             .where(eq(productsTable.id, productId));
         }
       }
@@ -2043,7 +2077,7 @@ router.post(
         const prep = preparationById.get(preparationId)!;
         const used = requiredByPreparation.get(preparationId) ?? 0;
         const oldStock = number(prep.stock);
-        const newStock = oldStock - used;
+        const newStock = checkedComputedQuantity(oldStock - used, `Stok akhir prep ${prep.name}`);
 
         await tx
           .update(preparationsTable)
@@ -2074,7 +2108,7 @@ router.post(
         const ingredient = ingredientById.get(ingredientId)!;
         const oldStock = number(ingredient.stock);
         const used = requiredByIngredient.get(ingredientId)!;
-        const newStock = oldStock - used;
+        const newStock = checkedComputedQuantity(oldStock - used, `Stok akhir bahan ${ingredient.name}`);
         await tx
           .update(ingredientsTable)
           .set({ stock: String(newStock) })
@@ -2117,16 +2151,11 @@ router.post(
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
     if (!requireFiniteNumbers(parsed.data.items.map((item) => item.countedStock), res)) return;
+    for (const item of parsed.data.items) checkedInputQuantity(item.countedStock, "Stok fisik", { allowNegative: false });
     if (parsed.data.items.some((item) =>
       (item.ingredientId === undefined) === (item.preparationId === undefined)
     )) {
       invalid(res, "Setiap item harus memilih tepat satu jenis: bahan atau preparation.");
-      return;
-    }
-    if (parsed.data.items.some((item) =>
-      Math.abs(item.countedStock * 1000 - Math.round(item.countedStock * 1000)) > 1e-7
-    )) {
-      invalid(res, "Stok fisik maksimal tiga angka desimal.");
       return;
     }
     const itemKeys = parsed.data.items.map((item) =>
@@ -2169,7 +2198,7 @@ router.post(
         if (item.ingredientId !== undefined) {
           const ingredient = ingredientById.get(item.ingredientId)!;
           const stockBefore = number(ingredient.stock);
-          const varianceQty = roundQuantity(item.countedStock - stockBefore);
+          const varianceQty = checkedComputedQuantity(item.countedStock - stockBefore, `Selisih opname bahan ${ingredient.name}`);
           const unitCost = number(ingredient.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(ingredientsTable)
@@ -2189,7 +2218,7 @@ router.post(
         } else {
           const preparation = preparationById.get(item.preparationId!)!;
           const stockBefore = number(preparation.stock);
-          const varianceQty = roundQuantity(item.countedStock - stockBefore);
+          const varianceQty = checkedComputedQuantity(item.countedStock - stockBefore, `Selisih opname prep ${preparation.name}`);
           const unitCost = number(preparation.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(preparationsTable)
