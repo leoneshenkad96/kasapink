@@ -19,6 +19,8 @@ import {
   KeyRound, LoaderCircle, Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2,
   TrendingUp, UserRound, X,
 } from 'lucide-react';
+import { Modal } from './components/ui/modal';
+import RecipeBuilder, { type RecipeDraftLine } from './components/RecipeBuilder';
 import ChangePasswordModal from './components/ChangePasswordModal';
 import PasswordInput from './components/PasswordInput';
 import UsersPage from './pages/UsersPage';
@@ -145,6 +147,11 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
 
 function Shell({ children, connected, onLogout, user }: { children: React.ReactNode; connected: boolean; onLogout: () => void; user: AppUser }) {
   const [path] = useLocation();
+  useEffect(() => {
+    const protect = (event: BeforeUnloadEvent) => { if (unsavedChanges) { event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload', protect);
+    return () => window.removeEventListener('beforeunload', protect);
+  }, []);
   const [mobileNav, setMobileNav] = useState(false);
   const [expandedMenu, setExpandedMenu] = useState<string | null>(null);
   const [showChangePassword, setShowChangePassword] = useState(false);
@@ -244,9 +251,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
 export function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) { return <input className="input" {...props} />; }
 function FieldSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) { return <select className="input select" {...props} />; }
 export function FormError({ text }: { text: string }) { return text ? <div className="form-error"><AlertCircle size={16} />{text}</div> : null; }
-export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}><div className="modal"><div className="modal-head"><div><span className="eyebrow">FORM DATA</span><h2>{title}</h2></div><button className="icon-button" onClick={onClose} aria-label="Tutup"><X size={19} /></button></div>{children}</div></div>;
-}
+export { Modal };
 function useRefresh() {
   const qc = useQueryClient();
   return () => {
@@ -324,9 +329,7 @@ const STOCK_CATEGORIES: Record<'Makanan' | 'Parfum', string[]> = {
 const RECIPE_UNIT_GROUPS: Record<string, { group: string; factor: number }> = {
   gram: { group: 'weight', factor: 1 }, kg: { group: 'weight', factor: 1000 },
   ml: { group: 'volume', factor: 1 }, liter: { group: 'volume', factor: 1000 },
-  pcs: { group: 'count', factor: 1 }, butir: { group: 'count', factor: 1 }, ekor: { group: 'count', factor: 1 },
-  potong: { group: 'count', factor: 1 }, ikat: { group: 'count', factor: 1 }, pack: { group: 'count', factor: 1 },
-  box: { group: 'count', factor: 1 }, botol: { group: 'count', factor: 1 },
+
 };
 const recipeUnitFactor = (recipeUnit: string, stockUnit: string) => {
   if (recipeUnit === stockUnit) return 1;
@@ -392,6 +395,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
   };
 
   const closeStockModal = () => {
+    if (create.isPending || update.isPending) return;
     if (formDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
     setModal(null);
     setFormDirty(false);
@@ -433,7 +437,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
     <Card className="table-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari bahan" data-testid="input-search-ingredients" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Cari nama atau kategori..." /></div><button type="button" className={`filter-chip ${stockFilter === 'low' ? 'is-active' : ''}`} aria-pressed={stockFilter === 'low'} onClick={() => { setStockFilter((value) => value === 'low' ? 'all' : 'low'); setPage(1); }}><AlertCircle size={14} /> Stok menipis</button></div><span className="result-count">{totalItems} bahan</span></div>
       {ingredientQuery.isError ? <ErrorPanel message={errText(ingredientQuery.error)} retry={() => void ingredientQuery.refetch()} /> : pagedIngredients.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#613248' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={totalItems} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
-    {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
+    {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal} dirty={formDirty} busy={create.isPending || update.isPending}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
       <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" onBlur={(e) => { const value = e.currentTarget.value.trim(); setNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.' : ''); }} />{nameError && <small className="form-hint" style={{ color: '#613248' }}>{nameError}</small>}</Field>
       <Field label="Kategori"><FieldSelect disabled={readOnly} name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan"><FieldSelect disabled={readOnly} name="unit" value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect></Field>
@@ -451,6 +455,8 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const [productPage, setProductPage] = useState(1);
   const [editing, setEditing] = useState<Product | 'new' | null>(null);
   const [recipeProduct, setRecipeProduct] = useState<Product | null>(null);
+  const [productRecipeDraft, setProductRecipeDraft] = useState<RecipeDraftLine[]>([]);
+  const [recipeDirty, setRecipeDirty] = useState(false);
   const [needsRecipe, setNeedsRecipe] = useState(true);
   const [autoRecipe, setAutoRecipe] = useState(false);
   const [error, setError] = useState('');
@@ -465,7 +471,15 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const safeRecipes = state.recipes || [];
   const safeIngredients = state.ingredients || [];
   const macroIngredients = safeIngredients.filter((ingredient) => ingredient.stockType === businessType && !/mikro|operasional/i.test(ingredient.category));
-  const recipe = useMemo(() => recipeProduct ? safeRecipes.filter((r) => r.productId === recipeProduct.id) : [], [recipeProduct, safeRecipes]);
+  useEffect(() => {
+    if (recipeProduct) setUnsavedChanges(recipeDirty);
+    return () => { if (recipeProduct) setUnsavedChanges(false); };
+  }, [recipeProduct, recipeDirty]);
+  const closeRecipe = () => {
+    if (saveRecipe.isPending) return;
+    if (recipeDirty && !window.confirm('Perubahan resep belum disimpan. Tetap keluar?')) return;
+    setRecipeProduct(null); setRecipeDirty(false); setUnsavedChanges(false);
+  };
   useEffect(() => {
     let active = true;
     fetch('/api/erp/preparations', { headers: authHeaders() }).then(r => r.ok ? r.json() : []).then((d: Prep[]) => { if (active && Array.isArray(d)) setPrepData(d); }).catch(() => {});
@@ -491,6 +505,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
     setEditing(product);
   };
   const closeProductForm = () => {
+    if (create.isPending || update.isPending) return;
     if (productFormDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
     setEditing(null);
     setAutoRecipe(false);
@@ -517,9 +532,9 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   };
   const saveRecipeForm = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); if (!recipeProduct) return;
-    const form = new FormData(e.currentTarget);
-    const items = safeIngredients.map((i) => ({ ingredientId: i.id, recipeUnit: String(form.get(`unit-${i.id}`) || i.unit), qtyRequired: Number(form.get(`qty-${i.id}`)) || 0 })).filter((i) => i.qtyRequired > 0);
-    saveRecipe.mutate({ productId: recipeProduct.id, data: { items } }, { onSuccess: () => { refresh(); setRecipeProduct(null); setError(''); }, onError: (x) => setError(errText(x)) });
+    if (saveRecipe.isPending || readOnly) return;
+    const items = productRecipeDraft;
+    saveRecipe.mutate({ productId: recipeProduct.id, data: { items } }, { onSuccess: () => { refresh(); setRecipeProduct(null); setRecipeDirty(false); setUnsavedChanges(false); setError(''); }, onError: (x) => setError(errText(x)) });
   };
   const handleDeleteProduct = async (id: number, name: string) => {
     if (confirm(`Yakin ingin menghapus produk "${name}"?`)) {
@@ -566,10 +581,10 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
             {!p.needsRecipe && <div><span>Stok barang jadi</span><b>{p.stock}</b></div>}
           </div>
           <div className="recipe-summary">{p.needsRecipe ? (macroItems.length ? <>{macroItems.length} bahan makro ? {macroItems.slice(0, 3).map((r) => r.ingredientName).join(', ')}{macroItems.length > 3 ? '?' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>) : 'Stok produk dipotong langsung saat penjualan.'}</div>
-          {p.needsRecipe && <button className="recipe-button" disabled={readOnly} onClick={() => { setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button>}
+          {p.needsRecipe && <button className="recipe-button" disabled={readOnly} onClick={() => { setProductRecipeDraft(safeRecipes.filter((r) => r.productId === p.id).map((r) => ({ ingredientId: r.ingredientId, recipeUnit: r.recipeUnit, qtyRequired: r.qtyRequired }))); setRecipeDirty(false); setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button>}
         </Card>;
       })}</div><PaginationControls page={productPage} totalItems={productTotal} pageSize={productPageSize} onPageChange={setProductPage} label="produk" /></>}
-    {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={closeProductForm}>
+    {editing && <Modal title={editing === 'new' ? 'Tambah produk' : 'Ubah produk'} onClose={closeProductForm} dirty={productFormDirty} busy={create.isPending || update.isPending}>
       <form className="form-stack" onInput={() => { setProductFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setProductFormDirty(true); setUnsavedChanges(true); }} onSubmit={submitProduct}>
         <Field label="Nama produk"><FieldInput disabled={readOnly} name="name" required defaultValue={editing === 'new' ? '' : editing.name} placeholder="Contoh: Parfum botol 30 ml" /></Field>
         <Field label="Harga jual per unit"><FieldInput disabled={readOnly} name="sellingPrice" required type="number" min="0" step="100" defaultValue={editing === 'new' ? '' : editing.sellingPrice} /></Field>
@@ -592,11 +607,12 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
         <div className="form-actions"><Button variant="quiet" onClick={closeProductForm}>Batal</Button><Button type="submit" disabled={readOnly || create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan?' : 'Simpan produk'}</Button></div>
       </form>
     </Modal>}
-    {recipeProduct && <Modal title={`Atur resep — ${recipeProduct.name}`} onClose={() => setRecipeProduct(null)}>
+    {recipeProduct && <Modal title={`Atur resep — ${recipeProduct.name}`} onClose={closeRecipe} dirty={recipeDirty} busy={saveRecipe.isPending}>
       <form className="form-stack" onSubmit={saveRecipeForm}>
-        <p className="modal-intro">Masukkan jumlah bahan yang digunakan untuk satu produk. Satuan resep boleh berbeda dari satuan stok jika masih satu kelompok, misalnya stok ayam dalam kg tetapi resep menggunakan gram. Sistem akan mengonversinya otomatis.</p>
-        {macroIngredients.length ? <div className="recipe-editor">{macroIngredients.map((i) => { const saved = recipe.find((r) => r.ingredientId === i.id); const units = recipeUnitsFor(i.unit); const selectedUnit = saved?.recipeUnit && units.includes(saved.recipeUnit) ? saved.recipeUnit : i.unit; return <div className="recipe-line" key={i.id}><div><b>{i.name}</b><small>Stok: {i.unit} · digunakan per produk</small></div><div style={{ display: 'flex', gap: 8, alignItems: 'center' }}><FieldSelect disabled={readOnly} aria-label={`Satuan resep untuk ${i.name}`} name={`unit-${i.id}`} defaultValue={selectedUnit}>{units.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</FieldSelect><FieldInput disabled={readOnly} aria-label={`Jumlah ${i.name} per produk`} name={`qty-${i.id}`} type="number" min="0" step="any" defaultValue={saved?.qtyRequired || ''} placeholder="Jumlah" /></div></div>; })}</div> : <Empty title="Belum ada bahan makro" text="Tambahkan bahan utama di Stok Bahan terlebih dahulu." />}
-        <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={() => setRecipeProduct(null)}>Batal</Button><Button type="submit" disabled={saveRecipe.isPending || !macroIngredients.length}>{saveRecipe.isPending ? 'Menyimpan?' : 'Simpan resep'}</Button></div>
+        <p className="modal-intro">Tambahkan bahan untuk satu produk. Perubahan baru disimpan setelah memilih Simpan resep.</p>
+        <RecipeBuilder ingredients={macroIngredients} value={productRecipeDraft} onChange={(lines) => { setProductRecipeDraft(lines); setRecipeDirty(true); }} disabled={readOnly || saveRecipe.isPending} onPendingChange={setRecipeDirty} />
+        <FormError text={error} />
+        <div className="form-actions"><Button variant="quiet" onClick={closeRecipe}>Batal</Button><Button type="submit" disabled={readOnly || saveRecipe.isPending}>{saveRecipe.isPending ? 'Menyimpan…' : 'Simpan resep'}</Button></div>
       </form>
     </Modal>}
   </>;
@@ -788,7 +804,8 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [prepNameError, setPrepNameError] = useState('');
   const [prepDone, setPrepDone] = useState('');
   const [savingPrep, setSavingPrep] = useState(false);
-  const [recipeDraft, setRecipeDraft] = useState<Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }>>([]);
+  const [recipeDraft, setRecipeDraft] = useState<RecipeDraftLine[]>([]);
+  const [savingRecipe, setSavingRecipe] = useState(false);
   const [targetQty, setTargetQty] = useState('');
   const [actualQty, setActualQty] = useState('');
   const [batchDate, setBatchDate] = useState(today());
@@ -813,7 +830,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const ingredients = stateQuery.data?.ingredients.filter((x) => x.stockType === 'Makanan') ?? [];
+  const ingredients = stateQuery.data?.ingredients.filter((x) => x.stockType === 'Makanan' && !/mikro|operasional/i.test(x.category)) ?? [];
   const products = stateQuery.data?.products.filter((x) => x.businessType === 'Makanan') ?? [];
   const prep = preps.find((x) => x.id === selectedPrep) ?? null;
   const selectedProduct = products.find((x) => x.id === Number(productId)) ?? null;
@@ -842,6 +859,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   };
 
   const closePrepModal = () => {
+    if (savingPrep) return;
     if (prepFormDirty && !window.confirm('Perubahan belum disimpan. Yakin ingin menutup form? Isian yang belum disimpan akan hilang.')) return;
     setShowCreateForm(false);
     setPrepFormDirty(false);
@@ -883,7 +901,8 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   };
 
   const saveRecipe = async () => {
-    if (readOnly || !prep) return;
+    if (readOnly || !prep || savingRecipe) return;
+    setSavingRecipe(true); setError('');
     try {
       const r = await fetch('/api/erp/preparations/' + prep.id + '/recipe', {
         method: 'PUT',
@@ -892,10 +911,11 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       });
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || 'Gagal menyimpan resep prep.');
+      setUnsavedChanges(false);
       await load();
     } catch (e) {
       setError(errText(e));
-    }
+    } finally { setSavingRecipe(false); }
   };
 
   const produce = async () => {
@@ -1001,7 +1021,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
             type="button"
             aria-pressed={selectedPrep === p.id}
             className={'prep-stock-card ' + (selectedPrep === p.id ? 'is-selected' : '')}
-            onClick={() => setSelectedPrep(p.id)}
+            onClick={() => { if (!savingRecipe && confirmNavigation()) { setSelectedPrep(p.id); setUnsavedChanges(false); } }}
           >
             <div className="prep-stock-top">
               <span className="prep-icon"><CookingPot size={18} /></span>
@@ -1019,7 +1039,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       </div> : <Card><Empty title="Belum ada stok prep" text="Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi." /></Card>}
     </section>
 
-    {!readOnly && showCreateForm && <Modal title="Add Prep" onClose={closePrepModal}><form className="form-stack" onInput={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onSubmit={savePrep}>
+    {!readOnly && showCreateForm && <Modal title="Add Prep" onClose={closePrepModal} dirty={prepFormDirty} busy={savingPrep}><form className="form-stack" onInput={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onSubmit={savePrep}>
       <p className="form-hint">Tambahkan bahan olahan yang dibuat dalam batch sebelum dipakai pada produk jualan.</p>
       <Field label="Nama prep"><FieldInput value={newName} onChange={(e) => { setNewName(e.target.value); setPrepNameError(''); }} onBlur={(e) => { const value = e.currentTarget.value.trim(); setPrepNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama prep harus diawali huruf kapital. Contoh: Ayam Suwir.' : ''); }} placeholder="Contoh: Ayam Suwir" required />{prepNameError && <small className="form-hint error">{prepNameError}</small>}</Field>
       <Field label="Satuan stok"><FieldSelect value={newUnit} onChange={(e) => setNewUnit(e.target.value)} required>{STOCK_UNITS.Makanan.map((unit) => <option key={unit} value={unit}>{unit}</option>)}</FieldSelect></Field>
@@ -1045,31 +1065,10 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
               <span className="period-chip">{recipeDraft.length} bahan</span>
             </div>
 
-            {recipeDraft.length ? <div className="prep-recipe-list">
-              {recipeDraft.map((line, i) => {
-                const ingredient = ingredients.find((x) => x.id === line.ingredientId);
-                return <div className="prep-recipe-row" key={i}>
-                  <div className="prep-recipe-main">
-                    <span className="prep-row-number">{i + 1}</span>
-                    <div>
-                      <b>{ingredient?.name || 'Bahan tidak ditemukan'}</b>
-                      <small>Stok saat ini {ingredient?.stock ?? 0} {ingredient?.unit || line.recipeUnit}</small>
-                    </div>
-                  </div>
-                  <Field label="Jumlah"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={line.qtyRequired} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, qtyRequired: Number(e.target.value) } : v))} /></Field>
-                  <Field label="Satuan"><FieldInput value={line.recipeUnit} disabled={readOnly} onChange={(e) => setRecipeDraft((x) => x.map((v, j) => j === i ? { ...v, recipeUnit: e.target.value } : v))} /></Field>
-                  {!readOnly && <button className="icon-button" type="button" aria-label="Hapus bahan" onClick={() => setRecipeDraft((x) => x.filter((_, j) => j !== i))}><Trash2 size={15} /></button>}
-                </div>;
-              })}
-            </div> : <Empty title="Resep prep belum diatur" text="Tambahkan bahan baku yang dipakai untuk menghasilkan satu batch standar." />}
-
-            {!readOnly && <div className="prep-panel-actions">
-              <button className="button button-secondary" type="button" onClick={() => {
-                const ing = ingredients[0];
-                if (ing) setRecipeDraft((x) => [...x, { ingredientId: ing.id, qtyRequired: 1, recipeUnit: ing.unit }]);
-              }}><Plus size={15} /> Tambah bahan</button>
-              <button className="button button-primary" type="button" onClick={() => void saveRecipe()}><Check size={15} /> Simpan resep</button>
-            </div>}
+            <form onSubmit={(event) => { event.preventDefault(); void saveRecipe(); }}>
+              <RecipeBuilder key={selectedPrep} ingredients={ingredients} value={recipeDraft} onChange={(lines) => { setRecipeDraft(lines); setUnsavedChanges(true); }} disabled={readOnly || savingRecipe} onPendingChange={() => setUnsavedChanges(true)} />
+              {!readOnly && <div className="prep-panel-actions"><button className="button button-primary" type="submit" disabled={savingRecipe}><Check size={15} /> {savingRecipe ? 'Menyimpan…' : 'Simpan resep'}</button></div>}
+            </form>
           </div>
 
           <div className="prep-panel prep-production-panel">
@@ -1355,22 +1354,22 @@ function AppContent({ onLogout, user }: { onLogout: () => void; user: AppUser })
   const fallback: ErpState = { ingredients: [], products: [], recipes: [], recentPurchases: [], recentSales: [], today: { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }, lowStockCount: 0 };
   const shared = state || fallback;
   return <Shell connected={health.isSuccess} onLogout={onLogout} user={user}><ErrorBoundary resetKey="routes"><Switch>
-    <Route path="/" component={() => <Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />} />
-    <Route path="/stok" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />} />
-    <Route path="/stok/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />} />
-    <Route path="/stok/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={user.role === 'testing'} />} />
-    <Route path="/produk" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />} />
-    <Route path="/produk/makanan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />} />
-    <Route path="/produk/parfum" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={user.role === 'testing'} />} />
-    <Route path="/belanja" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />} />
-    <Route path="/penjualan" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={user.role === 'testing'} />} />
-    <Route path="/prep" component={() => <PrepPage readOnly={user.role === 'testing'} />} />
-    <Route path="/kontrol-fnb" component={() => <FnbControlPage readOnly={user.role === 'testing'} />} />
-    <Route path="/opname" component={() => query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />} />
-    <Route path="/laporan" component={() => <ReportPage isAdmin={user.role === 'admin'} />} />
-    <Route path="/users" component={() => user.role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>} />
+    <Route path="/">{<Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />}</Route>
+    <Route path="/stok">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/stok/makanan">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/stok/parfum">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/produk">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/produk/makanan">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/produk/parfum">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/belanja">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/penjualan">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/prep">{<PrepPage readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/kontrol-fnb">{<FnbControlPage readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/opname">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />}</Route>
+    <Route path="/laporan">{<ReportPage isAdmin={user.role === 'admin'} />}</Route>
+    <Route path="/users">{user.role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>}</Route>
 
-    <Route component={() => <div className="not-found"><span className="eyebrow">HALAMAN TIDAK ADA</span><h1>Sepertinya tersesat.</h1><Link href="/" className="inline-link">Kembali ke ringkasan <ArrowRight size={16} /></Link></div>} />
+    <Route>{<div className="not-found"><span className="eyebrow">HALAMAN TIDAK ADA</span><h1>Sepertinya tersesat.</h1><Link href="/" className="inline-link">Kembali ke ringkasan <ArrowRight size={16} /></Link></div>}</Route>
   </Switch></ErrorBoundary></Shell>;
 }
 

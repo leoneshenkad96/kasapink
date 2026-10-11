@@ -1,3 +1,4 @@
+import { recipeConversionFactor, validRecipeQuantity } from '../lib/recipe-units';
 import { and, asc, count, desc, eq, gte, ilike, inArray, lte, or } from "drizzle-orm";
 import {
   CreateIngredientBody,
@@ -242,20 +243,6 @@ async function ensureSeedData(): Promise<void> {
   }
 }
 
-const UNIT_GROUPS: Record<string, { group: string; factor: number }> = {
-  gram: { group: "weight", factor: 1 }, kg: { group: "weight", factor: 1000 },
-  ml: { group: "volume", factor: 1 }, liter: { group: "volume", factor: 1000 },
-  pcs: { group: "count", factor: 1 }, butir: { group: "count", factor: 1 },
-  ekor: { group: "count", factor: 1 }, potong: { group: "count", factor: 1 },
-  ikat: { group: "count", factor: 1 }, pack: { group: "count", factor: 1 },
-  box: { group: "count", factor: 1 }, botol: { group: "count", factor: 1 },
-};
-function recipeConversionFactor(recipeUnit: string, stockUnit: string): number | null {
-  if (recipeUnit === stockUnit) return 1;
-  const recipe = UNIT_GROUPS[recipeUnit], stock = UNIT_GROUPS[stockUnit];
-  if (!recipe || !stock || recipe.group !== stock.group) return null;
-  return recipe.factor / stock.factor;
-}
 
 function jakartaToday(): string {
   const parts = new Intl.DateTimeFormat("en-CA", {
@@ -817,6 +804,7 @@ router.put(
     }
     if (!requireMaxItems(body.data.items, 100, res)) return;
     if (!requireFiniteNumbers(body.data.items.flatMap((item) => [item.ingredientId, item.qtyRequired]), res)) return;
+    if (body.data.items.some((item) => !validRecipeQuantity(item.qtyRequired))) return invalid(res, "Jumlah resep harus positif, maksimal tiga angka desimal. Gunakan satuan lebih kecil untuk pemakaian kecil.");
     const ids = body.data.items.map((item) => item.ingredientId);
     if (new Set(ids).size !== ids.length) {
       invalid(res, "Bahan yang sama hanya boleh ditambahkan satu kali ke resep.");
@@ -908,7 +896,7 @@ const PrepBody = {
 const PrepRecipeBody = {
   safeParse(input: unknown): ParseResult<{ items: Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }> }> {
     const b = recordBody(input), items = b?.items;
-    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !positiveInteger(v.ingredientId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
+    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !positiveInteger(v.ingredientId) || !validRecipeQuantity(Number(v.qtyRequired)) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar resep prep tidak valid." } };
     const ingredientIds = items.map((x) => (x as Record<string, unknown>).ingredientId);
     if (new Set(ingredientIds).size !== ingredientIds.length) return { success: false, error: { message: "Bahan yang sama tidak boleh dicantumkan dua kali dalam resep prep." } };
     return { success: true, data: { items: items as Array<{ ingredientId: number; qtyRequired: number; recipeUnit: string }> } };
@@ -917,7 +905,7 @@ const PrepRecipeBody = {
 const ProductPrepBody = {
   safeParse(input: unknown): ParseResult<{ items: Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }> }> {
     const b = recordBody(input), items = b?.items;
-    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !positiveInteger(v.preparationId) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
+    if (!Array.isArray(items) || items.length > 100 || items.some((x) => { const v = recordBody(x); return !v || !positiveInteger(v.preparationId) || !validRecipeQuantity(Number(v.qtyRequired)) || !positiveNumber(v.qtyRequired) || !stringValue(v.recipeUnit) || v.recipeUnit.length > 30; })) return { success: false, error: { message: "Daftar komponen prep produk tidak valid." } };
     const preparationIds = items.map((x) => (x as Record<string, unknown>).preparationId);
     if (new Set(preparationIds).size !== preparationIds.length) return { success: false, error: { message: "Preparation yang sama tidak boleh dicantumkan dua kali dalam produk." } };
     return { success: true, data: { items: items as Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }> } };

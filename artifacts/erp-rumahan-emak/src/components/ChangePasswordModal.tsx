@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import type { FormEvent } from 'react';
-import { X } from 'lucide-react';
+import { Modal } from './ui/modal';
 import PasswordInput from './PasswordInput';
 
 export default function ChangePasswordModal({ onClose }: { onClose: () => void }) {
@@ -38,12 +38,12 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
     }
   }
 
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section className="modal" role="dialog" aria-modal="true" aria-labelledby="change-password-title">
-      <div className="modal-head">
-        <div><span className="eyebrow">PENGATURAN AKUN</span><h2 id="change-password-title">Ganti Password</h2></div>
-        <button type="button" className="icon-button" onClick={onClose} aria-label="Tutup"><X size={19} /></button>
-      </div>
+  const close = () => {
+    if (saving) return;
+    if ((oldPassword || newPassword || confirmPassword) && !window.confirm('Perubahan belum disimpan. Tetap keluar?')) return;
+    onClose();
+  };
+  return <Modal title="Ganti Password" onClose={close} dirty={Boolean(oldPassword || newPassword || confirmPassword)} busy={saving}>
       <form className="form-stack" onSubmit={submit}>
         <label className="field"><span>Password Lama</span><PasswordInput autoComplete="current-password" value={oldPassword} onChange={(event) => { setOldPassword(event.target.value); setMessage(null); }} required /></label>
         <label className="field"><span>Password Baru</span><PasswordInput autoComplete="new-password" minLength={8} value={newPassword} onChange={(event) => { setNewPassword(event.target.value); setMessage(null); }} required /><small>Minimal 8 karakter.</small></label>
@@ -51,10 +51,9 @@ export default function ChangePasswordModal({ onClose }: { onClose: () => void }
         {confirmPassword && !passwordsMatch && <div className="form-error" role="alert">Konfirmasi password belum sama.</div>}
         {message && <div className={message.type === 'success' ? 'readonly-notice' : 'form-error'} role="status">{message.text}</div>}
         <div className="form-actions">
-          <button type="button" className="button button-quiet" onClick={onClose}>Tutup</button>
+          <button type="button" className="button button-quiet" onClick={close}>Tutup</button>
           <button className="button button-primary" disabled={saving || !passwordsMatch || newPassword.length < 8 || !oldPassword}>{saving ? 'Menyimpan…' : 'Simpan Password'}</button>
         </div>
       </form>
-    </section>
-  </div>;
+  </Modal>;
 }

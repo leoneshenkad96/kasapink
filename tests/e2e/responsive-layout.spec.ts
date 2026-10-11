@@ -25,6 +25,8 @@ async function mockAdminSession(page: Page) {
           ? { startDate: '2026-10-01', endDate: '2026-10-10', revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0, days: [] }
           : path.includes('/erp/state')
             ? state
+            : ['/api/erp/ingredients', '/api/erp/products', '/api/erp/sales'].includes(path)
+              ? { items: [], pagination: {total:0,limit:12,offset:0} }
             : path.includes('health')
               ? { status: 'OK' }
               : [];
@@ -41,6 +43,7 @@ for (const viewport of [
     await page.setViewportSize({ width: viewport.width, height: viewport.height });
     await mockAdminSession(page);
     await page.goto('/laporan');
+    await expect(page.locator('.report-metrics')).toBeVisible();
 
     for (const label of ['CSV', 'Excel', 'PDF', 'Backup JSON']) {
       const button = page.getByRole('button', { name: label });
@@ -81,7 +84,7 @@ for (const viewport of [
       ['/produk/makanan', 'Produk & Resep'],
       ['/belanja', 'Catat belanja'],
       ['/penjualan', 'Catat penjualan'],
-      ['/opname', 'Stock opname'],
+      ['/opname', 'Stok Opname'],
       ['/laporan', 'Laporan keuangan'],
       ['/users', 'Manajemen user'],
     ] as const;
