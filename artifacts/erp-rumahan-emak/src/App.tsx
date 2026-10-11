@@ -1233,10 +1233,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
     }catch(e){setError(errText(e));}
   };
 
-  const actualFc=Number(report?.actualFoodCostPercentage)||0;
-  const theoreticalFc=Number(report?.theoreticalFoodCostPercentage)||0;
-  const variance=Number(report?.foodCostVariance)||0;
-  const variancePositive=variance>0;
+  const recordedFc=Number(report?.recordedFoodCostPercentage)||0;
   const menuCount=report?.menus?.length||0;
   const recipeVariance=report?.recipeUsageVariance||[];
   const stockVariance=report?.stockOpnameVariance||[];
@@ -1260,7 +1257,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
     {reportLoading ? <FnbLoadingPanel /> : report&&<>
       <div className="fnb-kpi-grid">
         <Card className="fnb-kpi"><span>PENJUALAN</span><strong>{money(report.revenue)}</strong><small>{report.menus?.reduce((n:any,m:any)=>n+Number(m.quantity||0),0)||0} porsi terjual</small></Card>
-        <Card className="fnb-kpi"><span>HPP AKTUAL</span><strong>{money(report.actualCogs)}</strong><small>Food cost {actualFc}%</small></Card>
+        <Card className="fnb-kpi"><span>HPP TERCATAT</span><strong>{money(report.recordedCogs)}</strong><small>Food cost tercatat {recordedFc}%</small></Card>
         <Card className="fnb-kpi"><span>WASTE</span><strong>{money(report.wasteCost)}</strong><small>{report.wasteCount} catatan</small></Card>
         <Card className="fnb-kpi fnb-kpi-primary"><span>LABA BERSIH</span><strong>{money(report.netProfit)}</strong><small>Biaya {money(report.operatingExpenses)} · alokasi bersama {Number(report.sharedExpenseAllocationRate)||0}%</small></Card>
       </div>
@@ -1269,18 +1266,19 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
 
       <Card className="fnb-score-card">
         <div className="fnb-score-head">
-          <div><span className="eyebrow">FOOD COST</span><h2>Biaya bahan masih sehat?</h2></div>
-          <div className={'fnb-score-badge '+(variancePositive?'warning':'good')}>{variancePositive?'Perlu dicek':'Terkendali'}</div>
+          <div><span className="eyebrow">FOOD COST</span><h2>Komposisi biaya penjualan</h2></div>
+          <div className="fnb-score-badge good">Tercatat</div>
         </div>
         <div className="fnb-score-body">
-          <div className="fnb-score-number"><strong>{actualFc}%</strong><span>aktual</span></div>
+          <div className="fnb-score-number"><strong>{recordedFc}%</strong><span>tercatat</span></div>
           <div className="fnb-score-compare">
-            <div className="fnb-score-line"><span>Aktual <b>{actualFc}%</b></span><span>Standar resep <b>{theoreticalFc}%</b></span></div>
-            <div className="fnb-score-track"><span style={{width:`${Math.min(100,Math.max(0,actualFc))}%`}}/></div>
-            <div className="fnb-score-foot"><span>Selisih biaya</span><b className={variancePositive?'is-warning':''}>{money(Math.abs(variance))}{variancePositive?' lebih tinggi':''}</b></div>
+            <div className="fnb-score-line"><span>HPP transaksi <b>{recordedFc}%</b></span><span>Dari omzet periode</span></div>
+            <div className="fnb-score-track"><span style={{width:`${Math.min(100,Math.max(0,recordedFc))}%`}}/></div>
+            <div className="fnb-score-foot"><span>Basis perhitungan</span><b>Snapshot HPP saat penjualan</b></div>
           </div>
           <div className="fnb-score-side"><span>LABA KOTOR</span><strong>{money(report.grossProfit)}</strong><small>{Number(report.revenue)>0?((Number(report.grossProfit)/Number(report.revenue))*100).toFixed(1):'0.0'}% margin</small></div>
         </div>
+        <p className="helper-text fnb-note">HPP tercatat berasal dari snapshot transaksi penjualan, bukan hasil pengukuran stok fisik. Selisih inventaris ditampilkan terpisah pada Recipe Usage Variance dan Stock Opname Variance.</p>
       </Card>
 
       <Card className="fnb-section-card">
@@ -1292,7 +1290,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
           <div className="fnb-menu-rank">{(menuPage-1)*fnbPageSize+i+1}</div>
           <div className="fnb-menu-name"><b>{m.productName}</b><small>{m.quantity} terjual · food cost {m.foodCostPercentage}%</small></div>
           <div className="fnb-menu-cost"><span>Penjualan</span><b>{money(m.revenue)}</b></div>
-          <div className="fnb-menu-cost"><span>HPP</span><b>{money(m.actualCogs)}</b></div>
+          <div className="fnb-menu-cost"><span>HPP tercatat</span><b>{money(m.recordedCogs)}</b></div>
           <div className="fnb-menu-profit"><span>Laba kotor</span><b>{money(m.grossProfit)}</b></div>
         </div>)}</div><PaginationControls page={menuPage} totalItems={menuCount} pageSize={fnbPageSize} onPageChange={setMenuPage} label="menu" /></> : <div className="fnb-empty">Belum ada penjualan pada periode ini.</div>}
       </Card>

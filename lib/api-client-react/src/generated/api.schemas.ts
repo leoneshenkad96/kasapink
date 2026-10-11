@@ -400,6 +400,13 @@ export interface StockOpnameVariance {
   varianceValue: number | null;
 }
 
+export type FnbReportFoodCostBasis = typeof FnbReportFoodCostBasis[keyof typeof FnbReportFoodCostBasis];
+
+
+export const FnbReportFoodCostBasis = {
+  sale_transaction_snapshot: 'sale_transaction_snapshot',
+} as const;
+
 /**
  * Variance uses costs captured when sales and stock movements occurred.
  */
@@ -415,8 +422,7 @@ export type FnbReportMenusItem = {
   productName: string;
   quantity: number;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
+  recordedCogs: number;
   grossProfit: number;
   foodCostPercentage: number;
 };
@@ -465,11 +471,11 @@ export interface FnbReport {
   startDate: string;
   endDate: string;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
-  actualFoodCostPercentage: number;
-  theoreticalFoodCostPercentage: number;
-  foodCostVariance: number;
+  /** COGS captured in immutable sale transaction snapshots; not a physical-inventory measurement. */
+  recordedCogs: number;
+  /** Recorded COGS divided by F&B revenue for the period. */
+  recordedFoodCostPercentage: number;
+  foodCostBasis: FnbReportFoodCostBasis;
   wasteCost: number;
   grossProfit: number;
   operatingExpenses: number;

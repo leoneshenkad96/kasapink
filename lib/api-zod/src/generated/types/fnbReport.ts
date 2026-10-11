@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FnbReportExpensesItem } from './fnbReportExpensesItem';
+import type { FnbReportFoodCostBasis } from './fnbReportFoodCostBasis';
 import type { FnbReportMenusItem } from './fnbReportMenusItem';
 import type { FnbReportVarianceValuationBasis } from './fnbReportVarianceValuationBasis';
 import type { FnbReportWasteItem } from './fnbReportWasteItem';
@@ -16,11 +17,11 @@ export interface FnbReport {
   startDate: Date;
   endDate: Date;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
-  actualFoodCostPercentage: number;
-  theoreticalFoodCostPercentage: number;
-  foodCostVariance: number;
+  /** COGS captured in immutable sale transaction snapshots; not a physical-inventory measurement. */
+  recordedCogs: number;
+  /** Recorded COGS divided by F&B revenue for the period. */
+  recordedFoodCostPercentage: number;
+  foodCostBasis: FnbReportFoodCostBasis;
   wasteCost: number;
   grossProfit: number;
   operatingExpenses: number;
