@@ -1,11 +1,46 @@
 import { timingSafeEqual } from "node:crypto";
-import { Router } from "express";
+import { Router, type Response } from "express";
 import bcrypt from "bcryptjs";
 import { and, count, eq, sql } from "drizzle-orm";
 import { auditLogTable, db, usersTable } from "@workspace/db";
 import { checkRole, createToken, type AuthRequest, verifyToken } from "../lib/auth";
 
 const router = Router();
+
+type AuthAuditContext = {
+  targetUserId?: number;
+  targetUsername?: string;
+  roleBefore?: "admin" | "testing" | "user";
+  roleAfter?: "admin" | "testing" | "user";
+  passwordChanged?: boolean;
+};
+
+const setAuthAuditContext = (res: Response, context: AuthAuditContext) => {
+  res.locals.authAudit = { ...(res.locals.authAudit as AuthAuditContext | undefined), ...context };
+};
+
+// Auth audit data is deliberately constructed from this allowlist. Never copy
+// req.body, headers, cookies, password hashes, or tokens into the audit table.
+const safeAuthAuditDetails = (value: unknown, statusCode: number) => {
+  const context = value && typeof value === "object" ? value as AuthAuditContext : {};
+  return {
+    ...(Number.isSafeInteger(context.targetUserId) && Number(context.targetUserId) > 0
+      ? { targetUserId: context.targetUserId }
+      : {}),
+    ...(typeof context.targetUsername === "string" && context.targetUsername
+      ? { targetUsername: context.targetUsername.slice(0, 80) }
+      : {}),
+    ...(["admin", "testing", "user"].includes(String(context.roleBefore))
+      ? { roleBefore: context.roleBefore }
+      : {}),
+    ...(["admin", "testing", "user"].includes(String(context.roleAfter))
+      ? { roleAfter: context.roleAfter }
+      : {}),
+    ...(typeof context.passwordChanged === "boolean" ? { passwordChanged: context.passwordChanged } : {}),
+    result: statusCode < 400 ? "success" : "rejected",
+  };
+};
+
 router.use((req, res, next) => {
   if (["GET", "HEAD", "OPTIONS"].includes(req.method)) return next();
   res.on("finish", () => {
@@ -17,10 +52,7 @@ router.use((req, res, next) => {
       method: req.method,
       path: req.path,
       statusCode: res.statusCode,
-      details: req.body && typeof req.body === "object" ? JSON.stringify(req.body) : undefined,
-      beforeData: res.locals.auditBefore ? JSON.stringify(res.locals.auditBefore) : undefined,
-      afterData: res.locals.auditAfter ? JSON.stringify(res.locals.auditAfter) : undefined,
-      reason: typeof req.headers["x-audit-reason"] === "string" ? req.headers["x-audit-reason"] : undefined,
+      details: JSON.stringify(safeAuthAuditDetails(res.locals.authAudit, res.statusCode)),
     }).catch((error: unknown) => req.log?.warn({ err: error }, "Auth audit log write failed"));
   });
   next();
@@ -102,6 +134,13 @@ router.get("/me", verifyToken, (req: AuthRequest, res) => {
 });
 
 router.post("/logout", verifyToken, async (req: AuthRequest, res) => {
+  setAuthAuditContext(res, {
+    targetUserId: req.authUser!.id,
+    targetUsername: req.authUser!.username,
+    roleBefore: req.authUser!.role,
+    roleAfter: req.authUser!.role,
+    passwordChanged: false,
+  });
   await db.update(usersTable).set({ updatedAt: nextSessionRevision() })
     .where(currentSession(req));
   res.clearCookie("kasapink_session", { httpOnly: true, sameSite: "lax", secure: process.env.NODE_ENV === "production", path: "/" });
@@ -109,6 +148,13 @@ router.post("/logout", verifyToken, async (req: AuthRequest, res) => {
 });
 
 router.put("/users/change-password", verifyToken, async (req: AuthRequest, res) => {
+  setAuthAuditContext(res, {
+    targetUserId: req.authUser!.id,
+    targetUsername: req.authUser!.username,
+    roleBefore: req.authUser!.role,
+    roleAfter: req.authUser!.role,
+    passwordChanged: true,
+  });
   const oldPassword = typeof req.body.oldPassword === "string" ? req.body.oldPassword : "";
   const newPassword = typeof req.body.newPassword === "string" ? req.body.newPassword : "";
   if (!oldPassword || oldPassword.length > 128 || newPassword.length < 8 || newPassword.length > 128) {
@@ -150,6 +196,9 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReques
   const userId = Number(userIdParam);
   const role = req.body.role;
   const newPassword = typeof req.body.newPassword === "string" ? req.body.newPassword : "";
+  if (Number.isSafeInteger(userId) && userId > 0) {
+    setAuthAuditContext(res, { targetUserId: userId, passwordChanged: Boolean(newPassword) });
+  }
   if (!/^\d+$/.test(userIdParam) || !Number.isSafeInteger(userId) || userId <= 0) {
     return res.status(400).json({ error: "ID user tidak valid." });
   }
@@ -165,6 +214,11 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReques
   const [beforeUser] = await db.select({ id: usersTable.id, username: usersTable.username, role: usersTable.role })
     .from(usersTable).where(eq(usersTable.id, userId));
   if (!beforeUser) return res.status(404).json({ error: "User tidak ditemukan." });
+  setAuthAuditContext(res, {
+    targetUsername: beforeUser.username,
+    roleBefore: beforeUser.role,
+    roleAfter: role,
+  });
 
   const values: { role: "admin" | "testing" | "user"; passwordHash?: string; updatedAt: ReturnType<typeof nextSessionRevision> } = {
     role, updatedAt: nextSessionRevision(),
@@ -175,8 +229,6 @@ router.put("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReques
     .where(eq(usersTable.id, userId))
     .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
   if (!updatedUser) return res.status(404).json({ error: "User tidak ditemukan." });
-  res.locals.auditBefore = beforeUser;
-  res.locals.auditAfter = updatedUser;
   return res.json(updatedUser);
 });
 
@@ -190,10 +242,17 @@ router.delete("/users/:id", verifyToken, checkRole("admin"), async (req: AuthReq
     return res.status(400).json({ error: "Admin tidak dapat menghapus akun sendiri." });
   }
 
+  if (Number.isSafeInteger(userId) && userId > 0) {
+    setAuthAuditContext(res, { targetUserId: userId, passwordChanged: false });
+  }
   const [deletedUser] = await db.delete(usersTable)
     .where(eq(usersTable.id, userId))
-    .returning({ id: usersTable.id });
+    .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role });
   if (!deletedUser) return res.status(404).json({ error: "User tidak ditemukan." });
+  setAuthAuditContext(res, {
+    targetUsername: deletedUser.username,
+    roleBefore: deletedUser.role,
+  });
   return res.status(200).json({ id: deletedUser.id, message: "User berhasil dihapus." });
 });
 
@@ -201,6 +260,11 @@ router.post("/users", verifyToken, checkRole("admin"), async (req, res) => {
   const username = typeof req.body.username === "string" ? req.body.username.trim() : "";
   const password = typeof req.body.password === "string" ? req.body.password : "";
   const role = req.body.role;
+  setAuthAuditContext(res, {
+    ...(username ? { targetUsername: username } : {}),
+    ...(["admin", "testing", "user"].includes(role) ? { roleAfter: role } : {}),
+    passwordChanged: true,
+  });
   if (!username || username.length > 80 || password.length < 8 || password.length > 128 || !["admin", "testing", "user"].includes(role)) {
     return res.status(400).json({ error: "Username wajib diisi, password minimal 8 karakter, dan role harus admin/testing/user." });
   }
@@ -208,6 +272,7 @@ router.post("/users", verifyToken, checkRole("admin"), async (req, res) => {
   try {
     const [created] = await db.insert(usersTable).values({ username, passwordHash, role })
       .returning({ id: usersTable.id, username: usersTable.username, role: usersTable.role, createdAt: usersTable.createdAt });
+    setAuthAuditContext(res, { targetUserId: created.id });
     return res.status(201).json(created);
   } catch (error) {
     const code = (error as { code?: string })?.code;
