@@ -49,6 +49,8 @@ export interface Ingredient {
   minStock: number;
   lastPrice: number;
   averageCost: number;
+  /** Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep. */
+  unitLocked?: boolean;
 }
 
 export type IngredientInputStockType = typeof IngredientInputStockType[keyof typeof IngredientInputStockType];
