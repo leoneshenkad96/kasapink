@@ -560,6 +560,9 @@ components:
         minStock: { type: number }
         lastPrice: { type: number }
         averageCost: { type: number }
+        unitLocked:
+          type: boolean
+          description: Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.
       required: [id, name, category, stockType, unit, stock, minStock, lastPrice, averageCost]
     IngredientInput:
       type: object
