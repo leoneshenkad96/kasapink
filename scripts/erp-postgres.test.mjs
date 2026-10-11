@@ -270,14 +270,15 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   const fnb = await request("/erp/fnb-report?startDate=2026-10-10&endDate=2026-10-10", token);
   assert.equal(fnb.status, 200);
   assert.equal(fnb.body.revenue, 1700);
-  assert.equal(fnb.body.actualCogs, 860);
+  assert.equal(fnb.body.recordedCogs, 860);
+  assert.equal(fnb.body.foodCostBasis, "sale_transaction_snapshot");
   const recipeEdit = await request(`/erp/products/${productId}/recipe`, token, "PUT", {
     items: [{ ingredientId, qtyRequired: 99, recipeUnit: "kg" }],
   });
   assert.equal(recipeEdit.status, 200);
   const fnbAfterRecipeEdit = await request("/erp/fnb-report?startDate=2026-10-10&endDate=2026-10-10", token);
   assert.equal(fnbAfterRecipeEdit.status, 200);
-  assert.equal(fnbAfterRecipeEdit.body.theoreticalCogs, fnb.body.theoreticalCogs);
+  assert.equal(fnbAfterRecipeEdit.body.recordedCogs, fnb.body.recordedCogs);
   const directProduct = await request("/erp/products", token, "POST", {
     name: "Delete sale test product", sellingPrice: 100, businessType: "Makanan", needsRecipe: false, stock: 5, averageCost: 40,
   });

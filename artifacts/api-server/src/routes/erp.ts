@@ -1347,12 +1347,13 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   const ingredientById = new Map(ingredients.map((x) => [x.id, x]));
   const prepById = new Map(preps.map((x) => [x.id, x]));
   const fnbWaste = waste.filter((row) => row.preparationId != null || (row.ingredientId != null && ingredientById.get(row.ingredientId)?.stockType === "Makanan"));
-  const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; actualCogs: number; theoreticalCogs: number }>();
+  const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; recordedCogs: number }>();
   for (const line of details) {
-    const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, actualCogs: 0, theoreticalCogs: 0 };
-    row.quantity += line.quantity; row.revenue += number(line.revenue); row.actualCogs += number(line.costOfGoodsSold);
-    // Use the sale-time snapshot so editing a recipe later cannot rewrite history.
-    row.theoreticalCogs += number(line.costOfGoodsSold);
+    const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, recordedCogs: 0 };
+    // This is booked COGS captured when the sale was recorded. It is not an
+    // independent physical-inventory measurement and must not be presented as
+    // an "actual vs theoretical" variance.
+    row.quantity += line.quantity; row.revenue += number(line.revenue); row.recordedCogs += number(line.costOfGoodsSold);
     menuMap.set(line.productId, row);
   }
   const theoreticalIngredient = new Map<number, number>();
@@ -1459,8 +1460,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   let totalBusinessRevenueRaw = 0;
   for (const line of allDetails) totalBusinessRevenueRaw += number(line.revenue);
   const totalBusinessRevenue = roundMoney(totalBusinessRevenueRaw);
-  const actualCogs = roundMoney(details.reduce((sum, x) => sum + number(x.costOfGoodsSold), 0));
-  const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum, x) => sum + x.theoreticalCogs, 0));
+  const recordedCogs = roundMoney(details.reduce((sum, x) => sum + number(x.costOfGoodsSold), 0));
   const wasteCost = roundMoney(fnbWaste.reduce((sum, x) => sum + number(x.totalCost), 0));
   const sharedExpenseAllocationRate = totalBusinessRevenue > 0 ? revenue / totalBusinessRevenue : 0;
   const directExpenses = roundMoney(expenses.filter((x) => x.businessType === "Makanan").reduce((sum, x) => sum + number(x.amount), 0));
@@ -1468,12 +1468,11 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   const allocatedSharedExpenses = roundMoney(sharedExpenses * sharedExpenseAllocationRate);
   const unallocatedSharedExpenses = totalBusinessRevenue > 0 ? 0 : sharedExpenses;
   const expenseTotal = roundMoney(directExpenses + allocatedSharedExpenses);
-  const grossProfit = roundMoney(revenue - actualCogs);
+  const grossProfit = roundMoney(revenue - recordedCogs);
   res.json({
-    startDate, endDate, revenue, actualCogs, theoreticalCogs,
-    actualFoodCostPercentage: revenue > 0 ? roundMoney(actualCogs / revenue * 100) : 0,
-    theoreticalFoodCostPercentage: revenue > 0 ? roundMoney(theoreticalCogs / revenue * 100) : 0,
-    foodCostVariance: roundMoney(actualCogs - theoreticalCogs),
+    startDate, endDate, revenue, recordedCogs,
+    recordedFoodCostPercentage: revenue > 0 ? roundMoney(recordedCogs / revenue * 100) : 0,
+    foodCostBasis: "sale_transaction_snapshot",
     wasteCost, grossProfit, operatingExpenses: expenseTotal, directExpenses, sharedExpenses, allocatedSharedExpenses,
     sharedExpenseAllocationRate: roundMoney(sharedExpenseAllocationRate * 100), unallocatedSharedExpenses,
     netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
@@ -1484,7 +1483,7 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     recipeUsageVariance,
     inventoryVariance: recipeUsageVariance,
     stockOpnameVariance,
-    menus: [...menuMap.values()].map((x) => ({ ...x, revenue: roundMoney(x.revenue), actualCogs: roundMoney(x.actualCogs), theoreticalCogs: roundMoney(x.theoreticalCogs), grossProfit: roundMoney(x.revenue - x.actualCogs), foodCostPercentage: x.revenue > 0 ? roundMoney(x.actualCogs / x.revenue * 100) : 0 })),
+    menus: [...menuMap.values()].map((x) => ({ ...x, revenue: roundMoney(x.revenue), recordedCogs: roundMoney(x.recordedCogs), grossProfit: roundMoney(x.revenue - x.recordedCogs), foodCostPercentage: x.revenue > 0 ? roundMoney(x.recordedCogs / x.revenue * 100) : 0 })),
     waste: fnbWaste.map((x) => ({ id: x.id, date: x.date, itemType: x.ingredientId ? "ingredient" : "preparation", itemId: x.ingredientId ?? x.preparationId, quantity: number(x.quantity), unit: x.unit, totalCost: number(x.totalCost), reason: x.reason, note: x.note })),
     expenses: expenses.filter((x) => x.businessType !== "Parfum").map((x) => ({ id: x.id, date: x.date, category: x.category, description: x.description, amount: number(x.amount), businessType: x.businessType, allocatedAmount: x.businessType === "Makanan" ? number(x.amount) : roundMoney(number(x.amount) * sharedExpenseAllocationRate) })),
   });

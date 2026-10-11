@@ -152,15 +152,19 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   const historicalReport = await call('/erp/fnb-report?startDate=2026-10-11&endDate=2026-10-11');
   assert.equal(historicalReport.status,200);
   assert.equal(historicalReport.body.varianceValuationBasis,'transaction_time');
+  assert.equal(historicalReport.body.foodCostBasis,'sale_transaction_snapshot');
+  assert.equal('foodCostVariance' in historicalReport.body,false);
   assert.equal(historicalReport.body.snapshotCoverage,100);
   assert.equal(historicalReport.body.incompleteSnapshotLines,0);
   const varianceBeforeEdits = historicalReport.body.recipeUsageVariance;
+  const recordedCogsBeforeEdits = historicalReport.body.recordedCogs;
   await pg.exec(`UPDATE erp_ingredients SET average_cost=99999 WHERE id=1; UPDATE erp_preparations SET average_cost=88888,yield_qty=10 WHERE id=1`);
   assert.equal((await call('/erp/preparations/1/recipe','PUT',{items:[{ingredientId:1,qtyRequired:2000,recipeUnit:'gram'}]})).status,200);
   assert.equal((await call(`/erp/products/${prepProduct.body.id}/preparations`,'PUT',{items:[{preparationId:1,qtyRequired:3,recipeUnit:'kg'}]})).status,200);
   const reportAfterRecipeAndPriceEdits = await call('/erp/fnb-report?startDate=2026-10-11&endDate=2026-10-11');
   assert.equal(reportAfterRecipeAndPriceEdits.status,200);
   assert.deepEqual(reportAfterRecipeAndPriceEdits.body.recipeUsageVariance,varianceBeforeEdits);
+  assert.equal(reportAfterRecipeAndPriceEdits.body.recordedCogs,recordedCogsBeforeEdits);
 
   const legacySnapshot = JSON.stringify({
     capturedAt:'2026-10-12T00:00:00.000Z',ingredients:[],

@@ -13,6 +13,7 @@ export * from './financeReport';
 export * from './fnbReport';
 export * from './fnbReportExpensesItem';
 export * from './fnbReportExpensesItemBusinessType';
+export * from './fnbReportFoodCostBasis';
 export * from './fnbReportMenusItem';
 export * from './fnbReportVarianceValuationBasis';
 export * from './fnbReportWasteItem';

@@ -106,9 +106,17 @@ test('F&B report uses immutable business snapshots and revenue-based shared cost
   const report = await call('/erp/fnb-report?startDate=2026-10-12&endDate=2026-10-12');
   assert.equal(report.status, 200);
   assert.equal(report.body.revenue, 1000);
-  assert.equal(report.body.actualCogs, 400);
+  assert.equal(report.body.recordedCogs, 400);
+  assert.equal(report.body.recordedFoodCostPercentage, 40);
+  assert.equal(report.body.foodCostBasis, 'sale_transaction_snapshot');
+  assert.equal('actualCogs' in report.body, false);
+  assert.equal('theoreticalCogs' in report.body, false);
+  assert.equal('foodCostVariance' in report.body, false);
   assert.equal(report.body.menus.length, 1);
   assert.equal(report.body.menus[0].productName, 'Nasi');
+  assert.equal(report.body.menus[0].recordedCogs, 400);
+  assert.equal('actualCogs' in report.body.menus[0], false);
+  assert.equal('theoreticalCogs' in report.body.menus[0], false);
   assert.equal(report.body.sharedExpenseAllocationRate, 25);
   assert.equal(report.body.directExpenses, 100);
   assert.equal(report.body.sharedExpenses, 300);
@@ -121,7 +129,7 @@ test('F&B report uses immutable business snapshots and revenue-based shared cost
   await pg.exec(`UPDATE erp_products SET business_type = CASE WHEN id=1 THEN 'Parfum' ELSE 'Makanan' END`);
   const afterProductEdit = await call('/erp/fnb-report?startDate=2026-10-12&endDate=2026-10-12');
   assert.equal(afterProductEdit.body.revenue, 1000);
-  assert.equal(afterProductEdit.body.actualCogs, 400);
+  assert.equal(afterProductEdit.body.recordedCogs, 400);
 
   await pg.exec(`INSERT INTO erp_operating_expenses (date,category,description,amount,business_type) VALUES ('2026-10-13','Sewa','No-sales day',80,'Bersama')`);
   const zeroRevenue = await call('/erp/fnb-report?startDate=2026-10-13&endDate=2026-10-13');
