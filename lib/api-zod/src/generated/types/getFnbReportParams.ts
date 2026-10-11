@@ -7,6 +7,12 @@
  */
 
 export type GetFnbReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: Date;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: Date;
 };

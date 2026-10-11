@@ -49,6 +49,22 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   const call = async (route, method='GET', body) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...(body ? {body:JSON.stringify(body)} : {})}); return {status:response.status,body:await response.json()}; };
   const save = async items => { const response=await fetch(`http://127.0.0.1:${server.address().port}/api/erp/products/1/recipe`, {method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({items})}); return {status:response.status,body:await response.json()}; };
 
+  const invalidCalendarDate = '2026-02-30';
+  assert.equal((await call(`/erp/finance?startDate=${invalidCalendarDate}&endDate=${invalidCalendarDate}`)).status,400);
+  assert.equal((await call(`/erp/fnb-report?startDate=${invalidCalendarDate}&endDate=${invalidCalendarDate}`)).status,400);
+  assert.equal((await call('/erp/finance?startDate=2024-02-29&endDate=2024-02-29')).status,200);
+  assert.equal((await call('/erp/purchases','POST',{date:invalidCalendarDate,supplierType:'QA',items:[{ingredientId:1,quantity:1,totalCost:1000}]})).status,400);
+  assert.equal((await call('/erp/sales','POST',{date:'2099-01-01',items:[{productId:1,quantity:1}]})).status,400);
+  assert.equal((await call('/erp/stock-counts','POST',{date:invalidCalendarDate,items:[{ingredientId:1,countedStock:9}]})).status,400);
+  assert.equal((await call('/erp/waste','POST',{date:invalidCalendarDate,itemType:'ingredient',itemId:1,quantity:1,reason:'Uji tanggal'})).status,400);
+  assert.equal((await call('/erp/expenses','POST',{date:invalidCalendarDate,category:'QA',description:'Uji tanggal',amount:1000,businessType:'Makanan'})).status,400);
+  assert.equal((await call('/erp/preparations/1/batches','POST',{date:invalidCalendarDate,targetQty:1,actualQty:1})).status,400);
+  assert.equal((await call('/erp/purchases','POST',{date:'2026-02-01T00:00:00Z',supplierType:'QA',items:[{ingredientId:1,quantity:1,totalCost:1000}]})).status,400);
+  assert.equal((await pg.query('SELECT count(*)::int AS count FROM erp_purchases')).rows[0].count,0);
+  assert.equal((await pg.query('SELECT count(*)::int AS count FROM erp_sales')).rows[0].count,0);
+  assert.equal((await pg.query('SELECT count(*)::int AS count FROM erp_operating_expenses')).rows[0].count,0);
+  assert.equal(Number((await pg.query('SELECT stock FROM erp_ingredients WHERE id=1')).rows[0].stock),10);
+
   const unusedUnitChange = await call('/erp/ingredients/3','PATCH',{unit:'gram'});
   assert.equal(unusedUnitChange.status,200);
   assert.equal(unusedUnitChange.body.unit,'gram');

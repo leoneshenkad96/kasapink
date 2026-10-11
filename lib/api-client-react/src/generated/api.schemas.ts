@@ -231,6 +231,7 @@ export interface PurchaseLineInput {
 }
 
 export interface PurchaseInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: string;
   /**
      * @minLength 1
@@ -265,6 +266,7 @@ export interface SaleLineInput {
 }
 
 export interface SaleInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: string;
   /** Admin-only override for insufficient stock */
   allowNegativeStock?: boolean;
@@ -305,6 +307,7 @@ export type StockCountLineInput = (unknown & {
 });
 
 export interface StockCountInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: string;
   /**
      * @minItems 1
@@ -534,7 +537,13 @@ export interface ErpState {
 }
 
 export type GetFinanceReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: string;
 };
 
@@ -594,7 +603,13 @@ export type ListProducts200 = {
 };
 
 export type ListSalesParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; backdating is allowed.
+ */
 startDate?: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected.
+ */
 endDate?: string;
 /**
  * @minimum 1
@@ -613,12 +628,24 @@ export type ListSales200 = {
 };
 
 export type GetFnbReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: string;
 };
 
 export type LegacyGetFinanceReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: string;
 };
 

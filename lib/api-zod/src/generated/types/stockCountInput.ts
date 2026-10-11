@@ -8,6 +8,7 @@
 import type { StockCountLineInput } from './stockCountLineInput';
 
 export interface StockCountInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: Date;
   /**
      * @minItems 1

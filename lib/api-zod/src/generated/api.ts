@@ -406,7 +406,7 @@ export const recordPurchaseBodyItemsItemTotalCostMin = 0;
 
 
 export const RecordPurchaseBody = zod.object({
-  "date": zod.coerce.date(),
+  "date": zod.coerce.date().describe('Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.'),
   "supplierType": zod.string().min(1).max(recordPurchaseBodySupplierTypeMax),
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
@@ -483,7 +483,7 @@ export const ListSalesResponse = zod.object({
 
 
 export const RecordSaleBody = zod.object({
-  "date": zod.coerce.date(),
+  "date": zod.coerce.date().describe('Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.'),
   "allowNegativeStock": zod.boolean().optional().describe('Admin-only override for insufficient stock'),
   "items": zod.array(zod.object({
   "productId": zod.number().int(),
@@ -533,7 +533,7 @@ export const recordStockCountBodyItemsMax = 100;
 
 
 export const RecordStockCountBody = zod.object({
-  "date": zod.coerce.date(),
+  "date": zod.coerce.date().describe('Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.'),
   "items": zod.array(zod.union([zod.object({
   "ingredientId": zod.number().int().min(1),
   "preparationId": zod.never().optional(),
@@ -895,7 +895,7 @@ export const legacyRecordPurchaseBodyItemsItemTotalCostMin = 0;
 
 
 export const LegacyRecordPurchaseBody = zod.object({
-  "date": zod.coerce.date(),
+  "date": zod.coerce.date().describe('Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.'),
   "supplierType": zod.string().min(1).max(legacyRecordPurchaseBodySupplierTypeMax),
   "items": zod.array(zod.object({
   "ingredientId": zod.number().int(),
@@ -928,7 +928,7 @@ export const LegacyRecordPurchaseResponse = zod.object({
 
 
 export const LegacyRecordSaleBody = zod.object({
-  "date": zod.coerce.date(),
+  "date": zod.coerce.date().describe('Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.'),
   "allowNegativeStock": zod.boolean().optional().describe('Admin-only override for insufficient stock'),
   "items": zod.array(zod.object({
   "productId": zod.number().int(),
@@ -978,7 +978,7 @@ export const legacyRecordStockCountBodyItemsMax = 100;
 
 
 export const LegacyRecordStockCountBody = zod.object({
-  "date": zod.coerce.date(),
+  "date": zod.coerce.date().describe('Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.'),
   "items": zod.array(zod.union([zod.object({
   "ingredientId": zod.number().int().min(1),
   "preparationId": zod.never().optional(),
