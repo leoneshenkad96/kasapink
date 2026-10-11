@@ -21,7 +21,7 @@ export default defineConfig({
     baseURL,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    video: 'retain-on-failure',
+    video: process.env.E2E_DISABLE_VIDEO === '1' ? 'off' : 'retain-on-failure',
     ...devices['Desktop Chrome'],
     ...(browserExecutable ? { launchOptions: { executablePath: browserExecutable } } : {}),
   },
