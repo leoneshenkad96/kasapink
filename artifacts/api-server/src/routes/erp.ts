@@ -1177,7 +1177,46 @@ type ExpenseBodyData = {
   amount: number;
   businessType: "Makanan" | "Parfum" | "Bersama";
 };
+type CostingSnapshotIngredient = {
+  ingredientId: number;
+  ingredientName?: string;
+  stockUnit?: string;
+  quantityRequired: number;
+  recipeUnit: string;
+  conversionFactor: number;
+  averageCost: number;
+  category?: string;
+};
+type CostingSnapshotPreparation = {
+  preparationId: number;
+  preparationName?: string;
+  stockUnit?: string;
+  quantityRequired: number;
+  recipeUnit: string;
+  conversionFactor: number;
+  averageCost: number;
+  yieldQty?: number;
+  components?: CostingSnapshotIngredient[];
+};
+type CostingSnapshot = {
+  version?: number;
+  capturedAt?: string;
+  valuationBasis?: string;
+  ingredients?: CostingSnapshotIngredient[];
+  preparations?: CostingSnapshotPreparation[];
+};
 type ValidationResult<T> = { success: true; data: T } | { success: false; error: { message: string } };
+
+function parseCostingSnapshot(value: string | null): CostingSnapshot | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as CostingSnapshot;
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.ingredients) || !Array.isArray(parsed.preparations)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
 
 function parseDateValue(value: unknown): Date | null {
   const date = value instanceof Date ? value : new Date(String(value ?? ""));
@@ -1276,11 +1315,9 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   }
   const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
   const saleIds = sales.map((x) => x.id);
-  const [allDetails, ingredients, recipes, productPreps, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
+  const [allDetails, ingredients, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
     saleIds.length ? db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)) : Promise.resolve([]),
     db.select().from(ingredientsTable),
-    db.select().from(recipeItemsTable),
-    db.select().from(productPreparationItemsTable),
     db.select().from(preparationsTable),
     db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
     db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
@@ -1291,8 +1328,6 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
   const ingredientById = new Map(ingredients.map((x) => [x.id, x]));
   const prepById = new Map(preps.map((x) => [x.id, x]));
   const fnbWaste = waste.filter((row) => row.preparationId != null || (row.ingredientId != null && ingredientById.get(row.ingredientId)?.stockType === "Makanan"));
-  const saleQty = new Map<number, number>();
-  for (const line of details) saleQty.set(line.productId, (saleQty.get(line.productId) ?? 0) + line.quantity);
   const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; actualCogs: number; theoreticalCogs: number }>();
   for (const line of details) {
     const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, actualCogs: 0, theoreticalCogs: 0 };
@@ -1302,26 +1337,47 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     menuMap.set(line.productId, row);
   }
   const theoreticalIngredient = new Map<number, number>();
+  const theoreticalIngredientValue = new Map<number, number>();
+  const theoreticalPrep = new Map<number, number>();
+  const theoreticalPrepValue = new Map<number, number>();
+  let incompleteSnapshotLines = 0;
   for (const line of details) {
-    for (const recipe of recipes.filter((r) => r.productId === line.productId && r.ingredientId)) {
-      theoreticalIngredient.set(recipe.ingredientId!, (theoreticalIngredient.get(recipe.ingredientId!) ?? 0) + number(recipe.qtyRequired) * number(recipe.conversionFactor) * line.quantity);
+    const snapshot = parseCostingSnapshot(line.costingSnapshot);
+    if (!snapshot) {
+      incompleteSnapshotLines += 1;
+      continue;
     }
-  }
-  const prepRecipeRows = await db.select().from(preparationRecipeItemsTable);
-  for (const line of details) {
-    for (const link of productPreps.filter((r) => r.productId === line.productId)) {
-      const prep = prepById.get(link.preparationId);
-      if (!prep || number(prep.yieldQty) <= 0) continue;
-      for (const recipe of prepRecipeRows.filter((r) => r.preparationId === link.preparationId)) {
-        const theoretical = number(recipe.qtyRequired) * number(recipe.conversionFactor) / number(prep.yieldQty) * number(link.qtyRequired) * number(link.conversionFactor) * line.quantity;
-        theoreticalIngredient.set(recipe.ingredientId, (theoreticalIngredient.get(recipe.ingredientId) ?? 0) + theoretical);
+    let lineIncomplete = false;
+    for (const ingredient of snapshot.ingredients ?? []) {
+      if (isOperationalIngredient(ingredient.category ?? "")) continue;
+      const qty = number(ingredient.quantityRequired) * number(ingredient.conversionFactor) * line.quantity;
+      theoreticalIngredient.set(ingredient.ingredientId, (theoreticalIngredient.get(ingredient.ingredientId) ?? 0) + qty);
+      theoreticalIngredientValue.set(ingredient.ingredientId, (theoreticalIngredientValue.get(ingredient.ingredientId) ?? 0) + qty * number(ingredient.averageCost));
+    }
+    for (const prep of snapshot.preparations ?? []) {
+      const prepQty = number(prep.quantityRequired) * number(prep.conversionFactor) * line.quantity;
+      theoreticalPrep.set(prep.preparationId, (theoreticalPrep.get(prep.preparationId) ?? 0) + prepQty);
+      theoreticalPrepValue.set(prep.preparationId, (theoreticalPrepValue.get(prep.preparationId) ?? 0) + prepQty * number(prep.averageCost));
+      if (!Array.isArray(prep.components) || !Number.isFinite(number(prep.yieldQty)) || number(prep.yieldQty) <= 0) {
+        lineIncomplete = true;
+        continue;
+      }
+      for (const component of prep.components) {
+        if (isOperationalIngredient(component.category ?? "")) continue;
+        const qty = number(component.quantityRequired) * number(component.conversionFactor) / number(prep.yieldQty) * prepQty;
+        theoreticalIngredient.set(component.ingredientId, (theoreticalIngredient.get(component.ingredientId) ?? 0) + qty);
+        theoreticalIngredientValue.set(component.ingredientId, (theoreticalIngredientValue.get(component.ingredientId) ?? 0) + qty * number(component.averageCost));
       }
     }
+    if (lineIncomplete) incompleteSnapshotLines += 1;
   }
   const actualIngredient = new Map<number, number>();
+  const actualIngredientValue = new Map<number, number>();
   for (const m of ingredientMovements) {
     if (ingredientById.get(m.ingredientId)?.stockType === "Makanan" && ["sale", "prep_production", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
-      actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + Math.abs(number(m.quantityDelta)));
+      const qty = Math.abs(number(m.quantityDelta));
+      actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + qty);
+      actualIngredientValue.set(m.ingredientId, (actualIngredientValue.get(m.ingredientId) ?? 0) + qty * number(m.unitCost));
     }
   }
   const ingredientVariance = ingredients
@@ -1330,22 +1386,25 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
       const actual = actualIngredient.get(x.id) ?? 0;
       const theoretical = theoreticalIngredient.get(x.id) ?? 0;
       const variance = actual - theoretical;
-      return { itemType: "ingredient", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), varianceCost: roundMoney(variance * number(x.averageCost)) };
+      const actualCost = actualIngredientValue.get(x.id) ?? 0;
+      const theoreticalCost = theoreticalIngredientValue.get(x.id) ?? 0;
+      return { itemType: "ingredient", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), actualCost: roundMoney(actualCost), theoreticalCost: roundMoney(theoreticalCost), varianceCost: roundMoney(actualCost - theoreticalCost) };
     })
     .sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost))
     .slice(0, 50);
   const actualPrep = new Map<number, number>();
-  const theoreticalPrep = new Map<number, number>();
+  const actualPrepValue = new Map<number, number>();
   for (const m of prepMovements) {
-    if (["sale", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) actualPrep.set(m.preparationId, (actualPrep.get(m.preparationId) ?? 0) + Math.abs(number(m.quantityDelta)));
-  }
-  for (const line of details) for (const link of productPreps.filter((r) => r.productId === line.productId)) {
-    const q = number(link.qtyRequired) * number(link.conversionFactor) * line.quantity;
-    theoreticalPrep.set(link.preparationId, (theoreticalPrep.get(link.preparationId) ?? 0) + q);
+    if (["sale", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
+      const qty = Math.abs(number(m.quantityDelta));
+      actualPrep.set(m.preparationId, (actualPrep.get(m.preparationId) ?? 0) + qty);
+      actualPrepValue.set(m.preparationId, (actualPrepValue.get(m.preparationId) ?? 0) + qty * number(m.unitCost));
+    }
   }
   const prepVariance = preps.filter((x) => actualPrep.has(x.id) || theoreticalPrep.has(x.id)).map((x) => {
     const actual = actualPrep.get(x.id) ?? 0, theoretical = theoreticalPrep.get(x.id) ?? 0, variance = actual - theoretical;
-    return { itemType: "preparation", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), varianceCost: roundMoney(variance * number(x.averageCost)) };
+    const actualCost = actualPrepValue.get(x.id) ?? 0, theoreticalCost = theoreticalPrepValue.get(x.id) ?? 0;
+    return { itemType: "preparation", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), actualCost: roundMoney(actualCost), theoreticalCost: roundMoney(theoreticalCost), varianceCost: roundMoney(actualCost - theoreticalCost) };
   }).sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost)).slice(0, 50);
   const recipeUsageVariance = [...ingredientVariance, ...prepVariance];
   const stockOpnameVariance = [
@@ -1400,6 +1459,9 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     sharedExpenseAllocationRate: roundMoney(sharedExpenseAllocationRate * 100), unallocatedSharedExpenses,
     netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
     wasteCount: fnbWaste.length,
+    varianceValuationBasis: "transaction_time",
+    snapshotCoverage: details.length > 0 ? roundMoney(Math.max(0, details.length - incompleteSnapshotLines) / details.length * 100) : 100,
+    incompleteSnapshotLines,
     recipeUsageVariance,
     inventoryVariance: recipeUsageVariance,
     stockOpnameVariance,
@@ -1831,7 +1893,14 @@ router.post(
         }
       }
 
-      const requestedIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
+      const preparationRecipeRows = requestedPreparationIds.length
+        ? await tx.select().from(preparationRecipeItemsTable).where(inArray(preparationRecipeItemsTable.preparationId, requestedPreparationIds))
+        : [];
+      const directIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
+      const requestedIngredientIds = [...new Set([
+        ...directIngredientIds,
+        ...preparationRecipeRows.map((row) => row.ingredientId),
+      ])].sort((a, b) => a - b);
       const lockedIngredients = requestedIngredientIds.length
         ? await tx
           .select()
@@ -1845,7 +1914,7 @@ router.post(
       }
 
       const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
-      const ingredientIds = requestedIngredientIds.filter((ingredientId) => {
+      const ingredientIds = directIngredientIds.filter((ingredientId) => {
         const ingredient = ingredientById.get(ingredientId)!;
         if (!isOperationalIngredient(ingredient.category)) return true;
         warnings.push(`Bahan ${ingredient.name} berkategori Mikro/Operasional; stoknya tidak dipotong dalam resep.`);
@@ -1882,17 +1951,29 @@ router.post(
         const unitPrice = number(product.sellingPrice);
         const recipe = recipesByProduct.get(productId) ?? [];
         const costingSnapshot = {
+          version: 2,
           capturedAt: new Date().toISOString(),
+          valuationBasis: "transaction_time",
           productAverageCost: number(product.averageCost),
           ingredients: recipe.filter((item) => item.ingredientId).map((item) => {
             const ingredient = ingredientById.get(item.ingredientId!)!;
-            return { ingredientId: item.ingredientId, quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
+            return { ingredientId: item.ingredientId, ingredientName: ingredient.name, stockUnit: ingredient.unit,
+              quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
               conversionFactor: number(item.conversionFactor), averageCost: number(ingredient.averageCost), category: ingredient.category };
           }),
           preparations: productPrepRows.filter((row) => row.productId === productId).map((item) => {
             const prep = preparationById.get(item.preparationId);
-            return { preparationId: item.preparationId, quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
-              conversionFactor: number(item.conversionFactor), averageCost: prep ? number(prep.averageCost) : 0 };
+            return { preparationId: item.preparationId, preparationName: prep?.name, stockUnit: prep?.unit,
+              quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
+              conversionFactor: number(item.conversionFactor), averageCost: prep ? number(prep.averageCost) : 0,
+              yieldQty: prep ? number(prep.yieldQty) : 0,
+              components: preparationRecipeRows.filter((row) => row.preparationId === item.preparationId).map((component) => {
+                const ingredient = ingredientById.get(component.ingredientId)!;
+                return { ingredientId: component.ingredientId, ingredientName: ingredient.name, stockUnit: ingredient.unit,
+                  quantityRequired: number(component.qtyRequired), recipeUnit: component.recipeUnit,
+                  conversionFactor: number(component.conversionFactor), averageCost: number(ingredient.averageCost), category: ingredient.category };
+              }),
+            };
           }),
         };
         const costOfGoodsSold = product.needsRecipe

@@ -14,6 +14,7 @@ export * from './fnbReport';
 export * from './fnbReportExpensesItem';
 export * from './fnbReportExpensesItemBusinessType';
 export * from './fnbReportMenusItem';
+export * from './fnbReportVarianceValuationBasis';
 export * from './fnbReportWasteItem';
 export * from './fnbReportWasteItemItemType';
 export * from './getFinanceReportParams';

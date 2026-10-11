@@ -108,5 +108,46 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   await pg.exec('CREATE TRIGGER fail_recipe_version BEFORE INSERT ON erp_recipe_versions FOR EACH ROW EXECUTE FUNCTION reject_recipe_version()');
   assert.equal((await call('/erp/preparations/1/recipe','PUT',{items:[]})).status,500);
   assert.deepEqual((await pg.query('SELECT * FROM erp_preparation_recipe_items ORDER BY id')).rows,prepBefore);
+  await pg.exec('DROP TRIGGER fail_recipe_version ON erp_recipe_versions');
+
+  const batch = await call('/erp/preparations/1/batches','POST',{date:'2026-10-11',targetQty:5,actualQty:5});
+  assert.equal(batch.status,201);
+  const prepProduct = await call('/erp/products','POST',{name:'Nasi Ayam Prep',sellingPrice:30000,businessType:'Makanan',needsRecipe:true});
+  assert.equal(prepProduct.status,201);
+  assert.equal((await call(`/erp/products/${prepProduct.body.id}/preparations`,'PUT',{items:[{preparationId:1,qtyRequired:1,recipeUnit:'kg'}]})).status,200);
+  const prepSale = await call('/erp/sales','POST',{date:'2026-10-11',items:[{productId:prepProduct.body.id,quantity:2}]});
+  assert.equal(prepSale.status,201);
+  const prepSaleSnapshot = JSON.parse((await pg.query('SELECT costing_snapshot FROM erp_sales_details WHERE sales_id=$1',[prepSale.body.id])).rows[0].costing_snapshot);
+  assert.equal(prepSaleSnapshot.version,2);
+  assert.equal(prepSaleSnapshot.valuationBasis,'transaction_time');
+  assert.equal(prepSaleSnapshot.preparations[0].yieldQty,5);
+  assert.equal(prepSaleSnapshot.preparations[0].components[0].quantityRequired,1);
+  assert.equal(prepSaleSnapshot.preparations[0].components[0].conversionFactor,1);
+
+  const historicalReport = await call('/erp/fnb-report?startDate=2026-10-11&endDate=2026-10-11');
+  assert.equal(historicalReport.status,200);
+  assert.equal(historicalReport.body.varianceValuationBasis,'transaction_time');
+  assert.equal(historicalReport.body.snapshotCoverage,100);
+  assert.equal(historicalReport.body.incompleteSnapshotLines,0);
+  const varianceBeforeEdits = historicalReport.body.recipeUsageVariance;
+  await pg.exec(`UPDATE erp_ingredients SET average_cost=99999 WHERE id=1; UPDATE erp_preparations SET average_cost=88888,yield_qty=10 WHERE id=1`);
+  assert.equal((await call('/erp/preparations/1/recipe','PUT',{items:[{ingredientId:1,qtyRequired:2000,recipeUnit:'gram'}]})).status,200);
+  assert.equal((await call(`/erp/products/${prepProduct.body.id}/preparations`,'PUT',{items:[{preparationId:1,qtyRequired:3,recipeUnit:'kg'}]})).status,200);
+  const reportAfterRecipeAndPriceEdits = await call('/erp/fnb-report?startDate=2026-10-11&endDate=2026-10-11');
+  assert.equal(reportAfterRecipeAndPriceEdits.status,200);
+  assert.deepEqual(reportAfterRecipeAndPriceEdits.body.recipeUsageVariance,varianceBeforeEdits);
+
+  const legacySnapshot = JSON.stringify({
+    capturedAt:'2026-10-12T00:00:00.000Z',ingredients:[],
+    preparations:[{preparationId:1,quantityRequired:1,recipeUnit:'kg',conversionFactor:1,averageCost:4000}],
+  });
+  const legacySale = (await pg.query(`INSERT INTO erp_sales (date,total_revenue,total_cost_of_goods_sold) VALUES ('2026-10-12',30000,4000) RETURNING id`)).rows[0];
+  await pg.query(`INSERT INTO erp_sales_details (sales_id,product_id,product_name,quantity,unit_price,revenue,cost_of_goods_sold,costing_snapshot,business_type) VALUES ($1,$2,'Legacy prep sale',1,30000,30000,4000,$3,'Makanan')`,[legacySale.id,prepProduct.body.id,legacySnapshot]);
+  const legacyReport = await call('/erp/fnb-report?startDate=2026-10-12&endDate=2026-10-12');
+  assert.equal(legacyReport.body.snapshotCoverage,0);
+  assert.equal(legacyReport.body.incompleteSnapshotLines,1);
+  assert.equal((await call('/erp/preparations/1/recipe','PUT',{items:[{ingredientId:1,qtyRequired:3,recipeUnit:'kg'}]})).status,200);
+  const legacyAfterCurrentRecipeEdit = await call('/erp/fnb-report?startDate=2026-10-12&endDate=2026-10-12');
+  assert.deepEqual(legacyAfterCurrentRecipeEdit.body.recipeUsageVariance,legacyReport.body.recipeUsageVariance);
 
 });

@@ -347,6 +347,10 @@ export interface RecipeUsageVariance {
   actualQty: number;
   theoreticalQty: number;
   varianceQty: number;
+  /** Actual movement value using the unit cost captured at each movement. */
+  actualCost: number;
+  /** Theoretical usage value using costs captured in the sale snapshot. */
+  theoreticalCost: number;
   varianceCost: number;
 }
 
@@ -373,6 +377,16 @@ export interface StockOpnameVariance {
   /** @nullable */
   varianceValue: number | null;
 }
+
+/**
+ * Variance uses costs captured when sales and stock movements occurred.
+ */
+export type FnbReportVarianceValuationBasis = typeof FnbReportVarianceValuationBasis[keyof typeof FnbReportVarianceValuationBasis];
+
+
+export const FnbReportVarianceValuationBasis = {
+  transaction_time: 'transaction_time',
+} as const;
 
 export type FnbReportMenusItem = {
   productId: number;
@@ -446,6 +460,11 @@ export interface FnbReport {
   unallocatedSharedExpenses: number;
   netProfit: number;
   wasteCount: number;
+  /** Variance uses costs captured when sales and stock movements occurred. */
+  varianceValuationBasis: FnbReportVarianceValuationBasis;
+  /** Percentage of F&B sale lines with complete immutable recipe snapshots. */
+  snapshotCoverage: number;
+  incompleteSnapshotLines: number;
   recipeUsageVariance: RecipeUsageVariance[];
   /**
      * Legacy alias for recipeUsageVariance.

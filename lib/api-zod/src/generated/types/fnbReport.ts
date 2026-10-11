@@ -7,6 +7,7 @@
  */
 import type { FnbReportExpensesItem } from './fnbReportExpensesItem';
 import type { FnbReportMenusItem } from './fnbReportMenusItem';
+import type { FnbReportVarianceValuationBasis } from './fnbReportVarianceValuationBasis';
 import type { FnbReportWasteItem } from './fnbReportWasteItem';
 import type { RecipeUsageVariance } from './recipeUsageVariance';
 import type { StockOpnameVariance } from './stockOpnameVariance';
@@ -32,6 +33,11 @@ export interface FnbReport {
   unallocatedSharedExpenses: number;
   netProfit: number;
   wasteCount: number;
+  /** Variance uses costs captured when sales and stock movements occurred. */
+  varianceValuationBasis: FnbReportVarianceValuationBasis;
+  /** Percentage of F&B sale lines with complete immutable recipe snapshots. */
+  snapshotCoverage: number;
+  incompleteSnapshotLines: number;
   recipeUsageVariance: RecipeUsageVariance[];
   /**
      * Legacy alias for recipeUsageVariance.

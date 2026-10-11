@@ -785,8 +785,10 @@ components:
         actualQty: { type: number }
         theoreticalQty: { type: number }
         varianceQty: { type: number }
+        actualCost: { type: number, description: Actual movement value using the unit cost captured at each movement. }
+        theoreticalCost: { type: number, description: Theoretical usage value using costs captured in the sale snapshot. }
         varianceCost: { type: number }
-      required: [itemType, itemId, itemName, unit, actualQty, theoreticalQty, varianceQty, varianceCost]
+      required: [itemType, itemId, itemName, unit, actualQty, theoreticalQty, varianceQty, actualCost, theoreticalCost, varianceCost]
     StockOpnameVariance:
       type: object
       properties:
@@ -823,6 +825,9 @@ components:
         unallocatedSharedExpenses: { type: number, description: Shared expenses left unallocated when period revenue is zero. }
         netProfit: { type: number }
         wasteCount: { type: integer }
+        varianceValuationBasis: { type: string, enum: [transaction_time], description: Variance uses costs captured when sales and stock movements occurred. }
+        snapshotCoverage: { type: number, description: Percentage of F&B sale lines with complete immutable recipe snapshots. }
+        incompleteSnapshotLines: { type: integer }
         recipeUsageVariance:
           type: array
           items: { $ref: "#/components/schemas/RecipeUsageVariance" }
@@ -876,7 +881,7 @@ components:
               businessType: { type: string, enum: [Makanan, Parfum, Bersama] }
               allocatedAmount: { type: number }
             required: [id, date, category, description, amount, businessType, allocatedAmount]
-      required: [startDate, endDate, revenue, actualCogs, theoreticalCogs, actualFoodCostPercentage, theoreticalFoodCostPercentage, foodCostVariance, wasteCost, grossProfit, operatingExpenses, directExpenses, sharedExpenses, allocatedSharedExpenses, sharedExpenseAllocationRate, unallocatedSharedExpenses, netProfit, wasteCount, recipeUsageVariance, inventoryVariance, stockOpnameVariance, menus, waste, expenses]
+      required: [startDate, endDate, revenue, actualCogs, theoreticalCogs, actualFoodCostPercentage, theoreticalFoodCostPercentage, foodCostVariance, wasteCost, grossProfit, operatingExpenses, directExpenses, sharedExpenses, allocatedSharedExpenses, sharedExpenseAllocationRate, unallocatedSharedExpenses, netProfit, wasteCount, varianceValuationBasis, snapshotCoverage, incompleteSnapshotLines, recipeUsageVariance, inventoryVariance, stockOpnameVariance, menus, waste, expenses]
     DailyFinance:
       type: object
       properties:
