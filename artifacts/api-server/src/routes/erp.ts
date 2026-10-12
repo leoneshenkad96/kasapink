@@ -634,7 +634,7 @@ router.get(
           .map(row => [dateKey(row.date), "Penjualan", row.id, withLine(row.productName, row.productLine), quantityWithUnit(number(row.quantity), "pcs"), number(row.revenue), number(row.costOfGoodsSold), "—"]),
         ...wasteRows.map(row => {
           const item = row.preparationId ? prepById.get(row.preparationId) : ingredientById.get(row.ingredientId ?? -1);
-          return [row.date, "Waste", row.id, withLine(item?.name ?? "Item tidak ditemukan", row.preparationId ? "Makanan" : (item && "stockType" in item ? item.stockType : undefined)), quantityWithUnit(number(row.quantity), row.unit), "", number(row.totalCost), fallback(row.reason) + (row.note?.trim() ? " — " + row.note.trim() : "")];
+          return [row.date, "Waste", row.id, withLine(item?.name ?? "Item tidak ditemukan", row.preparationId ? "Makanan" : ingredientById.get(row.ingredientId ?? -1)?.stockType), quantityWithUnit(number(row.quantity), row.unit), "", number(row.totalCost), fallback(row.reason) + (row.note?.trim() ? " — " + row.note.trim() : "")];
         }),
         ...expenseRows.map(row => [row.date, "Biaya Operasional", row.id, withLine(row.category, row.businessType), "—", "", number(row.amount), fallback(row.description)]),
         ...ingredientAdjustments.map(row => {
