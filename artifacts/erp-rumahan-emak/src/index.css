@@ -1467,3 +1467,22 @@ body,.app-shell,.main-area{background:var(--kas-ivory);color:var(--kas-text)}
 .prep-flow b,.tip-symbol{background:var(--kas-champagne);color:var(--kas-text)}
 .connection i{background:var(--kas-sage)}
 @media(max-width:767px){body{background:var(--kas-ivory)}.sidebar{max-height:100dvh;overflow-y:auto}}
+
+
+/* Approved login illustration: proportional and mobile safe */
+.login-layout{align-items:stretch}
+.login-brand-panel{display:flex;align-items:center;justify-content:center}
+.login-illustration{display:block;width:100%;height:auto;max-height:610px;min-height:0;aspect-ratio:4/3;object-fit:contain;object-position:center;padding:clamp(12px,2.3vw,26px)}
+.login-brand-lockup small,.login-field>span,.login-card .eyebrow,.login-card-subtitle,.login-helper,.login-footer{color:var(--kas-deep)}
+.login-input:focus{background:var(--kas-surface);border-color:var(--kas-deep);box-shadow:0 0 0 3px rgba(142,151,125,.24)}
+.login-submit{background:var(--kas-deep);border-color:var(--kas-deep);color:#fff}
+.login-submit:hover:not(:disabled){background:var(--kas-primary);color:#fff}
+.login-error{background:#F6DEDA;color:#A33F38;border-color:#CE8279}
+@media(max-width:760px){
+ .login-page{padding:clamp(10px,3vw,18px)}
+ .login-layout{min-height:0}
+ .login-card{padding:clamp(22px,6vw,34px)}
+ .login-card .login-brand-lockup{margin-bottom:clamp(28px,7vw,52px)}
+ .login-brand-panel{min-height:0;padding:0 14px 16px}
+ .login-illustration{height:auto;min-height:0;max-height:none;aspect-ratio:4/3;padding:0;width:100%;object-fit:contain}
+}
