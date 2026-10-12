@@ -32,7 +32,7 @@ function escapePdf(value: string): string {
 }
 
 export function toCsv(table: ReportTable): string {
-  const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
+  const decimalIndexes = new Set((table.currencyColumns ?? table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
   return [table.columns, ...table.rows].map((row, rowIndex) => row.map((value, columnIndex) => {
     const formatted = rowIndex > 0 && decimalIndexes.has(columnIndex) && typeof value === "number" ? value.toFixed(2) : String(value);
     const safeValue = typeof value === "string" && /^[=+\-@\t\r]/.test(formatted) ? `'${formatted}` : formatted;
@@ -42,7 +42,7 @@ export function toCsv(table: ReportTable): string {
 
 export function toExcelHtml(table: ReportTable): string {
   const row = (values: Array<string | number>, header = false) => `<tr>${values.map((value) => header ? `<th>${escapeHtml(String(value))}</th>` : `<td>${escapeHtml(String(value))}</td>`).join("")}</tr>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#613248}table{border-collapse:collapse}th,td{border:1px solid #f2bfd2;padding:6px 9px}th{background:#f8e7ed}</style></head><body><h1>${escapeHtml(table.title)}</h1><table>${row(table.columns, true)}${table.rows.map((values) => row(values)).join("")}</table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#40372B}table{border-collapse:collapse}th,td{border:1px solid #C9B990;padding:6px 9px}th{background:#ECE7D1}</style></head><body><h1>${escapeHtml(table.title)}</h1><table>${row(table.columns, true)}${table.rows.map((values) => row(values)).join("")}</table></body></html>`;
 }
 
 const pdfText = (text: string, x: number, y: number, size = 9, bold = false, color = "0.25 0.22 0.17") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg ${x} ${y} Td (${escapePdf(text)}) Tj ET`;
@@ -79,7 +79,7 @@ export function toPdf(table: ReportTable): Buffer {
   const left = 36;
   const usableWidth = pageWidth - left * 2;
   const weights = table.columnWeights?.length === table.columns.length ? table.columnWeights : table.columns.map((name) => /Nama|Item|Keterangan|Kategori/i.test(name) ? 1.6 : 1);
-  const weightSum = weights.reduce((a,b)=>a+b,0);
+  const weightSum = weights.reduce((a,b)=>a+b,0) || 1;
   const colWidths = weights.map(w=>usableWidth*w/weightSum);
   const colXs = colWidths.map((_,i)=>left+colWidths.slice(0,i).reduce((a,b)=>a+b,0));
   const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
