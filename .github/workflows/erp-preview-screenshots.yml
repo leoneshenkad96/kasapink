@@ -18,16 +18,18 @@ jobs:
           node-version: '22'
       - name: Install Playwright Chromium
         run: |
-          npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
+          mkdir -p /tmp/kasapink-qa
+          npm install --prefix /tmp/kasapink-qa --no-save playwright@1.56.1
+          /tmp/kasapink-qa/node_modules/.bin/playwright install --with-deps chromium
+          cp scripts/capture-erp-preview.mjs /tmp/kasapink-qa/capture.mjs
       - name: Capture real Vercel Preview on three viewports
         env:
           QA_URL: https://kasapink-7jdt1veb3-kasapink.vercel.app
-        run: node scripts/capture-erp-preview.mjs
+        run: cd /tmp/kasapink-qa && node capture.mjs
       - name: Publish screenshot evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: kasapink-erp-preview-three-viewports
-          path: qa-screenshots/
+          path: /tmp/kasapink-qa/qa-screenshots/
           if-no-files-found: warn
