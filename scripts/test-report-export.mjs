@@ -16,6 +16,8 @@ for(const c of cases){
  assert.equal(pdf.toString("ascii",0,5),"%PDF-");
  const text=pdf.toString("latin1");
  assert.match(text,/\/Type \/Page/);
+ assert.match(text,/\(KASAPINK  \/  CATATAN USAHA\)/,"Brand header must be rendered");
+ assert.match(text,/\b100\s+\d+\s+Td \(KASAPINK  \/  CATATAN USAHA\)/,"Brand text must start at x=100pt next to left logo");
  assert.match(text,c.orientation==="landscape"?/\/MediaBox \[0 0 842 595\]/:/\/MediaBox \[0 0 595 842\]/);
  assert.match(text,/Dihasilkan|Laporan dibuat otomatis/);
  assert.ok((text.match(/\/Type \/Page /g)||[]).length>=2,"multiple pages expected");
