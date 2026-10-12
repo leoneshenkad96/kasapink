@@ -1603,3 +1603,10 @@ body,.app-shell,.main-area{background:var(--kas-ivory);color:var(--kas-text)}
  .login-brand-panel{min-height:0;padding:0;margin:0;display:block}
  .login-illustration{width:100%;max-height:none;height:auto;padding:0;margin:0}
 }
+
+/* Login art: edge-to-edge asset without inherited illustration padding */
+.login-brand-panel{padding:0!important;border:0!important;box-shadow:none!important;overflow:hidden;background:#FAF8F1}
+.login-brand-panel .login-illustration{display:block;width:100%;height:auto;min-height:0;max-height:none;aspect-ratio:auto;object-fit:contain;object-position:center;padding:0!important;margin:0;border:0;border-radius:0;box-shadow:none;background:transparent}
+@media(min-width:1025px){.login-brand-panel .login-illustration{max-height:610px}}
+@media(min-width:768px) and (max-width:1024px){.login-brand-panel .login-illustration{max-height:480px}}
+@media(max-width:767px){.login-brand-panel{min-height:0!important}.login-brand-panel .login-illustration{max-height:none}}
