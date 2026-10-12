@@ -590,21 +590,45 @@ router.get(
     let table: ReportTable;
     const formatRupiah = (value: number) => `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (type === "stock") {
-      const rows = await db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name));
-      table = { title: "Laporan Stok Bahan", subtitle: "Posisi persediaan dan nilai HPP rata-rata", columns: ["ID", "Nama", "Kategori", "Tipe stok", "Unit", "Stok", "Minimum", "HPP rata-rata"], decimalColumns: ["HPP rata-rata"], rows: rows.map((row) => [row.id, row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost)]) };
+      const [ingredients, preparations] = await Promise.all([
+        db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)),
+        db.select().from(preparationsTable).orderBy(asc(preparationsTable.name)),
+      ]);
+      const stockRows = [
+        ...ingredients.map((row) => ["Bahan", row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost), roundMoney(number(row.stock) * number(row.averageCost))] as Array<string | number>),
+        ...preparations.map((row) => ["Preparation", row.name, "Preparation", "Makanan", row.unit, number(row.stock), "—", number(row.averageCost), roundMoney(number(row.stock) * number(row.averageCost))] as Array<string | number>),
+      ];
+      table = { title: "Laporan Posisi Persediaan", subtitle: `Posisi stok saat laporan dibuat (WIB): ${jakartaToday()} • Bahan dan Preparation`, orientation: "landscape",
+        columns: ["Jenis", "Nama", "Kategori", "Lini", "Unit", "Stok", "Minimum", "HPP/unit", "Nilai stok"],
+        decimalColumns: ["HPP/unit", "Nilai stok"], currencyColumns: ["HPP/unit", "Nilai stok"], columnWeights: [0.9, 1.8, 1.2, 0.95, 0.6, 0.7, 0.7, 1.15, 1.25],
+        summary: [{ label: "Item bahan", value: String(ingredients.length) }, { label: "Preparation", value: String(preparations.length) }, { label: "Nilai persediaan", value: formatRupiah(stockRows.reduce((sum, row) => sum + Number(row[8]), 0)) }],
+        note: "Nilai persediaan = stok saat ini × HPP rata-rata. Bukan nilai penjualan; termasuk stok nol/negatif jika tercatat.",
+        rows: stockRows };
     } else if (type === "transactions") {
-      const [purchases, sales] = await Promise.all([
+      const [purchases, sales, wasteRows, expenseRows, ingredientAdjustments, prepAdjustments] = await Promise.all([
         db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
         db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id)),
+        db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
+        db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
+        db.select().from(stockMovementsTable).where(and(gte(stockMovementsTable.date, startDate), lte(stockMovementsTable.date, endDate), eq(stockMovementsTable.movementType, "adjustment"))),
+        db.select().from(preparationStockMovementsTable).where(and(gte(preparationStockMovementsTable.date, startDate), lte(preparationStockMovementsTable.date, endDate), eq(preparationStockMovementsTable.movementType, "adjustment"))),
       ]);
-      table = { title: "Histori Transaksi", subtitle: `Periode ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Tipe", "Referensi", "Item", "Qty", "Nilai", "HPP", "Keterangan"], decimalColumns: ["Nilai", "HPP"], rows: [
+      table = { title: "Histori Aktivitas Usaha", subtitle: `Periode ${startDate} sampai ${endDate} (WIB)`, orientation: "landscape",
+        columns: ["Tanggal", "Jenis", "Ref", "Item/Kategori", "Qty", "Nilai", "HPP/Biaya", "Keterangan"],
+        decimalColumns: ["Nilai", "HPP/Biaya"], currencyColumns: ["Nilai", "HPP/Biaya"], columnWeights: [1, 1.15, 0.48, 1.8, 0.65, 1.1, 1.15, 1.65],
+        note: "Penjualan, belanja, waste, biaya operasional, dan koreksi stok dicatat sebagai jenis aktivitas berbeda. Jangan jumlahkan semua jenis sebagai pendapatan atau beban untuk menghindari penghitungan ganda.",
+        rows: [
         ...purchases.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Belanja", row.id, row.ingredientName, number(row.quantity), number(row.totalCost), "", row.supplierType]),
-        ...sales.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Penjualan", row.id, row.productName, row.quantity, number(row.revenue), number(row.costOfGoodsSold), "Produk terjual"]),
+        ...sales.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Penjualan", row.id, row.productName, number(row.quantity), number(row.revenue), number(row.costOfGoodsSold), "Produk terjual"]),
+        ...wasteRows.map((row) => [row.date, "Waste", row.id, row.preparationId ? `Preparation #${row.preparationId}` : `Bahan #${row.ingredientId}`, number(row.quantity), "", number(row.totalCost), row.reason]),
+        ...expenseRows.map((row) => [row.date, "Biaya operasional", row.id, row.category, "", "", number(row.amount), row.description]),
+        ...ingredientAdjustments.map((row) => [row.date, "Koreksi bahan", row.id, `Bahan #${row.ingredientId}`, number(row.quantityDelta), "", number(row.varianceValue ?? 0), row.note ?? "Penyesuaian stok"]),
+        ...prepAdjustments.map((row) => [row.date, "Koreksi prep", row.id, `Preparation #${row.preparationId}`, number(row.quantityDelta), "", number(row.varianceValue ?? 0), row.note ?? "Penyesuaian stok"]),
       ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       };
     } else {
       const report = await financeReport(startDate, endDate);
-      table = { title: "Laporan Keuangan", subtitle: `Periode ${startDate} sampai ${endDate}`, columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], decimalColumns: ["Penjualan", "HPP", "Belanja", "Laba kotor"], summary: [
+      table = { title: "Laporan Keuangan", subtitle: `Periode ${startDate} sampai ${endDate} (WIB)`, orientation: "portrait", note: "Laba kotor = penjualan − HPP produk terjual. Belanja bahan bukan pengurang tambahan laba kotor. Laba kotor belum termasuk biaya operasional, waste, dan selisih persediaan.", columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], decimalColumns: ["Penjualan", "HPP", "Belanja", "Laba kotor"], summary: [
         { label: "Penjualan", value: formatRupiah(report.revenue) },
         { label: "HPP", value: formatRupiah(report.costOfGoodsSold) },
         { label: "Belanja", value: formatRupiah(report.purchases) },
