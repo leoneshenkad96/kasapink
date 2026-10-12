@@ -608,7 +608,7 @@ router.get(
         rows: stockRows };
     } else if (type === "transactions") {
       const [purchases, sales, wasteRows, expenseRows, ingredientAdjustments, prepAdjustments, ingredientCatalog, prepCatalog] = await Promise.all([
-        db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
+        db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, ingredientUnit: ingredientsTable.unit, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
         db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id)),
         db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
         db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
@@ -627,7 +627,7 @@ router.get(
         note: "Nilai: pemasukan penjualan atau belanja bahan. HPP/Biaya: HPP terjual, waste, operasional, atau nilai selisih stok. Jenis biaya berbeda tidak boleh langsung dijumlahkan karena dapat menyebabkan penghitungan ganda.",
         rows: [
         ...purchases.filter(row => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate)
-          .map(row => [dateKey(row.date), "Pembelian", row.id, row.ingredientName, quantityWithUnit(number(row.quantity), ingredientCatalog.find(i => i.name === row.ingredientName)?.unit), number(row.totalCost), "", "—"]),
+          .map(row => [dateKey(row.date), "Pembelian", row.id, row.ingredientName, quantityWithUnit(number(row.quantity), row.ingredientUnit), number(row.totalCost), "", "—"]),
         ...sales.filter(row => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate)
           .map(row => [dateKey(row.date), "Penjualan", row.id, row.productName, quantityWithUnit(number(row.quantity), "pcs"), number(row.revenue), number(row.costOfGoodsSold), "—"]),
         ...wasteRows.map(row => {
