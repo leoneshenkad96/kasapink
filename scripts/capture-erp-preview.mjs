@@ -23,6 +23,8 @@ for(const [label,width,height] of [['desktop',1440,900],['tablet',768,1024],['mo
   if(!result.loginImage){console.error('BLOCKED: ERP login illustration not found');failures++;}
   if(!response?.ok()||result.horizontalOverflow||errors.length)failures++;
   if(result.loginImage&& !result.loginImage.loaded)failures++;
+  if(result.loginImage && (result.loginImage.src !== '/kasapink-login-illustration-earthtone.webp' || result.loginImage.width !== 1448 || result.loginImage.height !== 1086)){ console.error('BLOCKED: incorrect login illustration source or native resolution', result.loginImage); failures++; }
+
  }catch(e){console.error(label,e.message);failures++;}
  await page.close();
 }
