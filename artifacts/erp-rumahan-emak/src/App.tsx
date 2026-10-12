@@ -318,10 +318,10 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
       <div className="dashboard-chart-legend"><span><i className="legend-dot sales" />Sales</span><span><i className="legend-dot purchases" />Purchases</span></div>
       <div className="dashboard-chart" aria-label="Grafik penjualan dan belanja bulanan">
         {chartData.length ? <svg className="sales-chart-svg" viewBox="0 0 720 205" role="img" aria-label="Grafik penjualan dan belanja bulanan">
-          <defs><linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#f2bfd2" stopOpacity=".65" /><stop offset="100%" stopColor="#f2bfd2" stopOpacity=".08" /></linearGradient></defs>
-          {[28, 75, 122, 170].map((y) => <line key={y} x1="42" x2="678" y1={y} y2={y} stroke="#f2bfd2" strokeOpacity=".45" />)}
+          <defs><linearGradient id="salesFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#8E977D" stopOpacity=".65" /><stop offset="100%" stopColor="#8E977D" stopOpacity=".08" /></linearGradient></defs>
+          {[28, 75, 122, 170].map((y) => <line key={y} x1="42" x2="678" y1={y} y2={y} stroke="#8E977D" strokeOpacity=".45" />)}
           <polygon points={`42,170 ${salesPoints} 678,170`} fill="url(#salesFill)" />
-          <polyline points={salesPoints} fill="none" stroke="#f2bfd2" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
+          <polyline points={salesPoints} fill="none" stroke="#8E977D" strokeWidth="3" strokeLinejoin="round" strokeLinecap="round" />
           <polyline points={purchasePoints} fill="none" stroke="#fdcee0" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
           {chartData.map((day, index) => <text key={day.label} x={chartData.length <= 1 ? 360 : 42 + (index / (chartData.length - 1)) * 636} y="198" textAnchor="middle" fill="#613248" fontSize="10">{day.label}</text>)}
           <text x="4" y="31" fill="#613248" fontSize="10">{chartMax >= 1000 ? `${Math.round(chartMax / 1000)}k` : chartMax}</text><text x="14" y="174" fill="#613248" fontSize="10">0</text>
