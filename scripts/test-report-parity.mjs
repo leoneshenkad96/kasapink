@@ -55,3 +55,51 @@ for(const table of cases){
  }
  console.log("PARITY PASS",table.name,"rows",table.rows.length,"PDF bytes",bytes.length);
 }
+
+const { inflateRawSync } = await import("node:zlib");
+const { toXlsx } = require("/tmp/kasapink-xlsx-parity.cjs");
+function unzipStoredFiles(bytes){
+  const entries=new Map();
+  let p=0;
+  while(p+30<bytes.length && bytes.readUInt32LE(p)===0x04034b50){
+    const method=bytes.readUInt16LE(p+8),compressedSize=bytes.readUInt32LE(p+18);
+    const nameSize=bytes.readUInt16LE(p+26),extraSize=bytes.readUInt16LE(p+28);
+    const name=bytes.subarray(p+30,p+30+nameSize).toString("utf8");
+    const dataStart=p+30+nameSize+extraSize;
+    const payload=bytes.subarray(dataStart,dataStart+compressedSize);
+    entries.set(name,(method===8?inflateRawSync(payload):payload).toString("utf8"));
+    p=dataStart+compressedSize;
+  }
+  return entries;
+}
+function decodeXml(s){return s.replace(/&quot;/g,'"').replace(/&apos;/g,"'").replace(/&lt;/g,"<").replace(/&gt;/g,">").replace(/&amp;/g,"&");}
+function extractXlsxRows(sheet){
+  return [...sheet.matchAll(/<row r="\d+"[^>]*>([\s\S]*?)<\/row>/g)].map(match=>
+    [...match[1].matchAll(/<c r="([A-Z]+)\d+"([^>]*)>([\s\S]*?)<\/c>/g)].map(c=>{
+      const inner=c[3];
+      const isText=c[2].includes('t="inlineStr"');
+      return isText?decodeXml((inner.match(/<t[^>]*>([\s\S]*?)<\/t>/)||[])[1]??"")
+       :(inner.match(/<v>([\s\S]*?)<\/v>/)||[])[1]??"";
+    })
+  );
+}
+execFileSync("pnpm",["exec","esbuild","artifacts/api-server/src/lib/xlsx-export.ts","--bundle","--platform=node","--format=cjs","--outfile=/tmp/kasapink-xlsx-parity.cjs"],{stdio:"inherit"});
+for(const test of cases){
+  const files=unzipStoredFiles(toXlsx(test));
+  assert.ok(files.has("[Content_Types].xml"),"XLSX content types missing");
+  assert.ok(files.has("xl/workbook.xml"),"XLSX workbook missing");
+  const sheet=files.get("xl/worksheets/sheet1.xml");
+  assert.ok(sheet,"XLSX sheet missing");
+  const rows=extractXlsxRows(sheet);
+  const headerIndex=rows.findIndex(row=>JSON.stringify(row)===JSON.stringify(test.columns));
+  assert.ok(headerIndex>=0,"XLSX data headers mismatch: "+test.name);
+  const entries=rows.slice(headerIndex+1);
+  const expected=normalizedRows(test);
+  assert.equal(entries.length,test.rows.length,"XLSX data count");
+  assert.deepEqual(entries.map(row=>row.map((value,i)=>{
+    const money=(test.currencyColumns??test.decimalColumns??[]).includes(test.columns[i]);
+    return money&&!Number.isNaN(Number(value))?Number(value).toFixed(2):value;
+  })),expected.slice(1),"XLSX/CSV cell parity: "+test.name);
+  assert.ok(sheet.includes('t="inlineStr"')&&sheet.includes('><v>'),"XLSX must preserve text and numeric types");
+  console.log("NATIVE XLSX PARITY PASS",test.name,entries.length,"rows");
+}
