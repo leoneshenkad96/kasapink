@@ -16,7 +16,7 @@ import type { ErpState, Ingredient, Product, RecipeItem } from '@workspace/api-c
 import {
   AlertCircle, ArrowDownLeft, ArrowRight, Boxes, CalendarDays, Check, ChevronDown,
   CirclePlus, ClipboardList, CookingPot, Download, FileText, Home, LogOut, Menu,
-  KeyRound, LoaderCircle, Pencil, Plus, ReceiptText, ShoppingBasket, Shield, Trash2,
+  KeyRound, LoaderCircle, Pencil, Plus, ReceiptText, ShoppingCart, Shield, Trash2,
   TrendingUp, UserRound, X,
 } from 'lucide-react';
 import { Modal } from './components/ui/modal';
@@ -104,7 +104,7 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
       <div className="login-layout">
         <section className="login-card" aria-labelledby="login-title">
           <div className="login-brand-lockup">
-            <span className="login-brand-mark"><img className="brand-logo-image" src="/kasapink-logo-web.png" alt="Logo Kasapink" /></span>
+            <span className="login-brand-mark"><img className="brand-logo-image" src="/kasapink-logo-final.svg" alt="Logo Kasapink" /></span>
             <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
           </div>
           <div className="login-card-heading">
@@ -185,7 +185,7 @@ function Shell({ children, connected, onLogout, user }: { children: React.ReactN
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <Link href="/" className="brand-lockup" onClick={() => setMobileNav(false)}>
-        <span className="brand-mark"><img className="brand-logo-image" src="/kasapink-logo-web.png" alt="Logo Kasapink" /></span>
+        <span className="brand-mark"><img className="brand-logo-image" src="/kasapink-logo-final.svg" alt="Logo Kasapink" /></span>
         <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
       </Link>
       <div className="side-caption">MENU UTAMA</div>
@@ -310,7 +310,7 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
     <div className="metric-grid">
       <Card className="metric-card metric-feature"><span className="metric-label">TOTAL SALES</span><strong>{money(todayData.revenue)}</strong><span className="metric-foot"><TrendingUp size={14} /> Hari ini</span><div className="metric-stamp"><ReceiptText size={20} /></div></Card>
       <Card className="metric-card"><span className="metric-label">GROSS PROFIT</span><strong>{money(todayData.grossProfit)}</strong><span className="metric-foot">Setelah biaya bahan terjual</span><div className="metric-side-icon"><TrendingUp size={18} /></div></Card>
-      <Card className="metric-card"><span className="metric-label">PURCHASES</span><strong>{money(todayData.purchases)}</strong><span className="metric-foot">Belanja bahan hari ini</span><div className="metric-side-icon peach"><ShoppingBasket size={18} /></div></Card>
+      <Card className="metric-card"><span className="metric-label">PURCHASES</span><strong>{money(todayData.purchases)}</strong><span className="metric-foot">Belanja bahan hari ini</span><div className="metric-side-icon peach"><ShoppingCart size={18} /></div></Card>
       <Card className="metric-card"><span className="metric-label">LOW STOCK</span><strong>{state.lowStockCount ?? 0}</strong><span className="metric-foot">Item perlu dicek</span><div className="metric-side-icon alert"><Boxes size={18} /></div></Card>
     </div>
     <Card className="dashboard-chart-card">
@@ -333,7 +333,7 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
         {low.length ? <div className="stock-list">{low.slice(0, 5).map((i) => <div className="stock-row" key={i.id}><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><span className="stock-name"><b>{i.name}</b><small>Minimum {i.minStock} {i.unit}</small></span><span className="stock-value">{i.stock} <small>{i.unit}</small></span><span className="status-pill status-low">Menipis</span></div>)}</div> : <Empty title="Stok aman" text="Belum ada bahan yang perlu segera dibeli." />}
       </Card>
       <Card className="table-card"><div className="card-heading"><div><span className="eyebrow">ACTIVITY</span><h2>Recent activity</h2></div><Link href="/laporan" className="inline-link">View reports <ArrowRight size={15} /></Link></div>
-        {recent.length ? <div className="activity-list">{recent.map((r) => <div className="activity-row" key={r.id}><span className={`activity-icon ${r.kind}`} >{r.kind === 'sale' ? <ArrowDownLeft size={16} /> : <ShoppingBasket size={16} />}</span><div className="activity-name"><b>{r.title}</b><small>{dateLabel(r.date)} · {r.detail}</small></div><strong className={r.kind === 'sale' ? 'positive' : ''}>{money(r.amount)}</strong></div>)}</div> : <Empty title="Belum ada transaksi" text="Belanja dan penjualan yang dicatat akan tampil di sini." />}
+        {recent.length ? <div className="activity-list">{recent.map((r) => <div className="activity-row" key={r.id}><span className={`activity-icon ${r.kind}`} >{r.kind === 'sale' ? <ArrowDownLeft size={16} /> : <ShoppingCart size={16} />}</span><div className="activity-name"><b>{r.title}</b><small>{dateLabel(r.date)} · {r.detail}</small></div><strong className={r.kind === 'sale' ? 'positive' : ''}>{money(r.amount)}</strong></div>)}</div> : <Empty title="Belum ada transaksi" text="Belanja dan penjualan yang dicatat akan tampil di sini." />}
       </Card>
     </div>
   </>;
@@ -652,7 +652,7 @@ function PurchasePage({ ingredients = [], readOnly = false }: { ingredients?: In
       {lines.map((l, idx) => <div className="purchase-line" key={idx}><Field label="Bahan"><FieldSelect disabled={readOnly} required value={l.ingredientId || ''} onChange={(e) => patch(idx, 'ingredientId', Number(e.target.value))}><option value="" disabled>Pilih bahan</option>{safeIngredients.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}</FieldSelect></Field><Field label="Jumlah"><FieldInput disabled={readOnly} required min="0.001" step="any" type="number" value={l.quantity} onChange={(e) => patch(idx, 'quantity', Number(e.target.value))} /></Field><Field label="Total biaya"><FieldInput disabled={readOnly} required min="0" step="100" type="number" value={l.totalCost} onChange={(e) => patch(idx, 'totalCost', e.target.value === '' ? '' : Number(e.target.value))} /></Field><button className="remove-line" type="button" aria-label="Hapus baris" disabled={readOnly || lines.length === 1} onClick={() => setLines(lines.filter((_, i) => i !== idx))}><X size={16} /></button></div>)}
       <button className="add-line" type="button" disabled={readOnly} onClick={() => setLines([...lines, { ingredientId: safeIngredients[0]?.id || 0, quantity: 1, totalCost: '' }])}><CirclePlus size={16} /> Tambah bahan</button>
       <FormError text={error} />{done && <div className="success-message"><Check size={16} />{done}</div>}<div className="form-actions purchase-submit"><div><small>Total pengeluaran</small><strong>{money(total)}</strong></div><Button type="submit" disabled={readOnly || mutation.isPending || !safeIngredients.length}>{mutation.isPending ? 'Menyimpan…' : 'Simpan belanja'}</Button></div>
-    </form></Card><aside className="side-tip"><div className="tip-symbol"><ShoppingBasket size={20} /></div><span className="eyebrow">CATATAN KECIL</span><h3>Masukkan total harga per bahan</h3><p>Jika membeli beberapa bahan sekaligus, pisahkan ke baris masing-masing. Stok dan rata-rata biaya akan diperbarui otomatis.</p><div className="tip-rule" /><span className="tip-foot">Belanja hari ini</span><strong>{money(total)}</strong></aside></div>
+    </form></Card><aside className="side-tip"><div className="tip-symbol"><ShoppingCart size={20} /></div><span className="eyebrow">CATATAN KECIL</span><h3>Masukkan total harga per bahan</h3><p>Jika membeli beberapa bahan sekaligus, pisahkan ke baris masing-masing. Stok dan rata-rata biaya akan diperbarui otomatis.</p><div className="tip-rule" /><span className="tip-foot">Belanja hari ini</span><strong>{money(total)}</strong></aside></div>
   </>;
 }
 
