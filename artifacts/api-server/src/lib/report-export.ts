@@ -41,8 +41,20 @@ export function toCsv(table: ReportTable): string {
 }
 
 export function toExcelHtml(table: ReportTable): string {
-  const row = (values: Array<string | number>, header = false) => `<tr>${values.map((value) => header ? `<th>${escapeHtml(String(value))}</th>` : `<td>${escapeHtml(String(value))}</td>`).join("")}</tr>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#40372B}table{border-collapse:collapse}th,td{border:1px solid #C9B990;padding:6px 9px}th{background:#ECE7D1}</style></head><body><h1>${escapeHtml(table.title)}</h1><table>${row(table.columns, true)}${table.rows.map((values) => row(values)).join("")}</table></body></html>`;
+  // Legacy Excel-compatible HTML (.xls). Numeric money cells remain numbers with exactly
+  // two decimal places, matching the CSV dataset and the displayed PDF money values.
+  const decimals = new Set((table.currencyColumns ?? table.decimalColumns ?? []).map(col => table.columns.indexOf(col)).filter(index => index >= 0));
+  const cell = (value: string | number, index: number) => {
+    const numeric = typeof value === "number";
+    const formatted = numeric && decimals.has(index) ? value.toFixed(2) : String(value ?? "");
+    const excelFormat = numeric && decimals.has(index) ? ' style="mso-number-format:&quot;0.00&quot;"' : "";
+    return `<td${excelFormat}>${escapeHtml(formatted)}</td>`;
+  };
+  const header = `<tr>${table.columns.map(v => `<th>${escapeHtml(v)}</th>`).join("")}</tr>`;
+  const dataRows = table.rows.map(values => `<tr>${values.map((v,i)=>cell(v,i)).join("")}</tr>`).join("");
+  const summary = table.summary?.length ? `<section class="summary">${table.summary.map(x=>`<p><strong>${escapeHtml(x.label)}:</strong> ${escapeHtml(x.value)}</p>`).join("")}</section>` : "";
+  const note = table.note ? `<p class="note">${escapeHtml(table.note)}</p>` : "";
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#40372B}table{border-collapse:collapse}th,td{border:1px solid #C9B990;padding:6px 9px}th{background:#ECE7D1}h1{color:#655942}.summary{background:#ECE7D1;padding:8px;margin:12px 0}.note{color:#655942}</style></head><body><h1>${escapeHtml(table.title)}</h1><p>${escapeHtml(table.subtitle ?? "")}</p>${summary}${note}<table>${header}${dataRows}</table></body></html>`;
 }
 
 const pdfText = (text: string, x: number, y: number, size = 9, bold = false, color = "0.25 0.22 0.17") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg ${x} ${y} Td (${escapePdf(text)}) Tj ET`;
