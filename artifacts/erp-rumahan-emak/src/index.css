@@ -1486,3 +1486,49 @@ body,.app-shell,.main-area{background:var(--kas-ivory);color:var(--kas-text)}
  .login-brand-panel{min-height:0;padding:0 14px 16px}
  .login-illustration{height:auto;min-height:0;max-height:none;aspect-ratio:4/3;padding:0;width:100%;object-fit:contain}
 }
+
+
+/* QA-20261012: readable KPI and brand lockup across breakpoints */
+.metric-grid .metric-card.metric-feature{
+  background:var(--kas-surface);border:1px solid var(--kas-border);color:var(--kas-text);
+  box-shadow:0 8px 24px rgba(64,55,43,.06);
+}
+.metric-grid .metric-card.metric-feature>strong{
+  color:var(--kas-text);font-weight:800;overflow-wrap:anywhere;
+}
+.metric-grid .metric-card.metric-feature .metric-label{
+  color:var(--kas-deep);font-weight:700;
+}
+.metric-grid .metric-card.metric-feature .metric-foot,
+.metric-grid .metric-card.metric-feature .metric-foot svg{
+  color:var(--kas-deep);
+}
+.metric-grid .metric-card.metric-feature .metric-stamp{
+  display:grid;place-items:center;width:44px;height:44px;border-radius:14px;
+  background:var(--kas-ivory);border:1px solid var(--kas-champagne);
+  color:var(--kas-deep);
+}
+.metric-grid .metric-card.metric-feature .metric-stamp svg{color:var(--kas-deep)}
+.sidebar .brand-lockup{gap:14px;align-items:center;color:var(--kas-cream)}
+.sidebar .brand-lockup .brand-mark{
+  flex:0 0 48px;width:48px;height:48px;border:1px solid rgba(255,255,255,.38);
+  border-radius:14px;background:var(--kas-cream);box-shadow:0 4px 12px rgba(64,55,43,.12);
+  display:grid;place-items:center;
+}
+.sidebar .brand-lockup .brand-logo-image{width:35px;height:35px;object-fit:contain}
+.sidebar .brand-lockup strong{
+  color:#FFFDF7;font-family:var(--app-font-sans);font-weight:800;
+  font-size:19px;line-height:1.18;letter-spacing:-.2px;
+}
+.sidebar .brand-lockup small{
+  color:#FFF5DE;opacity:1;font-size:10px;line-height:1.45;
+  font-weight:700;letter-spacing:1.5px;margin-top:5px;
+}
+.sidebar .side-caption,.sidebar .side-footer{color:var(--kas-cream)}
+.sidebar .sidebar-note small{color:var(--kas-deep)}
+@media(max-width:767px){
+ .sidebar .brand-lockup{gap:12px}
+ .sidebar .brand-lockup .brand-mark{flex-basis:44px;width:44px;height:44px}
+ .sidebar .brand-lockup .brand-logo-image{width:32px;height:32px}
+ .metric-grid .metric-card.metric-feature>strong{font-size:clamp(32px,9vw,42px)}
+}
