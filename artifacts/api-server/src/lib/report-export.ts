@@ -110,23 +110,26 @@ export function toPdf(table: ReportTable): Buffer {
   }
   const pages = chunks.map((rows, pageIndex) => {
     const commands: string[] = ["q", "0.54 0.46 0.31 rg", `0 ${pageHeight-100} ${pageWidth} 100 re f`, "Q"];
-    commands.push(pdfText("KASAPINK  /  CATATAN USAHA", left, pageHeight - 19, 9, true, "1 1 1"));
-
-    // Unified Core four-petal mark, drawn as vectors so it stays sharp in print.
-    const cx = pageWidth - 56, cy = pageHeight - 47;
+    // Option C header: permanent left-aligned Unified Core logomark, no tile or border.
+    // The mark is 34pt wide and 42pt high, centered at x=57, y=pageHeight-50.
+    const cx = left + 21, cy = pageHeight - 50;
     const petal = (x: number, y: number, color: string) => {
       commands.push("q", color + " rg",
-        (x-6)+" "+y+" m "+x+" "+(y+10)+" l "+(x+6)+" "+y+" l "+x+" "+(y-10)+" l h f","Q");
+        (x-5)+" "+y+" m "+x+" "+(y+8)+" l "+(x+5)+" "+y+" l "+x+" "+(y-8)+" l h f", "Q");
     };
-    petal(cx,cy+13,"0.95 0.88 0.72");
-    petal(cx-13,cy,"0.75 0.79 0.69");
-    petal(cx+13,cy,"0.98 0.96 0.88");
-    petal(cx,cy-13,"0.85 0.79 0.63");
+    petal(cx,cy+12,"0.95 0.88 0.72");
+    petal(cx-12,cy,"0.75 0.79 0.69");
+    petal(cx+12,cy,"0.98 0.96 0.88");
+    petal(cx,cy-12,"0.85 0.79 0.63");
     commands.push("q","0.98 0.96 0.88 rg",(cx-2.5)+" "+(cy-2.5)+" 5 5 re f","Q");
 
-    commands.push(pdfText(table.title, left, pageHeight - 44, 21, true, "1 1 1"));
-    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, pageHeight - 66, 9, false, "0.97 0.96 0.91"));
-    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, pageHeight - 83, 8, false, "0.97 0.96 0.91"));
+    const textLeft = left + 64;
+    commands.push(pdfText("KASAPINK  /  CATATAN USAHA", textLeft, pageHeight - 20, 9, true, "1 1 1"));
+    commands.push(pdfText(table.title, textLeft, pageHeight - 46, 18, true, "1 1 1"));
+    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", textLeft, pageHeight - 68, 9, false, "0.97 0.96 0.91"));
+    const metaX = pageWidth - left - 139;
+    commands.push(pdfText("Dicetak " + wibDateKey() + " WIB", metaX, pageHeight - 20, 8, false, "1 1 1"));
+    commands.push(pdfText("Halaman " + (pageIndex+1) + " dari " + chunks.length, metaX, pageHeight - 83, 8, false, "0.97 0.96 0.91"));
 
     let y = topY;
     if (pageIndex === 0 && table.summary?.length) {
