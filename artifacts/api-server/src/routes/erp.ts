@@ -821,7 +821,7 @@ router.post(
           .where(eq(ingredientsTable.id, parsed.data.autoRecipeIngredientId));
         if (!ingredient) throw new HttpError("Bahan untuk auto-resep tidak ditemukan.", 400);
         if (isOperationalIngredient(ingredient.category)) {
-          throw new HttpError("Pilih bahan makro; bahan berkategori Mikro/Operasional tidak masuk resep.", 400);
+          throw new HttpError("Pilih bahan utama; bahan berkategori Mikro/Operasional tidak masuk resep.", 400);
         }
       }
       const [product] = await tx
@@ -941,7 +941,7 @@ router.put(
         : [];
       if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
       if (rows.some((row) => isOperationalIngredient(row.category))) {
-        throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
+        throw new HttpError("Resep hanya menerima bahan utama; keluarkan bahan berkategori Mikro/Operasional.", 400);
       }
       const beforeRecipe = await tx.select().from(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
       const ingredientMap = new Map(rows.map((row) => [row.id, row]));

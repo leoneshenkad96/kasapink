@@ -571,7 +571,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   };
 
   return <>
-    <PageHeading kicker={`PRODUK ${businessType.toUpperCase()}`} title="Produk & Resep" note="Pilih barang jadi yang stoknya dijual langsung, atau produk olahan yang memakai bahan makro." action={<Button onClick={openNewProduct}><Plus size={17} /> Tambah produk</Button>} />
+    <PageHeading kicker={`PRODUK ${businessType.toUpperCase()}`} title="Produk & Resep" note="Pilih barang jadi yang stoknya dijual langsung, atau produk olahan yang memakai bahan utama." action={<Button onClick={openNewProduct}><Plus size={17} /> Tambah produk</Button>} />
     <Card className="table-card product-filter-card"><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari produk" value={productSearch} onChange={(e) => { setProductSearch(e.target.value); setProductPage(1); }} placeholder="Cari nama produk..." /></div></div><span className="result-count">{productTotal} produk</span></div></Card>
     {productQuery.isError ? <ErrorPanel message={errText(productQuery.error)} retry={() => void productQuery.refetch()} /> : !visibleProducts.length ? <Card><Empty title={`Belum ada produk ${businessType.toLowerCase()}`} text={productSearch ? 'Coba kata kunci lain.' : 'Tambahkan produk di submenu ini untuk mulai mencatat penjualan.'} /></Card> :
       <><div className="product-list">{visibleProducts.map((p) => {
@@ -599,7 +599,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
               : <><div><span>{p.needsRecipe ? 'Perkiraan biaya bahan' : 'Biaya beli per unit'}</span><b>{money(unitCost)}</b></div><div><span>Sisa setelah biaya produk</span><b>{money(estimatedGrossProfit)}</b></div><small>{marginPercent.toFixed(1)}% dari harga jual ? di luar biaya operasional</small></>}
             {!p.needsRecipe && <div><span>Stok barang jadi</span><b>{p.stock}</b></div>}
           </div>
-          <div className="recipe-summary">{p.needsRecipe ? (macroItems.length ? <>{macroItems.length} bahan makro ? {macroItems.slice(0, 3).map((r) => r.ingredientName).join(', ')}{macroItems.length > 3 ? '?' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>) : 'Stok produk dipotong langsung saat penjualan.'}</div>
+          <div className="recipe-summary">{p.needsRecipe ? (macroItems.length ? <>{macroItems.length} bahan · {macroItems.slice(0, 3).map((r) => r.ingredientName).join(', ')}{macroItems.length > 3 ? ', …' : ''}</> : <span className="recipe-missing">Resep belum diatur</span>) : 'Stok produk dipotong langsung saat penjualan.'}</div>
           {p.needsRecipe && <button className="recipe-button" disabled={readOnly} onClick={() => { setProductRecipeDraft(safeRecipes.filter((r) => r.productId === p.id).map((r) => ({ ingredientId: r.ingredientId, recipeUnit: r.recipeUnit, qtyRequired: r.qtyRequired }))); setRecipeDirty(false); setRecipeProduct(p); setError(''); }}><ClipboardList size={16} /> Atur resep <ArrowRight size={15} /></button>}
         </Card>;
       })}</div><PaginationControls page={productPage} totalItems={productTotal} pageSize={productPageSize} onPageChange={setProductPage} label="produk" /></>}
@@ -611,7 +611,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
         <fieldset className="product-type-options">
           <legend>Jenis produk</legend>
           <label><input disabled={readOnly} type="radio" name="productType" checked={!needsRecipe} onChange={() => { setNeedsRecipe(false); setAutoRecipe(false); }} /> Produk Jadi <small>Stok barang yang dibeli lalu dijual kembali.</small></label>
-          <label><input disabled={readOnly} type="radio" name="productType" checked={needsRecipe} onChange={() => setNeedsRecipe(true)} /> Produk Olahan <small>Penjualan memakai resep bahan makro.</small></label>
+          <label><input disabled={readOnly} type="radio" name="productType" checked={needsRecipe} onChange={() => setNeedsRecipe(true)} /> Produk Olahan <small>Penjualan memakai resep bahan utama.</small></label>
         </fieldset>
         {!needsRecipe && <div className="form-row">
           <Field label={editing === 'new' ? 'Stok awal barang jadi' : 'Stok barang jadi'} hint="Isi ulang atau koreksi stok lewat formulir ini."><FieldInput disabled={readOnly} name="stock" required type="number" min="0" step="any" defaultValue={editing === 'new' ? '0' : editing.stock} /></Field>
@@ -619,11 +619,11 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
         </div>}
         {needsRecipe && editing === 'new' && <div className="auto-recipe-box">
           <label><input disabled={readOnly} type="checkbox" checked={autoRecipe} onChange={(event) => setAutoRecipe(event.target.checked)} /> Otomatis ambil dari bahan (rasio 1:1)</label>
-          <small>Pilih bahan makro utama; sistem membuat resep satu unit bahan untuk satu unit produk.</small>
-          {autoRecipe && <Field label="Bahan makro utama"><FieldSelect disabled={readOnly} name="autoRecipeIngredientId" required defaultValue=""><option value="" disabled>Pilih bahan</option>{macroIngredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</FieldSelect></Field>}
+          <small>Pilih bahan utama; sistem membuat resep satu unit bahan untuk satu unit produk.</small>
+          {autoRecipe && <Field label="Bahan utama"><FieldSelect disabled={readOnly} name="autoRecipeIngredientId" required defaultValue=""><option value="" disabled>Pilih bahan</option>{macroIngredients.map((ingredient) => <option key={ingredient.id} value={ingredient.id}>{ingredient.name} ({ingredient.unit})</option>)}</FieldSelect></Field>}
         </div>}
         <FormError text={error} />
-        <div className="form-actions"><Button variant="quiet" onClick={closeProductForm}>Batal</Button><Button type="submit" disabled={readOnly || create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan?' : 'Simpan produk'}</Button></div>
+        <div className="form-actions"><Button variant="quiet" onClick={closeProductForm}>Batal</Button><Button type="submit" disabled={readOnly || create.isPending || update.isPending}>{create.isPending || update.isPending ? 'Menyimpan…' : 'Simpan produk'}</Button></div>
       </form>
     </Modal>}
     {recipeProduct && <Modal title={`Atur resep — ${recipeProduct.name}`} onClose={closeRecipe} dirty={recipeDirty} busy={saveRecipe.isPending}>
@@ -686,7 +686,7 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
       {!availableProducts.length && <p className="text-sm text-gray-500">Belum ada produk kategori {kategoriPenjualan}. Tambahkan produk melalui menu Produk & Resep.</p>}
       {error && <div className="form-error"><AlertCircle size={16} /><span>{error}</span></div>}{done && <div className="success-message"><Check size={16} />{done}</div>}
       {warnings.length > 0 && <div className="warning-panel" role="alert"><AlertCircle size={18} /><div><b>Transaksi tersimpan dengan catatan stok</b><ul>{warnings.map((warning, index) => <li key={`${index}-${warning}`}>{warning}</li>)}</ul></div></div>}
-      <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={readOnly || mutation.isPending || !availableProducts.length}>{mutation.isPending ? 'Menyimpan?' : 'Simpan penjualan'}</Button></div>
+      <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={readOnly || mutation.isPending || !availableProducts.length}>{mutation.isPending ? 'Menyimpan…' : 'Simpan penjualan'}</Button></div>
     </form></Card><aside className="side-tip"><div className="tip-symbol peach"><ReceiptText size={20} /></div><span className="eyebrow">SEBELUM MENYIMPAN</span><h3>Stok kurang tidak menghentikan transaksi</h3><p>Resep kosong atau stok minus akan ditampilkan sebagai warning setelah penjualan berhasil dicatat. Periksa dan sesuaikan stok secara berkala.</p><Link href="/produk" className="inline-link">Cek produk & resep <ArrowRight size={15} /></Link></aside></div>
     <Card className="table-card sales-history"><div className="card-heading"><div><span className="eyebrow">RIWAYAT TRANSAKSI</span><h2>Penjualan terakhir</h2></div><span className="result-count">{salesTotal} transaksi</span></div>
       {salesQuery.isError ? <ErrorPanel message={errText(salesQuery.error)} retry={() => void salesQuery.refetch()} /> : recentSales.length ? <><div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>PRODUK</th><th>JUMLAH</th><th>PENJUALAN</th><th>LABA KOTOR</th><th>STATUS</th></tr></thead><tbody>{pagedSales.map((sale) => <tr key={sale.id}><td><b>{dateLabel(sale.date)}</b><small className="muted">#{sale.id}</small></td><td>{sale.items.map((item) => item.productName).join(', ') || '—'}</td><td>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</td><td><b>{money(sale.totalRevenue)}</b></td><td className="positive"><b>{money(sale.grossProfit)}</b></td><td><span className="status-pill status-ok">Tercatat</span></td></tr>)}</tbody></table></div><PaginationControls page={salesPage} totalItems={salesTotal} pageSize={salesPageSize} onPageChange={setSalesPage} label="transaksi" /></> : <Empty title="Belum ada penjualan" text="Transaksi yang disimpan akan muncul di tabel ini." />}
