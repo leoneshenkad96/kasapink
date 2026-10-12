@@ -31,7 +31,7 @@ export function toExcelHtml(table: ReportTable): string {
   return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(table.title)}</title><style>body{font-family:Arial,sans-serif;color:#613248}table{border-collapse:collapse}th,td{border:1px solid #f2bfd2;padding:6px 9px}th{background:#f8e7ed}</style></head><body><h1>${escapeHtml(table.title)}</h1><table>${row(table.columns, true)}${table.rows.map((values) => row(values)).join("")}</table></body></html>`;
 }
 
-const pdfText = (text: string, x: number, y: number, size = 9, bold = false, color = "0.38 0.20 0.28") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg ${x} ${y} Td (${escapePdf(text)}) Tj ET`;
+const pdfText = (text: string, x: number, y: number, size = 9, bold = false, color = "0.25 0.22 0.17") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg ${x} ${y} Td (${escapePdf(text)}) Tj ET`;
 
 function wrapPdfLines(value: string, maxCharacters: number): string[] {
   const words = value.trim().split(/\s+/).filter(Boolean);
@@ -88,10 +88,10 @@ export function toPdf(table: ReportTable): Buffer {
     remainingHeight -= row.height;
   }
   const pages = chunks.map((rows, pageIndex) => {
-    const commands: string[] = ["q", "0.38 0.20 0.28 rg", `0 742 ${pageWidth} 100 re f`, "Q"];
+    const commands: string[] = ["q", "0.54 0.46 0.31 rg", `0 742 ${pageWidth} 100 re f`, "Q"];
     commands.push(pdfText(table.title, left, 798, 21, true, "1 1 1"));
-    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, 776, 9, false, "0.98 0.91 0.94"));
-    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.98 0.91 0.94"));
+    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, 776, 9, false, "0.97 0.96 0.91"));
+    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.97 0.96 0.91"));
 
     let y = 716;
     if (pageIndex === 0 && table.summary?.length) {
@@ -99,23 +99,23 @@ export function toPdf(table: ReportTable): Buffer {
       const cardWidth = (usableWidth - gap * (table.summary.length - 1)) / table.summary.length;
       table.summary.forEach((item, index) => {
         const x = left + index * (cardWidth + gap);
-        commands.push("q", "0.98 0.91 0.94 rg", `${x} ${y - 48} ${cardWidth} 48 re f`, "Q");
-        commands.push(pdfText(item.label.toUpperCase(), x + 9, y - 17, 7, true, "0.55 0.38 0.45"));
+        commands.push("q", "0.93 0.91 0.82 rg", `${x} ${y - 48} ${cardWidth} 48 re f`, "Q");
+        commands.push(pdfText(item.label.toUpperCase(), x + 9, y - 17, 7, true, "0.40 0.35 0.26"));
         commands.push(pdfText(item.value, x + 9, y - 36, 11, true));
       });
       y -= 72;
     }
 
-    commands.push("q", "0.95 0.75 0.82 rg", `${left} ${y - headerHeight} ${usableWidth} ${headerHeight} re f`, "Q");
+    commands.push("q", "0.85 0.81 0.65 rg", `${left} ${y - headerHeight} ${usableWidth} ${headerHeight} re f`, "Q");
     headerLines.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, left + index * columnWidth + 5, y - 13 - lineIndex * 9, 7, true))));
     y -= headerHeight;
     rows.forEach((row, rowIndex) => {
-      if (rowIndex % 2 === 1) commands.push("q", "0.98 0.96 0.97 rg", `${left} ${y - row.height} ${usableWidth} ${row.height} re f`, "Q");
+      if (rowIndex % 2 === 1) commands.push("q", "0.97 0.96 0.91 rg", `${left} ${y - row.height} ${usableWidth} ${row.height} re f`, "Q");
       row.cells.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, left + index * columnWidth + 5, y - 12 - lineIndex * 9, 7))));
-      commands.push("q", "0.95 0.75 0.82 RG", "0.3 w", `${left} ${y - row.height} m ${left + usableWidth} ${y - row.height} l S`, "Q");
+      commands.push("q", "0.79 0.73 0.56 RG", "0.3 w", `${left} ${y - row.height} m ${left + usableWidth} ${y - row.height} l S`, "Q");
       y -= row.height;
     });
-    commands.push(pdfText("Kasapink ERP  |  Laporan dibuat otomatis dari data sistem", left, 24, 7, false, "0.55 0.38 0.45"));
+    commands.push(pdfText("Kasapink ERP  |  Laporan dibuat otomatis dari data sistem", left, 24, 7, false, "0.40 0.35 0.26"));
     return commands.join("\n");
   });
 
