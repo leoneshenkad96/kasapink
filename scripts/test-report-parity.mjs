@@ -99,7 +99,7 @@ for(const test of cases){
   assert.equal(entries.length,test.rows.length,"XLSX data count");
   assert.deepEqual(entries.map(row=>row.map((value,i)=>{
     const money=(test.currencyColumns??test.decimalColumns??[]).includes(test.columns[i]);
-    return money&&!Number.isNaN(Number(value))?Number(value).toFixed(2):value;
+    return money&&value!==""&&!Number.isNaN(Number(value))?Number(value).toFixed(2):value;
   })),expected.slice(1),"XLSX/CSV cell parity: "+test.name);
   assert.ok(sheet.includes('t="inlineStr"')&&sheet.includes('><v>'),"XLSX must preserve text and numeric types");
   console.log("NATIVE XLSX PARITY PASS",test.name,entries.length,"rows");
