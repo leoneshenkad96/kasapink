@@ -21,7 +21,8 @@ export function toCsv(table: ReportTable): string {
   const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
   return [table.columns, ...table.rows].map((row, rowIndex) => row.map((value, columnIndex) => {
     const formatted = rowIndex > 0 && decimalIndexes.has(columnIndex) && typeof value === "number" ? value.toFixed(2) : String(value);
-    return `"${formatted.replace(/"/g, '""')}"`;
+    const safeValue = typeof value === "string" && /^[=+\-@\t\r]/.test(formatted) ? `'${formatted}` : formatted;
+    return `"${safeValue.replace(/"/g, '""')}"`;
   }).join(",")).join("\r\n");
 }
 
