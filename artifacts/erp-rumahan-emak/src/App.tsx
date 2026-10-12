@@ -308,7 +308,7 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
   return <>
     <PageHeading kicker="WORKSPACE OVERVIEW" title="Dashboard" note="Pantau penjualan, stok, dan aktivitas usaha dari satu ruang kerja." action={<span className="date-chip"><CalendarDays size={16} />{dateLabel(todayData.date || today())}</span>} />
     <div className="metric-grid">
-      <Card className="metric-card metric-feature"><span className="metric-label">TOTAL SALES</span><strong>{money(todayData.revenue)}</strong><span className="metric-foot"><TrendingUp size={14} /> Hari ini</span><div className="metric-stamp"><ReceiptText size={20} /></div></Card>
+      <Card className="metric-card metric-feature"><span className="metric-label">TOTAL SALES</span><strong>{money(todayData.revenue)}</strong><span className="metric-foot"><TrendingUp size={14} /> Hari ini</span><div className="metric-side-icon"><ReceiptText size={18} /></div></Card>
       <Card className="metric-card"><span className="metric-label">GROSS PROFIT</span><strong>{money(todayData.grossProfit)}</strong><span className="metric-foot">Setelah biaya bahan terjual</span><div className="metric-side-icon"><TrendingUp size={18} /></div></Card>
       <Card className="metric-card"><span className="metric-label">PURCHASES</span><strong>{money(todayData.purchases)}</strong><span className="metric-foot">Belanja bahan hari ini</span><div className="metric-side-icon peach"><ShoppingCart size={18} /></div></Card>
       <Card className="metric-card"><span className="metric-label">LOW STOCK</span><strong>{state.lowStockCount ?? 0}</strong><span className="metric-foot">Item perlu dicek</span><div className="metric-side-icon alert"><Boxes size={18} /></div></Card>
