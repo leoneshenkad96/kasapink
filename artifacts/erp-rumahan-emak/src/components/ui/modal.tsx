@@ -2,8 +2,8 @@ import { useEffect, useId, useRef, useState, type ReactNode } from 'react';
 import * as Dialog from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 
-export function Modal({ title, onClose, children, dirty, busy = false }: {
-  title: string; onClose: () => void; children: ReactNode; dirty?: boolean; busy?: boolean;
+export function Modal({ title, onClose, children, dirty, busy = false, size = 'default' }: {
+  title: string; onClose: () => void; children: ReactNode; dirty?: boolean; busy?: boolean; size?: 'default' | 'wide';
 }) {
   const [changed, setChanged] = useState(false);
   const titleId = useId();
@@ -22,7 +22,7 @@ export function Modal({ title, onClose, children, dirty, busy = false }: {
   return <Dialog.Root open onOpenChange={(open) => { if (!open) close(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="modal-backdrop">
-        <Dialog.Content className="modal" aria-labelledby={titleId} aria-describedby={undefined}
+        <Dialog.Content className={`modal ${size === 'wide' ? 'modal-wide' : ''}`} aria-labelledby={titleId} aria-describedby={undefined}
           onCloseAutoFocus={(event) => { event.preventDefault(); if (opener.current?.isConnected) opener.current.focus(); }}
           onChangeCapture={() => setChanged(true)}
           onClickCapture={(event) => {

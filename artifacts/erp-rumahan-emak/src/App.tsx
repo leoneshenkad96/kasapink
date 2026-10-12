@@ -698,9 +698,13 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
 type StockCountPreparation = { id: number; name: string; unit: string; stock: number; averageCost: number };
 
 function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: Ingredient[]; readOnly?: boolean }) {
+  const pageSize = 10;
   const [preparations, setPreparations] = useState<StockCountPreparation[]>([]);
   const [date, setDate] = useState(today());
   const [counts, setCounts] = useState<Record<string, string>>({});
+  const [search, setSearch] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'ingredient' | 'preparation'>('all');
+  const [page, setPage] = useState(1);
   const [error, setError] = useState('');
   const [done, setDone] = useState('');
   const mutation = useRecordStockCount(), refresh = useRefresh();
@@ -721,7 +725,16 @@ function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: 
     ...ingredients.filter((item) => item.active !== false).map((item) => ({ key: `ingredient:${item.id}`, itemType: 'ingredient' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
     ...preparations.map((item) => ({ key: `preparation:${item.id}`, itemType: 'preparation' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
   ];
+  const filteredRows = rows.filter((row) => {
+    const matchesType = typeFilter === 'all' || row.itemType === typeFilter;
+    const matchesSearch = !search.trim() || row.name.toLocaleLowerCase('id-ID').includes(search.trim().toLocaleLowerCase('id-ID'));
+    return matchesType && matchesSearch;
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredRows.length / pageSize));
+  const pagedRows = filteredRows.slice((page - 1) * pageSize, page * pageSize);
   const countedRows = rows.filter((row) => counts[row.key] !== undefined && counts[row.key].trim() !== '');
+  useEffect(() => { setPage(1); }, [search, typeFilter]);
+  useEffect(() => { if (page > totalPages) setPage(totalPages); }, [page, totalPages]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone('');
@@ -737,7 +750,8 @@ function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: 
 
   return <><PageHeading kicker="PENYESUAIAN PERSEDIAAN" title="Stok Opname" note="Catat stok fisik bahan dan preparation. Selisih dihitung dari stok fisik dikurangi stok sistem." />
     <Card className="table-card"><div className="opname-intro"><div><span className="eyebrow">HITUNG FISIK</span><h2>Stok aktual</h2><p>Kolom kosong tidak dikirim dan tidak mengubah stok item tersebut.</p></div><Field label="Tanggal opname"><FieldInput disabled={readOnly} type="date" value={date} max={today()} onChange={(e) => setDate(e.target.value)} /></Field></div>
-      {rows.length ? <form onSubmit={submit}><div className="table-scroll"><table><thead><tr><th>ITEM</th><th>JENIS</th><th>STOK SISTEM</th><th>STOK FISIK</th><th>VARIANCE QTY</th></tr></thead><tbody>{rows.map((row) => {
+      {rows.length ? <form onSubmit={submit}><div className="table-toolbar"><div className="table-toolbar-main"><div className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari stok opname" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Cari bahan atau prep..." /></div><FieldSelect aria-label="Filter jenis stok" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value as typeof typeFilter)}><option value="all">Semua jenis</option><option value="ingredient">Bahan</option><option value="preparation">Preparation</option></FieldSelect></div><span className="result-count">{filteredRows.length} item · {countedRows.length} terisi</span></div>
+      {filteredRows.length ? <><div className="table-scroll"><table><thead><tr><th>ITEM</th><th>JENIS</th><th>STOK SISTEM</th><th>STOK FISIK</th><th>VARIANCE QTY</th></tr></thead><tbody>{pagedRows.map((row) => {
         const entered = counts[row.key] !== undefined && counts[row.key].trim() !== '';
         const physical = entered ? Number(counts[row.key]) : null;
         const delta = physical === null ? null : physical - row.stock;
@@ -748,7 +762,7 @@ function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: 
           <td><div className="count-input"><FieldInput disabled={readOnly} aria-label={`Stok fisik ${row.name}`} type="number" min="0" step="0.001" value={counts[row.key] ?? ''} placeholder={String(row.stock)} onChange={(e) => setCounts({ ...counts, [row.key]: e.target.value })} /><span>{row.unit}</span></div></td>
           <td><span className={delta === null ? 'muted' : delta < 0 ? 'negative' : delta > 0 ? 'positive' : 'muted'}>{delta === null ? '—' : `${delta > 0 ? '+' : ''}${Number(delta.toFixed(3))} ${row.unit}`}</span></td>
         </tr>;
-      })}</tbody></table></div><div className="opname-footer"><FormError text={error} />{done && <div className="success-message"><Check size={16} />{done}</div>}<Button type="submit" disabled={readOnly || mutation.isPending || !countedRows.length}>{mutation.isPending ? 'Menyimpan…' : 'Simpan hasil opname'}</Button></div></form> : <Empty title="Belum ada stok untuk dihitung" text="Tambahkan bahan atau preparation terlebih dahulu." />}
+      })}</tbody></table></div><PaginationControls page={page} totalItems={filteredRows.length} pageSize={pageSize} onPageChange={setPage} label="item" /></> : <Empty title="Stok tidak ditemukan" text="Coba kata pencarian atau filter jenis yang lain." />}<div className="opname-footer"><FormError text={error} />{done && <div className="success-message"><Check size={16} />{done}</div>}<Button type="submit" disabled={readOnly || mutation.isPending || !countedRows.length}>{mutation.isPending ? 'Menyimpan…' : countedRows.length ? `Simpan ${countedRows.length} hasil opname` : 'Simpan hasil opname'}</Button></div></form> : <Empty title="Belum ada stok untuk dihitung" text="Tambahkan bahan atau preparation terlebih dahulu." />}
     </Card>
   </>;
 }
@@ -819,6 +833,8 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [newUnit, setNewUnit] = useState('kg');
   const [newYieldQty, setNewYieldQty] = useState('1');
   const [selectedPrep, setSelectedPrep] = useState<number | null>(null);
+  const [prepDetailTab, setPrepDetailTab] = useState<'overview' | 'recipe' | 'production' | 'history'>('overview');
+  const [prepDetailDirty, setPrepDetailDirty] = useState(false);
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [prepFormDirty, setPrepFormDirty] = useState(false);
   const [prepNameError, setPrepNameError] = useState('');
@@ -840,7 +856,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       const data = await r.json().catch(() => []);
       if (!r.ok) throw new Error(data.error || 'Gagal memuat data prep.');
       setPreps(data);
-      setSelectedPrep((current) => current ?? data[0]?.id ?? null);
+      setSelectedPrep((current) => current && data.some((item: Prep) => item.id === current) ? current : null);
     } catch (e) {
       setError(errText(e));
     } finally {
@@ -867,7 +883,24 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
     })));
     setTargetQty('');
     setActualQty('');
+    setPrepDetailDirty(false);
   }, [selectedPrep]);
+
+  const openPrepDetail = (id: number) => {
+    if (savingRecipe || !confirmNavigation()) return;
+    setPrepDetailTab('overview');
+    setPrepDetailDirty(false);
+    setUnsavedChanges(false);
+    setSelectedPrep(id);
+  };
+
+  const closePrepDetail = () => {
+    if (savingRecipe) return;
+    if (prepDetailDirty && !window.confirm('Perubahan pada prep belum disimpan. Yakin ingin menutup detail?')) return;
+    setSelectedPrep(null);
+    setPrepDetailDirty(false);
+    setUnsavedChanges(false);
+  };
 
   const openPrepModal = () => {
     setError('');
@@ -910,6 +943,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       setShowCreateForm(false);
       setPrepFormDirty(false);
       setUnsavedChanges(false);
+      setPrepDetailDirty(false);
       await load();
       setSelectedPrep(data.id);
       setPrepDone(`Prep "${name}" berhasil ditambahkan.`);
@@ -932,6 +966,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       const data = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(data.error || 'Gagal menyimpan resep prep.');
       setUnsavedChanges(false);
+      setPrepDetailDirty(false);
       await load();
     } catch (e) {
       setError(errText(e));
@@ -954,6 +989,8 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       if (!r.ok) throw new Error(data.error || 'Gagal mencatat produksi.');
       setTargetQty('');
       setActualQty('');
+      setPrepDetailDirty(false);
+      setUnsavedChanges(false);
       await load();
     } catch (e) {
       setError(errText(e));
@@ -1036,12 +1073,9 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       {preps.length ? <div className="prep-stock-grid">
         {preps.map((p) => {
           const tone = stockTone(p);
-          return <button
+          return <article
             key={p.id}
-            type="button"
-            aria-pressed={selectedPrep === p.id}
-            className={'prep-stock-card ' + (selectedPrep === p.id ? 'is-selected' : '')}
-            onClick={() => { if (!savingRecipe && confirmNavigation()) { setSelectedPrep(p.id); setUnsavedChanges(false); } }}
+            className="prep-stock-card"
           >
             <div className="prep-stock-top">
               <span className="prep-icon"><CookingPot size={18} /></span>
@@ -1049,12 +1083,8 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
             </div>
             <b className="prep-stock-name">{p.name}</b>
             <strong>{p.stock} <small>{p.unit}</small></strong>
-            <div className="prep-stock-meta">
-              <span>Hasil standar {p.yieldQty} {p.unit}</span>
-              <span>HPP {money(p.averageCost)}/{p.unit}</span>
-            </div>
-            <span className="prep-stock-action">{selectedPrep === p.id ? 'Sedang dipilih' : 'Kelola prep'} <ArrowRight size={14} /></span>
-          </button>;
+            <button className="prep-stock-action" type="button" onClick={() => openPrepDetail(p.id)} aria-label={`Kelola ${p.name}`}>Kelola prep <ArrowRight size={14} /></button>
+          </article>;
         })}
       </div> : <Card><Empty title="Belum ada stok prep" text="Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi." /></Card>}
     </section>
@@ -1067,31 +1097,33 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
       <FormError text={error} /><div className="form-actions"><Button variant="quiet" onClick={closePrepModal}>Batal</Button><Button type="submit" disabled={savingPrep}>{savingPrep ? 'Menyimpan…' : 'Simpan prep'}</Button></div>
     </form></Modal>}
 
-    {prep ? <section className="prep-workspace">
-      <Card className="prep-detail-card">
-        <div className="prep-detail-header">
-          <div>
-            <span className="eyebrow">DETAIL PREP</span>
-            <h2>{prep.name}</h2>
-            <p>Stok tersedia <b>{prep.stock} {prep.unit}</b> · Hasil standar <b>{prep.yieldQty} {prep.unit}</b> · HPP <b>{money(prep.averageCost)}/{prep.unit}</b></p>
-          </div>
-          <span className={'prep-status large ' + stockTone(prep)}>{stockTone(prep) === 'ok' ? 'Stok aman' : stockTone(prep) === 'low' ? 'Perlu produksi' : 'Stok habis'}</span>
+    {prep && <Modal title={`Kelola Prep — ${prep.name}`} onClose={closePrepDetail} dirty={prepDetailDirty} busy={savingRecipe} size="wide">
+      <div className="prep-detail-modal">
+        <div className="prep-detail-summary-line"><div><span className="eyebrow">STOK SAAT INI</span><strong>{prep.stock} {prep.unit}</strong></div><span className={'prep-status large ' + stockTone(prep)}>{stockTone(prep) === 'ok' ? 'Stok aman' : stockTone(prep) === 'low' ? 'Perlu produksi' : 'Stok habis'}</span></div>
+        <div className="prep-detail-tabs" role="tablist" aria-label="Detail prep">
+          {([['overview', 'Ringkasan'], ['recipe', 'Resep'], ['production', 'Tambah stok'], ['history', 'Riwayat']] as const).map(([value, label]) => <button key={value} id={`prep-tab-${value}`} type="button" role="tab" aria-selected={prepDetailTab === value} aria-controls={`prep-panel-${value}`} className={prepDetailTab === value ? 'is-active' : ''} onClick={() => setPrepDetailTab(value)}>{label}</button>)}
         </div>
 
-        <div className="prep-workspace-grid">
-          <div className="prep-panel">
+        {prepDetailTab === 'overview' && <div id="prep-panel-overview" aria-labelledby="prep-tab-overview" className="prep-detail-tab-panel" role="tabpanel">
+          <div className="prep-modal-metrics"><div><span>Stok tersedia</span><strong>{prep.stock} {prep.unit}</strong></div><div><span>Hasil standar</span><strong>{prep.yieldQty} {prep.unit}</strong></div><div><span>HPP terakhir</span><strong>{money(prep.averageCost)}/{prep.unit}</strong></div><div><span>Komponen resep</span><strong>{prep.recipe.length} bahan</strong></div></div>
+          <div className="prep-overview-note"><CookingPot size={18} /><div><b>{prep.name}</b><p>Gunakan tab Tambah stok untuk mencatat hasil produksi. Bahan baku dan HPP diperbarui otomatis.</p></div></div>
+          {prep.products.length > 0 && <div className="prep-used-by"><span className="eyebrow">DIPAKAI PRODUK</span><div>{prep.products.map((item) => <span key={item.productId}>{item.productName}</span>)}</div></div>}
+        </div>}
+
+        {prepDetailTab === 'recipe' && <div id="prep-panel-recipe" aria-labelledby="prep-tab-recipe" className="prep-detail-tab-panel" role="tabpanel">
             <div className="prep-panel-head">
               <div><span className="eyebrow">RESEP</span><h3>Bahan untuk 1 hasil standar</h3></div>
               <span className="period-chip">{recipeDraft.length} bahan</span>
             </div>
 
             <form onSubmit={(event) => { event.preventDefault(); void saveRecipe(); }}>
-              <RecipeBuilder key={selectedPrep} ingredients={ingredients} value={recipeDraft} onChange={(lines) => { setRecipeDraft(lines); setUnsavedChanges(true); }} disabled={readOnly || savingRecipe} onPendingChange={() => setUnsavedChanges(true)} />
+              <RecipeBuilder key={selectedPrep} ingredients={ingredients} value={recipeDraft} onChange={(lines) => { setRecipeDraft(lines); setPrepDetailDirty(true); setUnsavedChanges(true); }} disabled={readOnly || savingRecipe} onPendingChange={() => { setPrepDetailDirty(true); setUnsavedChanges(true); }} />
+              <FormError text={error} />
               {!readOnly && <div className="prep-panel-actions"><button className="button button-primary" type="submit" disabled={savingRecipe}><Check size={15} /> {savingRecipe ? 'Menyimpan…' : 'Simpan resep'}</button></div>}
             </form>
-          </div>
+          </div>}
 
-          <div className="prep-panel prep-production-panel">
+          {prepDetailTab === 'production' && <div id="prep-panel-production" aria-labelledby="prep-tab-production" className="prep-detail-tab-panel" role="tabpanel">
             <div className="prep-panel-head">
               <div><span className="eyebrow">PRODUKSI BATCH</span><h3>Tambah stok prep</h3></div>
               <span className="batch-badge">Produksi</span>
@@ -1103,30 +1135,25 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
               <div><span>HPP terakhir</span><strong>{money(prep.averageCost)}/{prep.unit}</strong></div>
             </div>
             <div className="prep-production-form">
-              <Field label="Tanggal produksi"><FieldInput type="date" value={batchDate} max={today()} onChange={(e) => setBatchDate(e.target.value)} /></Field>
-              <Field label="Target hasil"><FieldInput type="number" min="0.001" step="0.001" value={targetQty} onChange={(e) => setTargetQty(e.target.value)} placeholder={String(prep.yieldQty)} /></Field>
-              <Field label="Hasil jadi"><FieldInput type="number" min="0.001" step="0.001" value={actualQty} onChange={(e) => setActualQty(e.target.value)} placeholder={prep.unit} /></Field>
-              {!readOnly && <button className="button button-primary production-submit" type="button" onClick={() => void produce()}><CookingPot size={15} /> Catat produksi</button>}
+              <Field label="Tanggal produksi"><FieldInput disabled={readOnly} type="date" value={batchDate} max={today()} onChange={(e) => { setBatchDate(e.target.value); setPrepDetailDirty(true); setUnsavedChanges(true); }} /></Field>
+              <Field label="Target hasil"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={targetQty} onChange={(e) => { setTargetQty(e.target.value); setPrepDetailDirty(true); setUnsavedChanges(true); }} placeholder={String(prep.yieldQty)} /></Field>
+              <Field label="Hasil jadi"><FieldInput disabled={readOnly} type="number" min="0.001" step="0.001" value={actualQty} onChange={(e) => { setActualQty(e.target.value); setPrepDetailDirty(true); setUnsavedChanges(true); }} placeholder={prep.unit} /></Field>
+              {!readOnly && <button className="button button-primary production-submit" type="button" disabled={!Number(targetQty) || !Number(actualQty)} onClick={() => void produce()}><CookingPot size={15} /> Catat produksi</button>}
             </div>
             {productionYield !== null && <div className={'prep-yield-preview ' + (productionYield < 100 ? 'is-below' : 'is-above')}>
               <div><span>Yield batch</span><strong>{productionYield.toFixed(1)}%</strong></div>
               <small>{Number(actualQty) < Number(targetQty) ? 'Ada susut ' + Math.abs(Number(targetQty) - Number(actualQty)).toFixed(3) + ' ' + prep.unit : Number(actualQty) > Number(targetQty) ? 'Hasil lebih ' + Math.abs(Number(actualQty) - Number(targetQty)).toFixed(3) + ' ' + prep.unit : 'Hasil sesuai target.'}</small>
             </div>}
-            <div className="prep-production-note"><AlertCircle size={15} /><span>Pastikan resep di sebelah kiri sudah disimpan. Sistem akan mengurangi bahan baku dan menambah stok sebesar hasil jadi.</span></div>
+            <div className="prep-production-note"><AlertCircle size={15} /><span>Pastikan resep sudah disimpan. Sistem akan mengurangi bahan baku dan menambah stok sebesar hasil jadi.</span></div>
+            <FormError text={error} />
+          </div>}
 
-            {prep.batches.length > 0 && <div className="prep-history">
-              <div className="prep-history-head"><span className="eyebrow">RIWAYAT</span><b>Batch terakhir</b></div>
-              {prep.batches.slice(0, 5).map((b) => <div className="prep-history-row" key={b.id}>
-                <div><b>{dateLabel(b.date)}</b><small>{b.batchNumber}</small></div>
-                <span>{b.actualQty} {prep.unit}</span>
-                <span>{b.yieldPercentage}% yield</span>
-                <strong>{money(b.unitCost)}/{prep.unit}</strong>
-              </div>)}
-            </div>}
-          </div>
+          {prepDetailTab === 'history' && <div id="prep-panel-history" aria-labelledby="prep-tab-history" className="prep-detail-tab-panel" role="tabpanel">
+            <div className="prep-panel-head"><div><span className="eyebrow">RIWAYAT</span><h3>Batch produksi terakhir</h3></div><span className="period-chip">{prep.batches.length} batch</span></div>
+            {prep.batches.length ? <div className="prep-history compact">{prep.batches.slice(0, 10).map((b) => <div className="prep-history-row" key={b.id}><div><b>{dateLabel(b.date)}</b><small>{b.batchNumber}</small></div><span>{b.actualQty} {prep.unit}</span><span>{b.yieldPercentage}% yield</span><strong>{money(b.unitCost)}/{prep.unit}</strong></div>)}</div> : <Empty title="Belum ada produksi" text="Batch dari tab Tambah stok akan muncul di sini." />}
+          </div>}
         </div>
-      </Card>
-    </section> : null}
+    </Modal>}
 
     <Card className="prep-product-card">
       <div className="prep-product-header">
