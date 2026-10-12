@@ -580,6 +580,8 @@ router.get(
   safe(async (req, res) => {
     const type = String(req.query.type ?? "finance");
     const format = String(req.query.format ?? "csv");
+    if (!["finance", "stock", "transactions"].includes(type)) throw new HttpError("Jenis laporan tidak dikenali.", 400);
+    if (!["pdf", "xls", "csv"].includes(format)) throw new HttpError("Format laporan tidak dikenali.", 400);
     const startDate = String(req.query.startDate ?? "2000-01-01");
     const endDate = String(req.query.endDate ?? jakartaToday());
     if (type !== "stock") {
@@ -622,13 +624,13 @@ router.get(
         ...sales.filter((row) => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate).map((row) => [dateKey(row.date), "Penjualan", row.id, row.productName, number(row.quantity), number(row.revenue), number(row.costOfGoodsSold), "Produk terjual"]),
         ...wasteRows.map((row) => [row.date, "Waste", row.id, row.preparationId ? `Preparation #${row.preparationId}` : `Bahan #${row.ingredientId}`, number(row.quantity), "", number(row.totalCost), row.reason]),
         ...expenseRows.map((row) => [row.date, "Biaya operasional", row.id, row.category, "", "", number(row.amount), row.description]),
-        ...ingredientAdjustments.map((row) => [row.date, "Koreksi bahan", row.id, `Bahan #${row.ingredientId}`, number(row.quantityDelta), "", number(row.varianceValue ?? 0), row.note ?? "Penyesuaian stok"]),
+        ...ingredientAdjustments.map((row) => [row.date, "Koreksi bahan", row.id, `Bahan #${row.ingredientId}`, number(row.quantityDelta), "", row.varianceValue === null ? "" : number(row.varianceValue), row.note ?? "Penyesuaian stok"]),
         ...prepAdjustments.map((row) => [row.date, "Koreksi prep", row.id, `Preparation #${row.preparationId}`, number(row.quantityDelta), "", number(row.varianceValue ?? 0), row.note ?? "Penyesuaian stok"]),
       ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       };
     } else {
       const report = await financeReport(startDate, endDate);
-      table = { title: "Laporan Keuangan", subtitle: `Periode ${startDate} sampai ${endDate} (WIB)`, orientation: "portrait", note: "Laba kotor = penjualan − HPP produk terjual. Belanja bahan bukan pengurang tambahan laba kotor. Laba kotor belum termasuk biaya operasional, waste, dan selisih persediaan.", columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], decimalColumns: ["Penjualan", "HPP", "Belanja", "Laba kotor"], summary: [
+      table = { title: "Laporan Keuangan", subtitle: `Periode ${startDate} sampai ${endDate} (WIB)`, orientation: "portrait", note: "Laba kotor = penjualan dikurangi HPP produk terjual. Belanja bahan bukan pengurang tambahan laba kotor. Laba kotor belum termasuk biaya operasional, waste, dan selisih persediaan.", columns: ["Tanggal", "Penjualan", "HPP", "Belanja", "Laba kotor"], decimalColumns: ["Penjualan", "HPP", "Belanja", "Laba kotor"], summary: [
         { label: "Penjualan", value: formatRupiah(report.revenue) },
         { label: "HPP", value: formatRupiah(report.costOfGoodsSold) },
         { label: "Belanja", value: formatRupiah(report.purchases) },
