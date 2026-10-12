@@ -25,7 +25,7 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   for (const name of (await readdir(path.join(root, 'lib/db/migrations'))).filter(n => n.endsWith('.sql')).sort()) await apply(path.join(root, 'lib/db/migrations', name));
   globalThis.__recipeTestPg = pg;
   const compiled = await build({
-    stdin: { contents: `export { default as router } from './artifacts/api-server/src/routes/erp.ts'; export { createToken } from './artifacts/api-server/src/lib/auth.ts'; export { toCsv } from './artifacts/api-server/src/lib/report-export.ts';`, resolveDir:root, loader:'ts' },
+    stdin: { contents: `export { default as router } from './artifacts/api-server/src/routes/erp.ts'; export { createToken } from './artifacts/api-server/src/lib/auth.ts'; export { toCsv, toPdf } from './artifacts/api-server/src/lib/report-export.ts';`, resolveDir:root, loader:'ts' },
     bundle:true, platform:'node', format:'cjs', write:false,
     plugins:[{name:'isolated-pg', setup(build) {
       build.onResolve({filter:/^@workspace\/db$/}, () => ({path:'isolated-db', namespace:'isolated'}));
@@ -57,6 +57,11 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   for (const value of ['=SUM(A1:A2)','+cmd','-teks','@mention','\tpayload','\rpayload']) assert.ok(formulaCsv.includes(`"'${value}"`));
   assert.ok(formulaCsv.includes('"-42"'));
   assert.equal(formulaCsv.includes('"\'-42"'),false);
+
+  const longPdfText = 'Nama bahan sangat panjang untuk laporan lengkap tanpa kehilangan kata';
+  const wrappedPdf = loaded.exports.toPdf({ title:'Uji PDF', columns:['Nama','Kolom 2','Kolom 3','Kolom 4','Kolom 5','Kolom 6','Kolom 7','Kolom 8'], rows:[[longPdfText,'','','','','','','']] }).toString('utf8');
+  for (const word of longPdfText.split(' ')) assert.ok(wrappedPdf.includes(word));
+  assert.equal(wrappedPdf.includes(longPdfText.slice(0,22)),false);
 
   const readyState = await call('/erp/state');
   assert.equal(readyState.status,200);
