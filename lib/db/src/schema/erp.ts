@@ -10,6 +10,7 @@ import {
   timestamp,
   uniqueIndex,
 } from "drizzle-orm/pg-core";
+import { sql } from "drizzle-orm";
 
 const money = (name: string) =>
   numeric(name, { precision: 14, scale: 2 }).notNull().default("0");
@@ -28,6 +29,7 @@ export const ingredientsTable = pgTable(
     minStock: quantity("min_stock"),
     lastPrice: money("last_price"),
     averageCost: money("average_cost"),
+    active: boolean("active").notNull().default(true),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -36,7 +38,11 @@ export const ingredientsTable = pgTable(
       .defaultNow()
       .$onUpdate(() => new Date()),
   },
-  (table) => [uniqueIndex("erp_ingredients_name_unique").on(table.name)],
+  (table) => [
+    uniqueIndex("erp_ingredients_name_unique")
+      .on(table.name)
+      .where(sql`${table.active} = true`),
+  ],
 );
 
 export const productsTable = pgTable(

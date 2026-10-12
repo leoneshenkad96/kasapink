@@ -296,7 +296,7 @@ function Dashboard({ state, error, retry }: { state?: ErpState; error?: string; 
   if (!state) return error ? <ErrorPanel message={error} retry={retry} /> : <LoadingPanel />;
 
   const todayData = state.today || { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 };
-  const low = (state.ingredients || []).filter((i) => i.stock <= i.minStock);
+  const low = (state.ingredients || []).filter((i) => i.active !== false && i.stock <= i.minStock);
   const recentSales = state.recentSales || [];
   const recentPurchases = state.recentPurchases || [];
 
@@ -366,6 +366,11 @@ const STOCK_UNITS: Record<'Makanan' | 'Parfum', string[]> = {
   Parfum: ['ml', 'liter', 'gram', 'kg', 'botol', 'pcs', 'pack'],
 };
 
+const normalizeIngredientName = (value: string) => value
+  .replace(/\s+/g, ' ')
+  .toLocaleLowerCase('id-ID')
+  .replace(/(^|[\s/(-])(\p{L})/gu, (_match, prefix: string, letter: string) => `${prefix}${letter.toLocaleUpperCase('id-ID')}`);
+
 type PriceTrend = { ingredientId: number; ingredientName: string; unit: string; latestPrice: number | null; previousPrice: number | null; changeAmount: number | null; changePercent: number | null; history: Array<{ date: string; supplierType: string; quantity: number; totalCost: number; unitCost: number }> };
 
 function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }: { ingredients?: Ingredient[]; stockType?: 'Makanan' | 'Parfum'; readOnly?: boolean }) {
@@ -378,7 +383,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
   const [error, setError] = useState('');
   const [formCategory, setFormCategory] = useState('');
   const [formUnit, setFormUnit] = useState('');
-  const [nameError, setNameError] = useState('');
+  const [formName, setFormName] = useState('');
   const [formDirty, setFormDirty] = useState(false);
   const [priceTrends, setPriceTrends] = useState<PriceTrend[]>([]);
   const ingredientQuery = useListIngredients({
@@ -396,7 +401,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
       .catch(() => { if (active) setPriceTrends([]); });
     return () => { active = false; };
   }, []);
-  const pagedIngredients = ingredientQuery.data?.items ?? ingredients.filter((x) => x.stockType === stockType);
+  const pagedIngredients = ingredientQuery.data?.items ?? ingredients.filter((x) => x.active !== false && x.stockType === stockType);
   const totalItems = ingredientQuery.data?.pagination.total ?? pagedIngredients.length;
   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const unitLocked = modal !== null && modal !== 'new' && Boolean((modal as Ingredient & { unitLocked?: boolean }).unitLocked);
@@ -405,10 +410,10 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
 
   const openModal = (value: Ingredient | 'new') => {
     setError('');
-    setNameError('');
     setFormDirty(false);
     setUnsavedChanges(false);
     setModal(value);
+    setFormName(value === 'new' ? '' : value.name);
     setFormCategory(value === 'new' ? '' : value.category);
     setFormUnit(value === 'new' ? '' : value.unit);
   };
@@ -423,21 +428,17 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
 
   const save = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault(); const f = new FormData(e.currentTarget);
-    const name = String(f.get('name')).trim(), category = String(f.get('category')), unit = String(f.get('unit'));
-    if (name && !/^\p{Lu}/u.test(name)) {
-      setNameError('Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.');
-      return;
-    }
+    const name = normalizeIngredientName(String(f.get('name')).trim()), category = String(f.get('category')), unit = String(f.get('unit'));
     const stockTypeValue = stockType;
     const minStock = Number(f.get('minStock')), stock = Number(f.get('stock'));
     const openingUnitCost = Number(f.get('openingUnitCost'));
-    const success = () => { refresh(); setModal(null); setError(''); setNameError(''); setFormDirty(false); setUnsavedChanges(false); };
+    const success = () => { refresh(); setModal(null); setError(''); setFormDirty(false); setUnsavedChanges(false); };
     if (modal === 'new') create.mutate({ data: { name, category, stockType: stockTypeValue, unit, stock, minStock, openingUnitCost } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
     else if (modal) update.mutate({ ingredientId: modal.id, data: { name, category, stockType: stockTypeValue, unit, minStock } }, { onSuccess: success, onError: (e) => setError(errText(e)) });
   };
 
   const handleDelete = async (id: number, name: string) => {
-    if (confirm(`Yakin ingin menghapus bahan "${name}"?`)) {
+    if (confirm(`Yakin ingin menghapus bahan "${name}"? Bahan akan diarsipkan, dilepas dari resep aktif, dan histori transaksi tetap disimpan.`)) {
       try {
         const res = await fetch(`/api/ingredients/${id}`, { method: 'DELETE', headers: authHeaders() });
         if (!res.ok) {
@@ -457,7 +458,7 @@ function StockPage({ ingredients = [], stockType = 'Makanan', readOnly = false }
       {ingredientQuery.isError ? <ErrorPanel message={errText(ingredientQuery.error)} retry={() => void ingredientQuery.refetch()} /> : pagedIngredients.length ? <><div className="table-scroll"><table><thead><tr><th>BAHAN</th><th>KATEGORI</th><th>STOK SAAT INI</th><th>BATAS MINIMUM</th><th>HARGA TERAKHIR</th><th>TREN PEMBELIAN</th><th /></tr></thead><tbody>{pagedIngredients.map((i) => <tr key={i.id} data-testid={`row-ingredient-${i.id}`}><td><div className="table-name"><span className="ingredient-token">{i.name.slice(0, 1).toUpperCase()}</span><b>{i.name}</b></div></td><td>{i.category}</td><td><b>{i.stock}</b> <span className="muted">{i.unit}</span></td><td>{i.minStock} <span className="muted">{i.unit}</span></td><td>{money(i.lastPrice)}</td><td>{(() => { const trend = priceTrends.find((item) => item.ingredientId === i.id); if (!trend || trend.changePercent === null) return <span className="muted">Belum cukup data</span>; const up = trend.changePercent > 0; const down = trend.changePercent < 0; return <span className={`status-pill ${up ? 'status-low' : down ? 'status-ok' : ''}`}>{up ? '↑ Naik' : down ? '↓ Turun' : '→ Tetap'} {Math.abs(trend.changePercent).toLocaleString('id-ID')}%<small style={{ display: 'block' }}>{money(trend.previousPrice ?? 0)} → {money(trend.latestPrice ?? 0)}</small></span>; })()}</td><td><span className={`status-pill ${i.stock <= i.minStock ? 'status-low' : 'status-ok'}`}>{i.stock <= i.minStock ? 'Menipis' : 'Aman'}</span>{!readOnly && <><button className="icon-button tiny" aria-label={`Ubah ${i.name}`} onClick={() => openModal(i)}><Pencil size={15} /></button><button className="icon-button tiny" aria-label={`Hapus ${i.name}`} onClick={() => handleDelete(i.id, i.name)} style={{ marginLeft: '6px', color: '#613248' }}><Trash2 size={15} /></button></>}</td></tr>)}</tbody></table></div><PaginationControls page={page} totalItems={totalItems} pageSize={pageSize} onPageChange={setPage} label="bahan" /></> : <Empty title="Bahan belum ditemukan" text={search || stockFilter === 'low' ? 'Coba pencarian lain atau tampilkan semua stok.' : 'Tambahkan bahan pertama untuk mulai mengelola stok.'} />}
     </Card>
     {modal && <Modal title={modal === 'new' ? 'Tambah bahan baru' : 'Ubah data bahan'} onClose={closeStockModal} dirty={formDirty} busy={create.isPending || update.isPending}><form className="form-stack" onInput={() => { setFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setFormDirty(true); setUnsavedChanges(true); }} onSubmit={save}>
-      <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required defaultValue={modal === 'new' ? '' : modal.name} placeholder="Contoh: Tepung terigu" onBlur={(e) => { const value = e.currentTarget.value.trim(); setNameError(value && !/^\p{Lu}/u.test(value) ? 'Nama bahan harus diawali huruf kapital. Contoh: Bawang Putih.' : ''); }} />{nameError && <small className="form-hint" style={{ color: '#613248' }}>{nameError}</small>}</Field>
+      <Field label="Nama bahan"><FieldInput disabled={readOnly} name="name" required value={formName} placeholder="Contoh: Tepung Terigu" onChange={(e) => setFormName(normalizeIngredientName(e.target.value))} /><small className="form-hint">Huruf awal setiap kata dibuat kapital otomatis.</small></Field>
       <Field label="Kategori"><FieldSelect disabled={readOnly} name="category" value={formCategory} onChange={(e) => setFormCategory(e.target.value)} required><option value="" disabled>Pilih kategori</option>{(STOCK_CATEGORIES[stockType] || []).map((category) => <option key={category} value={category}>{category}</option>)}{formCategory && !STOCK_CATEGORIES[stockType]?.includes(formCategory) && <option value={formCategory}>{formCategory} (kategori lama)</option>}</FieldSelect></Field>
       <Field label="Satuan">{unitLocked && <input type="hidden" name="unit" value={formUnit} />}<FieldSelect disabled={readOnly || unitLocked} name={unitLocked ? undefined : 'unit'} value={formUnit} onChange={(e) => setFormUnit(e.target.value)} required><option value="" disabled>Pilih satuan</option>{(STOCK_UNITS[stockType] || []).map((unit) => <option key={unit} value={unit}>{unit}</option>)}{formUnit && !STOCK_UNITS[stockType]?.includes(formUnit) && <option value={formUnit}>{formUnit} (satuan lama)</option>}</FieldSelect>{unitLocked && <small className="form-hint">Satuan dikunci karena bahan sudah memiliki stok, transaksi, atau dipakai dalam resep.</small>}</Field>
       {modal === 'new' && <Field label="Stok awal"><FieldInput disabled={readOnly} name="stock" type="number" min="0" step="any" defaultValue="" placeholder="Masukkan jumlah stok" required /></Field>}
@@ -489,7 +490,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
   const productTotalPages = Math.max(1, Math.ceil(productTotal / productPageSize));
   const safeRecipes = state.recipes || [];
   const safeIngredients = state.ingredients || [];
-  const macroIngredients = safeIngredients.filter((ingredient) => ingredient.stockType === businessType && !/mikro|operasional/i.test(ingredient.category));
+  const macroIngredients = safeIngredients.filter((ingredient) => ingredient.active !== false && ingredient.stockType === businessType && !/mikro|operasional/i.test(ingredient.category));
   useEffect(() => {
     if (recipeProduct) setUnsavedChanges(recipeDirty);
     return () => { if (recipeProduct) setUnsavedChanges(false); };
@@ -639,7 +640,7 @@ function ProductPage({ state, businessType = 'Makanan', readOnly = false }: { st
 
 type PurchaseLine = { ingredientId: number; quantity: number; totalCost: number | '' };
 function PurchasePage({ ingredients = [], readOnly = false }: { ingredients?: Ingredient[]; readOnly?: boolean }) {
-  const safeIngredients = ingredients || [];
+  const safeIngredients = (ingredients || []).filter((ingredient) => ingredient.active !== false);
   const [date, setDate] = useState(today()), [supplier, setSupplier] = useState('Pasar'), [lines, setLines] = useState<PurchaseLine[]>([{ ingredientId: safeIngredients[0]?.id || 0, quantity: 1, totalCost: '' }]), [error, setError] = useState(''), [done, setDone] = useState('');
   const mutation = useRecordPurchase(), refresh = useRefresh();
   const total = lines.reduce((sum, l) => sum + (Number(l.totalCost) || 0), 0);
@@ -717,7 +718,7 @@ function StockCountPage({ ingredients = [], readOnly = false }: { ingredients?: 
   }, []);
 
   const rows = [
-    ...ingredients.map((item) => ({ key: `ingredient:${item.id}`, itemType: 'ingredient' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
+    ...ingredients.filter((item) => item.active !== false).map((item) => ({ key: `ingredient:${item.id}`, itemType: 'ingredient' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
     ...preparations.map((item) => ({ key: `preparation:${item.id}`, itemType: 'preparation' as const, id: item.id, name: item.name, unit: item.unit, stock: item.stock })),
   ];
   const countedRows = rows.filter((row) => counts[row.key] !== undefined && counts[row.key].trim() !== '');
@@ -849,7 +850,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const ingredients = stateQuery.data?.ingredients.filter((x) => x.stockType === 'Makanan' && !/mikro|operasional/i.test(x.category)) ?? [];
+  const ingredients = stateQuery.data?.ingredients.filter((x) => x.active !== false && x.stockType === 'Makanan' && !/mikro|operasional/i.test(x.category)) ?? [];
   const products = stateQuery.data?.products.filter((x) => x.businessType === 'Makanan') ?? [];
   const prep = preps.find((x) => x.id === selectedPrep) ?? null;
   const selectedProduct = products.find((x) => x.id === Number(productId)) ?? null;
@@ -1215,7 +1216,7 @@ function FnbControlPage({ readOnly = false }: { readOnly?: boolean }) {
 
   useEffect(()=>{void load();},[load]);
 
-  const ingredients=stateQuery.data?.ingredients.filter(x=>x.stockType==='Makanan')??[];
+  const ingredients=stateQuery.data?.ingredients.filter(x=>x.active !== false && x.stockType==='Makanan')??[];
   const prepQuery=useState<Prep[]>([]);
   const preps=prepQuery[0];
   const setPreps=prepQuery[1];

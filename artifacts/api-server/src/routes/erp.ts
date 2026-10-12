@@ -177,6 +177,16 @@ function checkedBusinessDate(value: unknown, label: string): string {
   return value;
 }
 
+function normalizeIngredientName(value: string): string {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("id-ID")
+    .replace(/(^|[\s/(-])(\p{L})/gu, (_match, prefix: string, letter: string) =>
+      `${prefix}${letter.toLocaleUpperCase("id-ID")}`,
+    );
+}
+
 function asIngredient(row: typeof ingredientsTable.$inferSelect) {
   return {
     id: row.id,
@@ -188,6 +198,7 @@ function asIngredient(row: typeof ingredientsTable.$inferSelect) {
     minStock: number(row.minStock),
     lastPrice: number(row.lastPrice),
     averageCost: number(row.averageCost),
+    active: row.active,
   };
 }
 
@@ -628,6 +639,7 @@ router.get(
     const stockType = String(req.query.stockType ?? "").trim();
     const lowStock = String(req.query.lowStock ?? "") === "true";
     const filters = [
+      eq(ingredientsTable.active, true),
       search ? or(ilike(ingredientsTable.name, `%${search}%`), ilike(ingredientsTable.category, `%${search}%`)) : undefined,
       stockType === "Makanan" || stockType === "Parfum" ? eq(ingredientsTable.stockType, stockType) : undefined,
       lowStock ? lte(ingredientsTable.stock, ingredientsTable.minStock) : undefined,
@@ -672,7 +684,13 @@ router.post(
     if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock, parsed.data.openingUnitCost], res)) return;
     checkedInputQuantity(parsed.data.stock, "Stok awal", { allowNegative: false });
     checkedInputQuantity(parsed.data.minStock, "Stok minimum", { allowNegative: false });
-    const { openingUnitCost, ...ingredient } = parsed.data;
+    const { openingUnitCost, ...ingredientInput } = parsed.data;
+    const normalizedName = normalizeIngredientName(ingredientInput.name);
+    if (!normalizedName) {
+      invalid(res, "Nama bahan wajib diisi.");
+      return;
+    }
+    const ingredient = { ...ingredientInput, name: normalizedName };
     const openingCost = String(roundMoney(openingUnitCost));
     const [row] = await db
       .insert(ingredientsTable)
@@ -714,7 +732,13 @@ router.patch(
       unit?: string;
       minStock?: string;
     } = {};
-    if (body.data.name !== undefined) update.name = body.data.name;
+    if (body.data.name !== undefined) {
+      update.name = normalizeIngredientName(body.data.name);
+      if (!update.name) {
+        invalid(res, "Nama bahan wajib diisi.");
+        return;
+      }
+    }
     if (body.data.category !== undefined) update.category = body.data.category;
     if (body.data.stockType !== undefined) update.stockType = body.data.stockType;
     if (body.data.unit !== undefined) update.unit = body.data.unit;
@@ -933,13 +957,14 @@ router.put(
       if (!product) throw new HttpError("Produk tidak ditemukan.", 404);
       const rows = ids.length
         ? await tx
-          .select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name })
+          .select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name, active: ingredientsTable.active })
           .from(ingredientsTable)
           .where(inArray(ingredientsTable.id, ids))
           .orderBy(asc(ingredientsTable.id))
           .for("update")
         : [];
       if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
+      if (rows.some((row) => !row.active)) throw new HttpError("Bahan yang sudah dihapus tidak dapat dipakai dalam resep.", 409);
       if (rows.some((row) => isOperationalIngredient(row.category))) {
         throw new HttpError("Resep hanya menerima bahan utama; keluarkan bahan berkategori Mikro/Operasional.", 400);
       }
@@ -1093,9 +1118,10 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
     if (!prep) throw new HttpError("Prep tidak ditemukan.", 404);
     const beforeRecipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     const rows = ids.length ? await tx.select({
-      id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, category: ingredientsTable.category,
+      id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, category: ingredientsTable.category, active: ingredientsTable.active,
     }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)).orderBy(asc(ingredientsTable.id)).for("update") : [];
     if (rows.length !== ids.length) throw new HttpError("Ada bahan prep yang tidak ditemukan.", 400);
+    if (rows.some((row) => !row.active)) throw new HttpError("Bahan yang sudah dihapus tidak dapat dipakai dalam resep prep.", 409);
     const map = new Map(rows.map((r) => [r.id, r]));
     const recipeRows = parsed.data.items.map((item) => {
       const ingredient = map.get(item.ingredientId)!;
@@ -1578,6 +1604,9 @@ router.post(
         .for("update");
       if (locked.length !== ingredientIds.length) {
         throw new HttpError("Ada bahan belanja yang tidak ditemukan.", 400);
+      }
+      if (locked.some((row) => !row.active)) {
+        throw new HttpError("Bahan yang sudah dihapus tidak dapat dipakai untuk belanja baru.", 409);
       }
       const byId = new Map(locked.map((row) => [row.id, row]));
       const totalCost = roundMoney(purchaseLines.reduce((sum, line) => sum + line.totalCost, 0));
@@ -2208,6 +2237,9 @@ router.post(
       if (lockedIngredients.length !== ingredientIds.length || lockedPreparations.length !== preparationIds.length) {
         throw new HttpError("Ada bahan atau preparation yang tidak ditemukan.", 400);
       }
+      if (lockedIngredients.some((row) => !row.active)) {
+        throw new HttpError("Bahan yang sudah dihapus tidak dapat dipakai dalam stok opname baru.", 409);
+      }
       const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
       const preparationById = new Map(lockedPreparations.map((row) => [row.id, row]));
       const ingredientMovements: Array<typeof stockMovementsTable.$inferInsert> = [];
@@ -2280,57 +2312,58 @@ router.delete(
     }
 
     await db.transaction(async (tx) => {
-      // 1. Cek apakah bahan ada
       const [ingredient] = await tx
         .select()
         .from(ingredientsTable)
         .where(eq(ingredientsTable.id, id))
         .for("update");
-      if (!ingredient) {
+      if (!ingredient || !ingredient.active) {
         throw new HttpError("Bahan tidak ditemukan.", 404);
       }
-      const remainingStock = number(ingredient.stock);
-      if (Math.abs(remainingStock) > 1e-9) {
-        throw new HttpError(
-          `Bahan masih memiliki stok ${remainingStock} ${ingredient.unit}. Habiskan atau sesuaikan stok melalui stok opname sebelum menghapus.`,
-          409,
-        );
-      }
 
-      // 2. Cek apakah masih dipakai di dalam resep produk (recipeItemsTable)
-      const [usedInRecipe] = await tx
-        .select({ productId: recipeItemsTable.productId })
+      // Resep aktif tidak boleh terus memakai bahan yang sudah diarsipkan. Snapshot
+      // transaksi dan versi resep tetap menyimpan histori untuk laporan/HPP.
+      const affectedProducts = await tx
+        .select({ id: recipeItemsTable.productId })
         .from(recipeItemsTable)
-        .where(eq(recipeItemsTable.ingredientId, id))
-        .limit(1);
-      if (usedInRecipe) {
-        throw new HttpError("Bahan tidak dapat dihapus karena masih digunakan dalam resep produk.", 409);
-      }
+        .where(eq(recipeItemsTable.ingredientId, id));
+      const affectedPreparations = await tx
+        .select({ id: preparationRecipeItemsTable.preparationId })
+        .from(preparationRecipeItemsTable)
+        .where(eq(preparationRecipeItemsTable.ingredientId, id));
+      await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.ingredientId, id));
+      await tx.delete(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.ingredientId, id));
 
-      // 3. Cek apakah masih ada riwayat pembelian (purchaseDetailsTable)
-      const [usedInPurchase] = await tx
-        .select({ purchaseId: purchaseDetailsTable.purchaseId })
-        .from(purchaseDetailsTable)
-        .where(eq(purchaseDetailsTable.ingredientId, id))
-        .limit(1);
-      if (usedInPurchase) {
-        throw new HttpError("Bahan tidak dapat dihapus karena memiliki riwayat catatan belanja.", 409);
+      for (const { id: productId } of affectedProducts) {
+        const snapshot = await tx.select().from(recipeItemsTable).where(eq(recipeItemsTable.productId, productId));
+        const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable)
+          .where(and(eq(recipeVersionsTable.scope, "product"), eq(recipeVersionsTable.parentId, productId)))
+          .orderBy(desc(recipeVersionsTable.version)).limit(1);
+        await tx.insert(recipeVersionsTable).values({
+          scope: "product", parentId: productId, version: (latest?.version ?? 0) + 1,
+          snapshot: JSON.stringify(snapshot), createdBy: (req as AuthRequest).authUser?.id,
+        });
       }
-
-      const [usedInMovement] = await tx
-        .select({ id: stockMovementsTable.id })
-        .from(stockMovementsTable)
-        .where(eq(stockMovementsTable.ingredientId, id))
-        .limit(1);
-      if (usedInMovement) {
-        throw new HttpError("Bahan tidak dapat dihapus karena memiliki riwayat pergerakan stok.", 409);
+      for (const { id: preparationId } of affectedPreparations) {
+        const snapshot = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
+        const [latest] = await tx.select({ version: recipeVersionsTable.version }).from(recipeVersionsTable)
+          .where(and(eq(recipeVersionsTable.scope, "preparation"), eq(recipeVersionsTable.parentId, preparationId)))
+          .orderBy(desc(recipeVersionsTable.version)).limit(1);
+        await tx.insert(recipeVersionsTable).values({
+          scope: "preparation", parentId: preparationId, version: (latest?.version ?? 0) + 1,
+          snapshot: JSON.stringify(snapshot), createdBy: (req as AuthRequest).authUser?.id,
+        });
       }
+      await tx
+        .update(ingredientsTable)
+        .set({ active: false })
+        .where(eq(ingredientsTable.id, id));
 
-      // 4. Hapus jika aman
-      await tx.delete(ingredientsTable).where(eq(ingredientsTable.id, id));
+      res.locals.auditBefore = asIngredient(ingredient);
+      res.locals.auditAfter = { ...asIngredient(ingredient), active: false };
     });
 
-    res.json({ success: true });
+    res.json({ success: true, archived: true });
   }),
 );
 

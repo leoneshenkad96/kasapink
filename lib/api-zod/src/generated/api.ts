@@ -33,6 +33,7 @@ export const GetErpStateResponse = zod.object({
   "minStock": zod.number(),
   "lastPrice": zod.number(),
   "averageCost": zod.number(),
+  "active": zod.boolean().describe('Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.'),
   "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })),
   "products": zod.array(zod.object({
@@ -148,6 +149,7 @@ export const ListIngredientsResponse = zod.object({
   "minStock": zod.number(),
   "lastPrice": zod.number(),
   "averageCost": zod.number(),
+  "active": zod.boolean().describe('Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.'),
   "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })),
   "pagination": zod.object({
@@ -199,6 +201,7 @@ export const CreateIngredientResponse = zod.object({
   "minStock": zod.number(),
   "lastPrice": zod.number(),
   "averageCost": zod.number(),
+  "active": zod.boolean().describe('Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.'),
   "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
@@ -239,6 +242,7 @@ export const UpdateIngredientResponse = zod.object({
   "minStock": zod.number(),
   "lastPrice": zod.number(),
   "averageCost": zod.number(),
+  "active": zod.boolean().describe('Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.'),
   "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
@@ -724,6 +728,7 @@ export const LegacyCreateIngredientResponse = zod.object({
   "minStock": zod.number(),
   "lastPrice": zod.number(),
   "averageCost": zod.number(),
+  "active": zod.boolean().describe('Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.'),
   "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
@@ -764,6 +769,7 @@ export const LegacyUpdateIngredientResponse = zod.object({
   "minStock": zod.number(),
   "lastPrice": zod.number(),
   "averageCost": zod.number(),
+  "active": zod.boolean().describe('Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.'),
   "unitLocked": zod.boolean().optional().describe('Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.')
 })
 
