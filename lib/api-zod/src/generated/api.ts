@@ -21,6 +21,8 @@ export const HealthCheckResponse = zod.object({
  * @summary Get the current ERP workspace data
  */
 export const GetErpStateResponse = zod.object({
+  "dataStatus": zod.enum(['ready']),
+  "generatedAt": zod.coerce.date(),
   "ingredients": zod.array(zod.object({
   "id": zod.number().int(),
   "name": zod.string(),

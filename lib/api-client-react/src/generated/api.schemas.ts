@@ -526,7 +526,16 @@ export interface FinanceReport {
   days: DailyFinance[];
 }
 
+export type ErpStateDataStatus = typeof ErpStateDataStatus[keyof typeof ErpStateDataStatus];
+
+
+export const ErpStateDataStatus = {
+  ready: 'ready',
+} as const;
+
 export interface ErpState {
+  dataStatus: ErpStateDataStatus;
+  generatedAt: string;
   ingredients: Ingredient[];
   products: Product[];
   recipes: RecipeItem[];
@@ -534,6 +543,19 @@ export interface ErpState {
   recentSales: Sale[];
   today: DailyFinance;
   lowStockCount: number;
+}
+
+export type ErpStateUnavailableStatus = typeof ErpStateUnavailableStatus[keyof typeof ErpStateUnavailableStatus];
+
+
+export const ErpStateUnavailableStatus = {
+  degraded: 'degraded',
+} as const;
+
+export interface ErpStateUnavailable {
+  status: ErpStateUnavailableStatus;
+  error: string;
+  failedComponents: string[];
 }
 
 export type GetFinanceReportParams = {

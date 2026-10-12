@@ -49,6 +49,21 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   const call = async (route, method='GET', body) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...(body ? {body:JSON.stringify(body)} : {})}); return {status:response.status,body:await response.json()}; };
   const save = async items => { const response=await fetch(`http://127.0.0.1:${server.address().port}/api/erp/products/1/recipe`, {method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({items})}); return {status:response.status,body:await response.json()}; };
 
+  const readyState = await call('/erp/state');
+  assert.equal(readyState.status,200);
+  assert.equal(readyState.body.dataStatus,'ready');
+  assert.equal(Number.isNaN(Date.parse(readyState.body.generatedAt)),false);
+  assert.equal(readyState.body.ingredients.length,6);
+
+  await pg.exec('ALTER TABLE erp_products RENAME TO erp_products_unavailable');
+  const degradedState = await call('/erp/state');
+  assert.equal(degradedState.status,503);
+  assert.equal(degradedState.body.status,'degraded');
+  assert.deepEqual(degradedState.body.failedComponents,['products']);
+  assert.equal('products' in degradedState.body,false);
+  await pg.exec('ALTER TABLE erp_products_unavailable RENAME TO erp_products');
+  assert.equal((await call('/erp/state')).status,200);
+
   const invalidCalendarDate = '2026-02-30';
   assert.equal((await call(`/erp/finance?startDate=${invalidCalendarDate}&endDate=${invalidCalendarDate}`)).status,400);
   assert.equal((await call(`/erp/fnb-report?startDate=${invalidCalendarDate}&endDate=${invalidCalendarDate}`)).status,400);
