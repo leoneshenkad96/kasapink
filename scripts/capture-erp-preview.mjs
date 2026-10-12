@@ -19,7 +19,7 @@ for(const [label,width,height] of [['desktop',1440,900],['tablet',768,1024],['mo
     loginImage:(()=>{const im=document.querySelector('.login-illustration');return im?{src:im.getAttribute('src'),loaded:im.complete&&im.naturalWidth>0,width:im.naturalWidth,height:im.naturalHeight}:null})()
   }));
   console.log(JSON.stringify({viewport:label,http:response?.status(),...result,pageErrors:errors}));
-  if(!response?.ok()||result.horizontalOverflow||errors.length)failures++;
+  if(/login\\s*[–-]\\s*vercel/i.test(result.title)||/vercel\\.com\\/login/i.test(page.url())){console.error('BLOCKED: Vercel Authentication page, not ERP');failures++;}\n  if(!result.loginImage){console.error('BLOCKED: ERP login illustration not found');failures++;}\n  if(!response?.ok()||result.horizontalOverflow||errors.length)failures++;
   if(result.loginImage&& !result.loginImage.loaded)failures++;
  }catch(e){console.error(label,e.message);failures++;}
  await page.close();
