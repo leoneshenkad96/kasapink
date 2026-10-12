@@ -25,6 +25,8 @@ jobs:
         run: pnpm run typecheck:libs
       - name: Typecheck API
         run: pnpm --filter @workspace/api-server run typecheck
+      - name: Verify CSV Excel and PDF consistency
+        run: node scripts/test-report-parity.mjs
       - name: Render PDF samples (three report types, multiple pages)
         run: node scripts/test-report-export.mjs
       - uses: actions/upload-artifact@v4
