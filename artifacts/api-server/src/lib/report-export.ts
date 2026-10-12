@@ -18,7 +18,17 @@ function escapeHtml(value: string): string {
 }
 
 function escapePdf(value: string): string {
-  return value.normalize("NFKD").replace(/[^\x20-\x7E]/g, " ").replace(/\\/g, "\\\\").replace(/[()]/g, (character) => `\\${character}`);
+  // PDF Helvetica + WinAnsi supports basic Indonesian text, Latin accents and typographic punctuation.
+  const special: Record<string, number> = { "€": 128, "‚":130, "ƒ":131, "„":132, "…":133, "†":134, "‡":135, "ˆ":136, "‰":137, "Š":138, "‹":139, "Œ":140, "Ž":142, "‘":145, "’":146, "“":147, "”":148, "•":149, "–":150, "—":151, "˜":152, "™":153, "š":154, "›":155, "œ":156, "ž":158, "Ÿ":159 };
+  return Array.from(value).map((character) => {
+    if (character === "\\" || character === "(" || character === ")") return "\\" + character;
+    const n = character.codePointAt(0) ?? 32;
+    if (n >= 32 && n <= 126) return character;
+    const code = special[character] ?? (n >= 160 && n <= 255 ? n : undefined);
+    if (code !== undefined) return "\\" + code.toString(8).padStart(3, "0");
+    const latin = character.normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+    return /^[\x20-\x7e]$/.test(latin) ? latin : "?";
+  }).join("");
 }
 
 export function toCsv(table: ReportTable): string {
@@ -144,8 +154,8 @@ export function toPdf(table: ReportTable): Buffer {
   const objects: string[] = [
     "<< /Type /Catalog /Pages 2 0 R >>",
     "",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
-    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>",
   ];
   const pageIds: number[] = [];
   pages.forEach((content) => {
