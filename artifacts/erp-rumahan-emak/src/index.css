@@ -980,7 +980,7 @@
 .category-pill { border:0; border-radius:999px; padding:8px 16px; background:hsl(340 28% 94%); color:hsl(340 10% 45%); font-size:12px; font-weight:600; cursor:pointer; transition:background .18s,color .18s; }
 .category-pill:hover { background:hsl(340 35% 89%); color:hsl(338 42% 36%); }
 .category-pill.is-active { background:hsl(338 49% 42%); color:#fff; }
-.input, .search-wrap { background:#fcf6f8; border-color:#e5d1d9; color:hsl(var(--foreground)); }
+.input, .search-wrap { background:#FAF8F1; border-color:#DBCEA5; color:hsl(var(--foreground)); }
 .input:focus { border-color:hsl(var(--primary)); box-shadow:0 0 0 3px hsl(var(--primary) / .12); }
 th { background:#f8f9fd; color:#7f8799; }
 .status-ok, .prep-status.ok, .fnb-score-badge.good, .fnb-variance-pill.is-ok, .fnb-variance-row .is-ok { background:hsl(340 47% 92%); color:hsl(338 42% 36%); }
