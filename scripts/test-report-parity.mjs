@@ -57,7 +57,7 @@ for(const table of cases){
 }
 
 const { inflateRawSync } = await import("node:zlib");
-const { toXlsx } = require("/tmp/kasapink-xlsx-parity.cjs");
+
 function unzipStoredFiles(bytes){
   const entries=new Map();
   let p=0;
@@ -84,6 +84,7 @@ function extractXlsxRows(sheet){
   );
 }
 execFileSync("pnpm",["exec","esbuild","artifacts/api-server/src/lib/xlsx-export.ts","--bundle","--platform=node","--format=cjs","--outfile=/tmp/kasapink-xlsx-parity.cjs"],{stdio:"inherit"});
+const { toXlsx } = require("/tmp/kasapink-xlsx-parity.cjs");
 for(const test of cases){
   const files=unzipStoredFiles(toXlsx(test));
   assert.ok(files.has("[Content_Types].xml"),"XLSX content types missing");
