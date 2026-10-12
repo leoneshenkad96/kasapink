@@ -1,0 +1,33 @@
+name: ERP Preview Screenshots
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/erp-rumahan-emak/src/**'
+      - 'artifacts/erp-rumahan-emak/public/**'
+      - '.github/workflows/erp-preview-screenshots.yml'
+  workflow_dispatch:
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Capture real Vercel Preview on three viewports
+        env:
+          QA_URL: https://kasapink-7jdt1veb3-kasapink.vercel.app
+        run: node scripts/capture-erp-preview.mjs
+      - name: Publish screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasapink-erp-preview-three-viewports
+          path: qa-screenshots/
+          if-no-files-found: warn
