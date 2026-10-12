@@ -78,7 +78,7 @@ export function toPdf(table: ReportTable): Buffer {
   const headerHeight = Math.max(22, 10 + Math.max(...headerLines.map((lines) => lines.length)) * 9);
   const preparedRows = table.rows.map((row) => {
     const cells = row.map((value, index) => {
-      const formatted = decimalIndexes.has(index) && typeof value === "number"
+      const formatted = value === "" || value === null || value === undefined ? "-" : decimalIndexes.has(index) && typeof value === "number"
         ? `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : String(value);
       return wrapPdfLines(formatted, maxCharactersAt(index));
@@ -100,6 +100,7 @@ export function toPdf(table: ReportTable): Buffer {
   }
   const pages = chunks.map((rows, pageIndex) => {
     const commands: string[] = ["q", "0.54 0.46 0.31 rg", `0 ${pageHeight-100} ${pageWidth} 100 re f`, "Q"];
+    commands.push(pdfText("KASAPINK  /  CATATAN USAHA", left, pageHeight - 19, 9, true, "1 1 1"));
     commands.push(pdfText(table.title, left, pageHeight - 44, 21, true, "1 1 1"));
     commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, pageHeight - 66, 9, false, "0.97 0.96 0.91"));
     commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, pageHeight - 83, 8, false, "0.97 0.96 0.91"));
@@ -128,7 +129,11 @@ export function toPdf(table: ReportTable): Buffer {
     y -= headerHeight;
     rows.forEach((row, rowIndex) => {
       if (rowIndex % 2 === 1) commands.push("q", "0.97 0.96 0.91 rg", `${left} ${y - row.height} ${usableWidth} ${row.height} re f`, "Q");
-      row.cells.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, left + index * columnWidth + 5, y - 12 - lineIndex * 9, 7))));
+      row.cells.forEach((lines, index) => lines.forEach((line, lineIndex) => {
+        const isNumeric = decimalIndexes.has(index) || (typeof table.rows[0]?.[index] === "number" && !/ID|Ref/i.test(table.columns[index]));
+        const x = isNumeric ? Math.max(colXs[index]+5, colXs[index]+colWidths[index]-7-line.length*3.65) : colXs[index]+5;
+        commands.push(pdfText(line, x, y-12-lineIndex*9, 7));
+      }));
       commands.push("q", "0.79 0.73 0.56 RG", "0.3 w", `${left} ${y - row.height} m ${left + usableWidth} ${y - row.height} l S`, "Q");
       y -= row.height;
     });
