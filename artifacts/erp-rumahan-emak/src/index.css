@@ -1532,3 +1532,50 @@ body,.app-shell,.main-area{background:var(--kas-ivory);color:var(--kas-text)}
  .sidebar .brand-lockup .brand-logo-image{width:32px;height:32px}
  .metric-grid .metric-card.metric-feature>strong{font-size:clamp(32px,9vw,42px)}
 }
+
+
+/* KPI and sidebar brand visual consistency / accessibility */
+.metric-grid .metric-card .metric-stamp{
+ display:grid;place-items:center;position:absolute;top:18px;right:18px;
+ width:40px;height:40px;min-width:40px;min-height:40px;
+ padding:0;border-radius:12px;background:#ECE7D1;
+ border:1px solid #DBCEA5;color:#655942;box-sizing:border-box;
+}
+.metric-grid .metric-card .metric-stamp svg{
+ display:block;width:21px;height:21px;max-width:21px;max-height:21px;
+ stroke:currentColor;color:#655942;stroke-width:2;
+}
+.metric-grid .metric-card.metric-feature .metric-stamp{
+ width:40px;height:40px;min-width:40px;min-height:40px;border-radius:12px;
+}
+.sidebar .brand-lockup{
+ display:flex;align-items:center;gap:12px;min-width:0;
+ text-decoration:none;color:#FFFDF7;
+}
+.sidebar .brand-lockup .brand-mark{
+ flex:0 0 38px;width:38px;height:38px;
+ background:transparent;border:0;border-radius:0;box-shadow:none;
+ display:grid;place-items:center;
+}
+.sidebar .brand-lockup .brand-logo-image{
+ display:block;width:38px;height:38px;max-width:38px;max-height:38px;
+ object-fit:contain;
+ filter:brightness(1.22) saturate(.9) drop-shadow(0 1px 1px rgba(35,29,18,.3));
+}
+.sidebar .brand-lockup strong{
+ display:block;color:#FFFDF7;font-family:var(--app-font-sans);
+ font-size:19px;font-weight:800;line-height:1.25;letter-spacing:-.2px;
+}
+.sidebar .brand-lockup small{
+ display:block;color:#FFF4DC;opacity:1;
+ font-size:10px;font-weight:750;line-height:1.4;letter-spacing:1.1px;
+ margin-top:4px;
+}
+.sidebar .brand-lockup:focus-visible{
+ outline:2px solid #FFF4DC;outline-offset:4px;border-radius:6px;
+}
+@media(max-width:767px){
+ .sidebar .brand-lockup .brand-mark{flex-basis:38px;width:38px;height:38px}
+ .sidebar .brand-lockup .brand-logo-image{width:38px;height:38px;max-width:38px;max-height:38px}
+ .metric-grid .metric-card .metric-stamp{top:18px;right:18px}
+}
