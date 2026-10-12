@@ -65,8 +65,18 @@ const dateLabel = (d: string | Date) => {
 };
 
 const errText = (e: unknown) => {
-  const x = e as { response?: { data?: { error?: string; message?: string } }; message?: string };
-  return x?.response?.data?.error || x?.response?.data?.message || x?.message || 'Terjadi kendala. Silakan coba lagi.';
+  const x = e as { data?: { error?: string; message?: string }; response?: { data?: { error?: string; message?: string } }; message?: string };
+  return x?.data?.error || x?.data?.message || x?.response?.data?.error || x?.response?.data?.message || x?.message || 'Terjadi kendala. Silakan coba lagi.';
+};
+const STATE_COMPONENT_LABELS: Record<string, string> = {
+  ingredients: 'bahan dan stok', products: 'produk', recipes: 'resep',
+  purchase_headers: 'riwayat belanja', purchase_details: 'detail belanja',
+  sale_headers: 'riwayat penjualan', sale_details: 'detail penjualan', today_finance: 'ringkasan hari ini',
+};
+const failedStateComponents = (e: unknown) => {
+  const x = e as { data?: { failedComponents?: unknown }; response?: { data?: { failedComponents?: unknown } } };
+  const components = x?.data?.failedComponents ?? x?.response?.data?.failedComponents;
+  return Array.isArray(components) ? components.filter((item): item is string => typeof item === 'string') : [];
 };
 const authHeaders = () => ({ });
 
@@ -237,6 +247,14 @@ function Card({ children, className = '', ...props }: React.ComponentProps<'sect
 function LoadingPanel() { return <div className="loading-grid"><div className="skeleton big" /><div className="skeleton" /><div className="skeleton" /></div>; }
 function FnbLoadingPanel() { return <div className="grid gap-3" aria-label="Memuat kontrol F&B"><div className="grid grid-cols-2 gap-3 lg:grid-cols-4">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-24 animate-pulse rounded-xl border border-stone-200 bg-white p-4"><div className="h-2 w-20 rounded bg-stone-200" /><div className="mt-5 h-6 w-28 rounded bg-stone-100" /></div>)}</div><div className="grid gap-3 lg:grid-cols-[1.2fr_.8fr]"><div className="h-52 animate-pulse rounded-xl border border-stone-200 bg-white" /><div className="h-52 animate-pulse rounded-xl border border-stone-200 bg-white" /></div></div>; }
 function ErrorPanel({ message, retry }: { message: string; retry: () => void }) { return <div className="error-panel"><AlertCircle size={22} /><div><b>Data belum dapat dimuat</b><p>{message}</p><button className="text-button" onClick={retry}>Coba muat kembali</button></div></div>; }
+function StateErrorPanel({ error, retry }: { error: unknown; retry: () => void }) {
+  const failed = failedStateComponents(error);
+  return <div className="error-panel"><AlertCircle size={22} /><div><b>Data ERP gagal dimuat</b><p>{errText(error)}</p>{failed.length > 0 && <p>Komponen gagal: {failed.map((item) => STATE_COMPONENT_LABELS[item] || item).join(', ')}.</p>}<button className="text-button" onClick={retry}>Coba muat kembali</button></div></div>;
+}
+function StaleStatePanel({ error, generatedAt, retry }: { error: unknown; generatedAt: string; retry: () => void }) {
+  const failed = failedStateComponents(error);
+  return <div className="warning-panel stale-state-panel" role="status"><AlertCircle size={19} /><div><b>Menampilkan data terakhir</b><p>Pembaruan gagal. Data di layar dibuat {new Intl.DateTimeFormat('id-ID', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(generatedAt))}.</p>{failed.length > 0 && <p>Komponen gagal: {failed.map((item) => STATE_COMPONENT_LABELS[item] || item).join(', ')}.</p>}<button className="text-button" onClick={retry}>Coba perbarui lagi</button></div></div>;
+}
 function Empty({ title, text }: { title: string; text: string }) { return <div className="empty-state"><span className="empty-icon"><Boxes size={20} /></span><b>{title}</b><p>{text}</p></div>; }
 function Button({ children, onClick, variant = 'primary', type = 'button', disabled = false }: { children: React.ReactNode; onClick?: () => void; variant?: 'primary' | 'secondary' | 'quiet'; type?: 'button' | 'submit'; disabled?: boolean }) {
   return <button type={type} onClick={onClick} disabled={disabled} className={`button button-${variant}`} data-testid="button-action">{children}</button>;
@@ -1354,21 +1372,29 @@ function AppContent({ onLogout, user }: { onLogout: () => void; user: AppUser })
   const query = useGetErpState();
   const health = useHealthCheck();
   const state = query.data;
-  const fallback: ErpState = { ingredients: [], products: [], recipes: [], recentPurchases: [], recentSales: [], today: { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }, lowStockCount: 0 };
+  const fallback: ErpState = { dataStatus: 'ready', generatedAt: new Date().toISOString(), ingredients: [], products: [], recipes: [], recentPurchases: [], recentSales: [], today: { date: today(), revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }, lowStockCount: 0 };
   const shared = state || fallback;
-  return <Shell connected={health.isSuccess} onLogout={onLogout} user={user}><ErrorBoundary resetKey="routes"><Switch>
-    <Route path="/">{<Dashboard state={state} error={query.isError ? errText(query.error) : undefined} retry={() => void query.refetch()} />}</Route>
-    <Route path="/stok">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/stok/makanan">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/stok/parfum">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/produk">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/produk/makanan">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/produk/parfum">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <ProductPage state={shared} businessType="Parfum" readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/belanja">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <PurchasePage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/penjualan">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <SalePage state={shared} readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/prep">{<PrepPage readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/kontrol-fnb">{<FnbControlPage readOnly={user.role === 'testing'} />}</Route>
-    <Route path="/opname">{query.isLoading ? <LoadingPanel /> : query.isError ? <ErrorPanel message={errText(query.error)} retry={() => void query.refetch()} /> : <StockCountPage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />}</Route>
+  const retry = () => void query.refetch();
+  const statePage = (content: React.ReactNode) => !state && query.isLoading
+    ? <LoadingPanel />
+    : !state && query.isError
+      ? <StateErrorPanel error={query.error} retry={retry} />
+      : content;
+  return <Shell connected={health.isSuccess} onLogout={onLogout} user={user}>
+    {state && query.isError && <StaleStatePanel error={query.error} generatedAt={state.generatedAt} retry={retry} />}
+    <ErrorBoundary resetKey="routes"><Switch>
+    <Route path="/">{statePage(<Dashboard state={state} retry={retry} />)}</Route>
+    <Route path="/stok">{statePage(<StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/stok/makanan">{statePage(<StockPage ingredients={shared.ingredients} stockType="Makanan" readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/stok/parfum">{statePage(<StockPage ingredients={shared.ingredients} stockType="Parfum" readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/produk">{statePage(<ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/produk/makanan">{statePage(<ProductPage state={shared} businessType="Makanan" readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/produk/parfum">{statePage(<ProductPage state={shared} businessType="Parfum" readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/belanja">{statePage(<PurchasePage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/penjualan">{statePage(<SalePage state={shared} readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/prep">{statePage(<PrepPage readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/kontrol-fnb">{statePage(<FnbControlPage readOnly={user.role === 'testing'} />)}</Route>
+    <Route path="/opname">{statePage(<StockCountPage ingredients={shared.ingredients} readOnly={user.role === 'testing'} />)}</Route>
     <Route path="/laporan">{<ReportPage isAdmin={user.role === 'admin'} />}</Route>
     <Route path="/users">{user.role === 'admin' ? <UsersPage /> : <div className="error-panel"><Shield size={20} /><div><b>Akses khusus admin</b><p>Akun testing hanya dapat melihat data ERP.</p></div></div>}</Route>
 

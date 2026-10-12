@@ -26,6 +26,7 @@ import type {
 
 import type {
   ErpState,
+  ErpStateUnavailable,
   Error,
   FinanceReport,
   FnbReport,
@@ -218,7 +219,7 @@ export const getGetErpStateQueryKey = () => {
     }
 
 
-export const getGetErpStateQueryOptions = <TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<unknown>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getErpState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
+export const getGetErpStateQueryOptions = <TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<ErpStateUnavailable>>( options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getErpState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
 ) => {
 
 const {query: queryOptions, request: requestOptions} = options ?? {};
@@ -237,10 +238,10 @@ const {query: queryOptions, request: requestOptions} = options ?? {};
 }
 
 export type GetErpStateQueryResult = NonNullable<Awaited<ReturnType<typeof getErpState>>>
-export type GetErpStateQueryError = ErrorType<unknown>
+export type GetErpStateQueryError = ErrorType<ErpStateUnavailable>
 
 
-export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<unknown>>(
+export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<ErpStateUnavailable>>(
   options: { query:Partial<UseQueryOptions<Awaited<ReturnType<typeof getErpState>>, TError, TData>> & Pick<
         DefinedInitialDataOptions<
           Awaited<ReturnType<typeof getErpState>>,
@@ -250,7 +251,7 @@ export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, 
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  DefinedUseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<unknown>>(
+export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<ErpStateUnavailable>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getErpState>>, TError, TData>> & Pick<
         UndefinedInitialDataOptions<
           Awaited<ReturnType<typeof getErpState>>,
@@ -260,7 +261,7 @@ export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, 
       >, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
-export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<unknown>>(
+export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<ErpStateUnavailable>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getErpState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
   ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> }
@@ -268,7 +269,7 @@ export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, 
  * @summary Get the current ERP workspace data
  */
 
-export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<unknown>>(
+export function useGetErpState<TData = Awaited<ReturnType<typeof getErpState>>, TError = ErrorType<ErpStateUnavailable>>(
   options?: { query?:Partial<UseQueryOptions<Awaited<ReturnType<typeof getErpState>>, TError, TData>>, request?: SecondParameter<typeof customFetch>}
  , queryClient?: QueryClient
  ):  UseQueryResult<TData, TError> & { queryKey: DataTag<QueryKey, TData, TError> } {

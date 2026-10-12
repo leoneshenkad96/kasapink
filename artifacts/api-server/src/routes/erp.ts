@@ -101,13 +101,21 @@ function safe(handler: (req: Request, res: Response) => Promise<void>): RequestH
   };
 }
 
-async function optionalDbQuery<T>(req: Request, label: string, operation: PromiseLike<T>, fallback: T): Promise<T> {
+async function stateDbQuery<T>(req: Request, component: string, operation: PromiseLike<T>): Promise<T | null> {
   try {
     return await operation;
   } catch (error: unknown) {
-    req.log.warn({ err: error, query: label }, "ERP state query degraded; using fallback");
-    return fallback;
+    req.log.error({ err: error, component }, "ERP state component query failed");
+    return null;
   }
+}
+
+function unavailableState(res: Response, failedComponents: string[]): void {
+  res.status(503).json({
+    status: "degraded",
+    error: "Sebagian data ERP gagal dimuat.",
+    failedComponents,
+  });
 }
 
 function invalid(res: Response, message: string): void {
@@ -340,9 +348,11 @@ router.get(
   "/erp/state",
   safe(async (req, res) => {
     // await ensureSeedData();   // disabled – prevents auto‑reseed
-    const ingredientRows = await optionalDbQuery(req, "ingredients", db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)), []);
-    const productRows = await optionalDbQuery(req, "products", db.select().from(productsTable).orderBy(asc(productsTable.name)), []);
-    const recipeRows = await optionalDbQuery(req, "recipes", db
+    const todayDate = jakartaToday();
+    const [ingredientRows, productRows, recipeRows, purchaseHeaders, saleHeaders, today] = await Promise.all([
+      stateDbQuery(req, "ingredients", db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name))),
+      stateDbQuery(req, "products", db.select().from(productsTable).orderBy(asc(productsTable.name))),
+      stateDbQuery(req, "recipes", db
         .select({
           productId: recipeItemsTable.productId,
           ingredientId: recipeItemsTable.ingredientId,
@@ -353,24 +363,39 @@ router.get(
         })
         .from(recipeItemsTable)
         .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
-        .orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name)),
-      []);
-    const purchaseHeaders = await optionalDbQuery(req, "purchase headers", db
+        .orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name))),
+      stateDbQuery(req, "purchase_headers", db
         .select()
         .from(purchasesTable)
         .orderBy(desc(purchasesTable.date), desc(purchasesTable.id))
-        .limit(6),
-      []);
-    const saleHeaders = await optionalDbQuery(req, "sale headers", db
+        .limit(6)),
+      stateDbQuery(req, "sale_headers", db
         .select()
         .from(salesTable)
         .orderBy(desc(salesTable.date), desc(salesTable.id))
-        .limit(6), []);
+        .limit(6)),
+      stateDbQuery(req, "today_finance", financeReport(todayDate, todayDate)),
+    ]);
 
-    const purchaseIds = purchaseHeaders.map((row) => row.id);
-    const saleIds = saleHeaders.map((row) => row.id);
-    const purchaseLines = purchaseIds.length
-        ? await optionalDbQuery(req, "purchase details", db
+    const primaryComponents = [
+      ["ingredients", ingredientRows],
+      ["products", productRows],
+      ["recipes", recipeRows],
+      ["purchase_headers", purchaseHeaders],
+      ["sale_headers", saleHeaders],
+      ["today_finance", today],
+    ] as const;
+    const failedPrimary = primaryComponents.filter(([, value]) => value === null).map(([component]) => component);
+    if (failedPrimary.length) {
+      unavailableState(res, failedPrimary);
+      return;
+    }
+
+    const purchaseIds = purchaseHeaders!.map((row) => row.id);
+    const saleIds = saleHeaders!.map((row) => row.id);
+    const [purchaseLines, saleLines] = await Promise.all([
+      purchaseIds.length
+        ? stateDbQuery(req, "purchase_details", db
         .select({
           purchaseId: purchaseDetailsTable.purchaseId,
           ingredientId: purchaseDetailsTable.ingredientId,
@@ -382,21 +407,30 @@ router.get(
         })
         .from(purchaseDetailsTable)
         .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
-        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)), [])
-      : [];
-    const saleLines = saleIds.length
-      ? await optionalDbQuery(req, "sale details", db
+        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)))
+        : Promise.resolve([]),
+      saleIds.length
+      ? stateDbQuery(req, "sale_details", db
         .select()
         .from(salesDetailsTable)
-        .where(inArray(salesDetailsTable.salesId, saleIds)), [])
-      : [];
+        .where(inArray(salesDetailsTable.salesId, saleIds)))
+      : Promise.resolve([]),
+    ]);
+    const failedDetails = [
+      ...(purchaseLines === null ? ["purchase_details"] : []),
+      ...(saleLines === null ? ["sale_details"] : []),
+    ];
+    if (failedDetails.length) {
+      unavailableState(res, failedDetails);
+      return;
+    }
 
-    const recentPurchases = purchaseHeaders.map((purchase) => ({
+    const recentPurchases = purchaseHeaders!.map((purchase) => ({
       id: purchase.id,
       date: purchase.date,
       supplierType: purchase.supplierType,
       totalCost: number(purchase.totalCost),
-      items: purchaseLines
+      items: purchaseLines!
         .filter((line) => line.purchaseId === purchase.id)
         .map((line) => ({
           ingredientId: line.ingredientId,
@@ -407,7 +441,7 @@ router.get(
           unitCost: number(line.unitCost),
         })),
     }));
-    const recentSales = saleHeaders.map((sale) => {
+    const recentSales = saleHeaders!.map((sale) => {
       const totalRevenue = number(sale.totalRevenue);
       const totalCostOfGoodsSold = number(sale.totalCostOfGoodsSold);
       return {
@@ -416,7 +450,7 @@ router.get(
         totalRevenue,
         totalCostOfGoodsSold,
         grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
-        items: saleLines
+        items: saleLines!
           .filter((line) => line.salesId === sale.id)
           .map((line) => ({
             productId: line.productId,
@@ -429,20 +463,12 @@ router.get(
       };
     });
 
-    const todayDate = jakartaToday();
-    const today = await optionalDbQuery(req, "today finance", financeReport(todayDate, todayDate), {
-      startDate: todayDate,
-      endDate: todayDate,
-      revenue: 0,
-      costOfGoodsSold: 0,
-      purchases: 0,
-      grossProfit: 0,
-      days: [{ date: todayDate, revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }],
-    });
     const data = {
-      ingredients: ingredientRows.map(asIngredient),
-      products: productRows.map(asProduct),
-      recipes: recipeRows.map((row) => ({
+      dataStatus: "ready" as const,
+      generatedAt: new Date().toISOString(),
+      ingredients: ingredientRows!.map(asIngredient),
+      products: productRows!.map(asProduct),
+      recipes: recipeRows!.map((row) => ({
         productId: row.productId,
         ingredientId: row.ingredientId,
         ingredientName: row.ingredientName,
@@ -452,8 +478,8 @@ router.get(
       })),
       recentPurchases,
       recentSales,
-      today: today.days[0],
-      lowStockCount: ingredientRows.filter((row) => number(row.stock) <= number(row.minStock)).length,
+      today: today!.days[0],
+      lowStockCount: ingredientRows!.filter((row) => number(row.stock) <= number(row.minStock)).length,
     };
     const validated = GetErpStateResponse.parse(data);
     res.json({

@@ -38,6 +38,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErpState"
+        "503":
+          description: One or more state components could not be loaded; no partial data is returned
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErpStateUnavailable"
   /erp/finance:
     get:
       operationId: getFinanceReport
@@ -907,6 +913,8 @@ components:
     ErpState:
       type: object
       properties:
+        dataStatus: { type: string, enum: [ready] }
+        generatedAt: { type: string, format: date-time }
         ingredients:
           type: array
           items: { $ref: "#/components/schemas/Ingredient" }
@@ -925,5 +933,14 @@ components:
         today:
           $ref: "#/components/schemas/DailyFinance"
         lowStockCount: { type: integer }
-      required: [ingredients, products, recipes, recentPurchases, recentSales, today, lowStockCount]
+      required: [dataStatus, generatedAt, ingredients, products, recipes, recentPurchases, recentSales, today, lowStockCount]
+    ErpStateUnavailable:
+      type: object
+      properties:
+        status: { type: string, enum: [degraded] }
+        error: { type: string }
+        failedComponents:
+          type: array
+          items: { type: string }
+      required: [status, error, failedComponents]
 

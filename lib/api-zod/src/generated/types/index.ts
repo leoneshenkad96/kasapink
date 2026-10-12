@@ -8,6 +8,9 @@
 
 export * from './dailyFinance';
 export * from './erpState';
+export * from './erpStateDataStatus';
+export * from './erpStateUnavailable';
+export * from './erpStateUnavailableStatus';
 export * from './error';
 export * from './financeReport';
 export * from './fnbReport';
