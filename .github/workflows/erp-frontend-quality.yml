@@ -22,6 +22,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - name: Validate earth-tone palette
         run: pnpm run check:palette
+      - name: Build internal type libraries
+        run: pnpm run typecheck:libs
       - name: Typecheck frontend
         run: pnpm --filter @workspace/erp-rumahan-emak run typecheck
       - name: Build frontend
