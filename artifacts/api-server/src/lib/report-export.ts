@@ -35,7 +35,7 @@ export function toCsv(table: ReportTable): string {
   const decimalIndexes = new Set((table.currencyColumns ?? table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
   return [table.columns, ...table.rows].map((row, rowIndex) => row.map((value, columnIndex) => {
     const formatted = rowIndex > 0 && decimalIndexes.has(columnIndex) && typeof value === "number" ? value.toFixed(2) : String(value);
-    const safeValue = typeof value === "string" && /^[=+\-@\t\r]/.test(formatted) ? `'${formatted}` : formatted;
+    const safeValue = typeof value === "string" && /^[=+\-@\t\r]/.test(formatted) && !/^-\d+(?:[.,]\d+)?(?:\s+[\p{L}]+)?$/u.test(formatted) ? `\x27${formatted}` : formatted;
     return `"${safeValue.replace(/"/g, '""')}"`;
   }).join(",")).join("\r\n");
 }
