@@ -25,7 +25,7 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   for (const name of (await readdir(path.join(root, 'lib/db/migrations'))).filter(n => n.endsWith('.sql')).sort()) await apply(path.join(root, 'lib/db/migrations', name));
   globalThis.__recipeTestPg = pg;
   const compiled = await build({
-    stdin: { contents: `export { default as router } from './artifacts/api-server/src/routes/erp.ts'; export { createToken } from './artifacts/api-server/src/lib/auth.ts';`, resolveDir:root, loader:'ts' },
+    stdin: { contents: `export { default as router } from './artifacts/api-server/src/routes/erp.ts'; export { createToken } from './artifacts/api-server/src/lib/auth.ts'; export { toCsv } from './artifacts/api-server/src/lib/report-export.ts';`, resolveDir:root, loader:'ts' },
     bundle:true, platform:'node', format:'cjs', write:false,
     plugins:[{name:'isolated-pg', setup(build) {
       build.onResolve({filter:/^@workspace\/db$/}, () => ({path:'isolated-db', namespace:'isolated'}));
@@ -48,6 +48,15 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   server=await new Promise(resolve => { const s=app.listen(0,'127.0.0.1',() => resolve(s)); });
   const call = async (route, method='GET', body) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...(body ? {body:JSON.stringify(body)} : {})}); return {status:response.status,body:await response.json()}; };
   const save = async items => { const response=await fetch(`http://127.0.0.1:${server.address().port}/api/erp/products/1/recipe`, {method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({items})}); return {status:response.status,body:await response.json()}; };
+
+  const formulaCsv = loaded.exports.toCsv({
+    title:'Uji CSV', columns:['Teks','Angka'], rows:[
+      ['=SUM(A1:A2)',-42], ['+cmd',-1], ['-teks',0], ['@mention',1], ['\tpayload',2], ['\rpayload',3],
+    ],
+  });
+  for (const value of ['=SUM(A1:A2)','+cmd','-teks','@mention','\tpayload','\rpayload']) assert.ok(formulaCsv.includes(`"'${value}"`));
+  assert.ok(formulaCsv.includes('"-42"'));
+  assert.equal(formulaCsv.includes('"\'-42"'),false);
 
   const readyState = await call('/erp/state');
   assert.equal(readyState.status,200);
