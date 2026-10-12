@@ -28,7 +28,8 @@ const cases=[
  {name:"activities",title:"Histori Aktivitas Usaha",orientation:"landscape",columns:["Tanggal","Aktivitas","Ref","Item / Lini","Jumlah","Nilai","HPP/Biaya","Keterangan/Alasan"],currencyColumns:["Nilai","HPP/Biaya"],decimalColumns:["Nilai","HPP/Biaya"],rows:[
  ["2026-10-09","Penjualan",1,"Nasi Bakar (F&B)","2 pcs",49000,14133.02,"—"],
  ["2026-10-09","Pembelian",1,"Bawang Putih (F&B)","2 kg",26000,"","—"],
- ["2026-10-09","Waste",1,"Nasi Liwet (F&B)","0,1 kg","",313.04,"Basi / rusak"]]}
+ ["2026-10-09","Waste",1,"Nasi Liwet (F&B)","0,1 kg","",313.04,"Basi / rusak"],
+ ["2026-10-09","Koreksi Bahan",2,"Bawang Putih (F&B)","-0,2 kg","",-9600,"Hasil stok opname"]]}
 ];
 for(const table of cases){
  const actualCsv=parseCsv(toCsv(table));
