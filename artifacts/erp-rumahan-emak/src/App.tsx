@@ -148,7 +148,7 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
 
         </section>
         <section className="login-brand-panel" aria-label="Kasapink ERP">
-          <img className="login-illustration" src="/kasapink-login-illustration.png" alt="Ilustrasi dashboard stok dan produk Kasapink ERP" />
+          <img className="login-illustration" src="/kasapink-login-illustration-earthtone.webp" alt="Ilustrasi dashboard stok dan produk Kasapink ERP" />
         </section>
       </div>
     </div>
