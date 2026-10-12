@@ -608,40 +608,42 @@ router.get(
         rows: stockRows };
     } else if (type === "transactions") {
       const [purchases, sales, wasteRows, expenseRows, ingredientAdjustments, prepAdjustments, ingredientCatalog, prepCatalog] = await Promise.all([
-        db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, ingredientUnit: ingredientsTable.unit, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
-        db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id)),
+        db.select({ date: purchasesTable.date, id: purchasesTable.id, supplierType: purchasesTable.supplierType, ingredientName: ingredientsTable.name, ingredientUnit: ingredientsTable.unit, ingredientLine: ingredientsTable.stockType, quantity: purchaseDetailsTable.quantity, totalCost: purchaseDetailsTable.totalCost }).from(purchaseDetailsTable).innerJoin(purchasesTable, eq(purchaseDetailsTable.purchaseId, purchasesTable.id)).innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id)),
+        db.select({ date: salesTable.date, id: salesTable.id, productName: salesDetailsTable.productName, productLine: salesDetailsTable.businessType, quantity: salesDetailsTable.quantity, revenue: salesDetailsTable.revenue, costOfGoodsSold: salesDetailsTable.costOfGoodsSold }).from(salesDetailsTable).innerJoin(salesTable, eq(salesDetailsTable.salesId, salesTable.id)),
         db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
         db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
         db.select().from(stockMovementsTable).where(and(gte(stockMovementsTable.date, startDate), lte(stockMovementsTable.date, endDate), eq(stockMovementsTable.movementType, "adjustment"))),
         db.select().from(preparationStockMovementsTable).where(and(gte(preparationStockMovementsTable.date, startDate), lte(preparationStockMovementsTable.date, endDate), eq(preparationStockMovementsTable.movementType, "adjustment"))),
-        db.select({ id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit }).from(ingredientsTable),
+        db.select({ id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, stockType: ingredientsTable.stockType }).from(ingredientsTable),
         db.select({ id: preparationsTable.id, name: preparationsTable.name, unit: preparationsTable.unit }).from(preparationsTable),
       ]);
       const ingredientById = new Map(ingredientCatalog.map(item => [item.id, item]));
       const prepById = new Map(prepCatalog.map(item => [item.id, item]));
       const quantityWithUnit = (quantity: number, unit?: string) => `${quantity.toLocaleString("id-ID", { maximumFractionDigits: 3 })}${unit ? ` ${unit}` : ""}`;
       const fallback = (value?: string | null) => value?.trim() || "—";
+      const lineName = (value?: string | null) => value === "Makanan" ? "F&B" : value === "Parfum" ? "Parfum" : value?.trim() || "Bersama";
+      const withLine = (item: string, line?: string | null) => `${item} (${lineName(line)})`;
       table = { title: "Histori Aktivitas Usaha", subtitle: `Periode ${startDate} sampai ${endDate} (WIB)`, orientation: "landscape",
-        columns: ["Tanggal", "Aktivitas", "Ref", "Item/Kategori", "Jumlah", "Nilai", "HPP/Biaya", "Keterangan/Alasan"],
+        columns: ["Tanggal", "Aktivitas", "Ref", "Item / Lini", "Jumlah", "Nilai", "HPP/Biaya", "Keterangan/Alasan"],
         decimalColumns: ["Nilai", "HPP/Biaya"], currencyColumns: ["Nilai", "HPP/Biaya"], columnWeights: [1, 1.15, 0.48, 1.8, 0.65, 1.1, 1.15, 1.65],
-        note: "Nilai: pemasukan penjualan atau belanja bahan. HPP/Biaya: HPP terjual, waste, operasional, atau nilai selisih stok. Jenis biaya berbeda tidak boleh langsung dijumlahkan karena dapat menyebabkan penghitungan ganda.",
+        note: "Lini F&B, Parfum, atau Bersama tercantum pada item. Nilai: pemasukan penjualan atau belanja bahan. HPP/Biaya: HPP terjual, waste, operasional, atau nilai selisih stok. Jenis biaya berbeda tidak boleh langsung dijumlahkan karena dapat menyebabkan penghitungan ganda.",
         rows: [
         ...purchases.filter(row => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate)
-          .map(row => [dateKey(row.date), "Pembelian", row.id, row.ingredientName, quantityWithUnit(number(row.quantity), row.ingredientUnit), number(row.totalCost), "", "—"]),
+          .map(row => [dateKey(row.date), "Pembelian", row.id, withLine(row.ingredientName, row.ingredientLine), quantityWithUnit(number(row.quantity), row.ingredientUnit), number(row.totalCost), "", "—"]),
         ...sales.filter(row => dateKey(row.date) >= startDate && dateKey(row.date) <= endDate)
-          .map(row => [dateKey(row.date), "Penjualan", row.id, row.productName, quantityWithUnit(number(row.quantity), "pcs"), number(row.revenue), number(row.costOfGoodsSold), "—"]),
+          .map(row => [dateKey(row.date), "Penjualan", row.id, withLine(row.productName, row.productLine), quantityWithUnit(number(row.quantity), "pcs"), number(row.revenue), number(row.costOfGoodsSold), "—"]),
         ...wasteRows.map(row => {
           const item = row.preparationId ? prepById.get(row.preparationId) : ingredientById.get(row.ingredientId ?? -1);
-          return [row.date, "Waste", row.id, item?.name ?? "Item tidak ditemukan", quantityWithUnit(number(row.quantity), row.unit), "", number(row.totalCost), fallback(row.reason) + (row.note?.trim() ? " — " + row.note.trim() : "")];
+          return [row.date, "Waste", row.id, withLine(item?.name ?? "Item tidak ditemukan", row.preparationId ? "Makanan" : (item && "stockType" in item ? item.stockType : undefined)), quantityWithUnit(number(row.quantity), row.unit), "", number(row.totalCost), fallback(row.reason) + (row.note?.trim() ? " — " + row.note.trim() : "")];
         }),
-        ...expenseRows.map(row => [row.date, "Biaya Operasional", row.id, row.category, "—", "", number(row.amount), fallback(row.description)]),
+        ...expenseRows.map(row => [row.date, "Biaya Operasional", row.id, withLine(row.category, row.businessType), "—", "", number(row.amount), fallback(row.description)]),
         ...ingredientAdjustments.map(row => {
           const item = ingredientById.get(row.ingredientId);
-          return [row.date, "Koreksi Bahan", row.id, item?.name ?? "Bahan tidak ditemukan", quantityWithUnit(number(row.quantityDelta), item?.unit), "", row.varianceValue === null ? "" : number(row.varianceValue), fallback(row.note)];
+          return [row.date, "Koreksi Bahan", row.id, withLine(item?.name ?? "Bahan tidak ditemukan", item?.stockType), quantityWithUnit(number(row.quantityDelta), item?.unit), "", row.varianceValue === null ? "" : number(row.varianceValue), fallback(row.note)];
         }),
         ...prepAdjustments.map(row => {
           const item = prepById.get(row.preparationId);
-          return [row.date, "Koreksi Preparation", row.id, item?.name ?? "Preparation tidak ditemukan", quantityWithUnit(number(row.quantityDelta), item?.unit), "", row.varianceValue === null ? "" : number(row.varianceValue), fallback(row.note)];
+          return [row.date, "Koreksi Preparation", row.id, withLine(item?.name ?? "Preparation tidak ditemukan", "Makanan"), quantityWithUnit(number(row.quantityDelta), item?.unit), "", row.varianceValue === null ? "" : number(row.varianceValue), fallback(row.note)];
         }),
       ].sort((a, b) => String(a[0]).localeCompare(String(b[0]))),
       };
