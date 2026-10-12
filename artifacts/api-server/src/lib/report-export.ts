@@ -7,6 +7,10 @@ export type ReportTable = {
   rows: Array<Array<string | number>>;
   decimalColumns?: string[];
   summary?: Array<{ label: string; value: string }>;
+  orientation?: "portrait" | "landscape";
+  columnWeights?: number[];
+  currencyColumns?: string[];
+  note?: string;
 };
 
 function escapeHtml(value: string): string {
@@ -58,42 +62,49 @@ function wrapPdfLines(value: string, maxCharacters: number): string[] {
 }
 
 export function toPdf(table: ReportTable): Buffer {
-  const pageWidth = 595;
+  const pageWidth = table.orientation === "landscape" ? 842 : 595;
+  const pageHeight = table.orientation === "landscape" ? 595 : 842;
+  const topY = pageHeight - 126;
+  const footerLimit = 60;
   const left = 36;
   const usableWidth = pageWidth - left * 2;
-  const columnWidth = usableWidth / Math.max(table.columns.length, 1);
+  const weights = table.columnWeights?.length === table.columns.length ? table.columnWeights : table.columns.map((name) => /Nama|Item|Keterangan|Kategori/i.test(name) ? 1.6 : 1);
+  const weightSum = weights.reduce((a,b)=>a+b,0);
+  const colWidths = weights.map(w=>usableWidth*w/weightSum);
+  const colXs = colWidths.map((_,i)=>left+colWidths.slice(0,i).reduce((a,b)=>a+b,0));
   const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
-  const maxCharacters = Math.max(4, Math.floor((columnWidth - 10) / (7 * 0.52)));
-  const headerLines = table.columns.map((column) => wrapPdfLines(column, maxCharacters));
+  const maxCharactersAt = (index: number) => Math.max(4, Math.floor((colWidths[index] - 10) / (7 * 0.52)));
+  const headerLines = table.columns.map((column) => wrapPdfLines(column, maxCharactersAt(table.columns.indexOf(column))));
   const headerHeight = Math.max(22, 10 + Math.max(...headerLines.map((lines) => lines.length)) * 9);
   const preparedRows = table.rows.map((row) => {
     const cells = row.map((value, index) => {
       const formatted = decimalIndexes.has(index) && typeof value === "number"
         ? `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
         : String(value);
-      return wrapPdfLines(formatted, maxCharacters);
+      return wrapPdfLines(formatted, maxCharactersAt(index));
     });
     return { cells, height: Math.max(20, 10 + Math.max(...cells.map((lines) => lines.length)) * 9) };
   });
   const chunks: typeof preparedRows[] = [[]];
   let pageIndex = 0;
-  let remainingHeight = (table.summary?.length ? 644 : 716) - headerHeight - 42;
+  const noteHeight = table.note ? (wrapPdfLines(table.note, Math.floor(usableWidth/4.4)).length * 10 + 17) : 0;
+  let remainingHeight = (topY - (table.summary?.length ? 72 : 0) - noteHeight - footerLimit) - headerHeight;
   for (const row of preparedRows) {
     if (chunks[pageIndex].length && row.height > remainingHeight) {
       pageIndex += 1;
       chunks.push([]);
-      remainingHeight = 716 - headerHeight - 42;
+      remainingHeight = topY - headerHeight - footerLimit;
     }
     chunks[pageIndex].push(row);
     remainingHeight -= row.height;
   }
   const pages = chunks.map((rows, pageIndex) => {
-    const commands: string[] = ["q", "0.54 0.46 0.31 rg", `0 742 ${pageWidth} 100 re f`, "Q"];
-    commands.push(pdfText(table.title, left, 798, 21, true, "1 1 1"));
-    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, 776, 9, false, "0.97 0.96 0.91"));
-    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.97 0.96 0.91"));
+    const commands: string[] = ["q", "0.54 0.46 0.31 rg", `0 ${pageHeight-100} ${pageWidth} 100 re f`, "Q"];
+    commands.push(pdfText(table.title, left, pageHeight - 44, 21, true, "1 1 1"));
+    commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, pageHeight - 66, 9, false, "0.97 0.96 0.91"));
+    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, pageHeight - 83, 8, false, "0.97 0.96 0.91"));
 
-    let y = 716;
+    let y = topY;
     if (pageIndex === 0 && table.summary?.length) {
       const gap = 8;
       const cardWidth = (usableWidth - gap * (table.summary.length - 1)) / table.summary.length;
@@ -105,9 +116,15 @@ export function toPdf(table: ReportTable): Buffer {
       });
       y -= 72;
     }
+    if (pageIndex === 0 && table.note) {
+      const noteLines = wrapPdfLines(table.note, Math.floor(usableWidth/4.4));
+      commands.push("q","0.97 0.96 0.92 rg", `${left} ${y-noteHeight} ${usableWidth} ${noteHeight} re f`, "Q");
+      noteLines.forEach((note,i)=>commands.push(pdfText(note,left+8,y-14-i*10,8,false,"0.25 0.22 0.17")));
+      y -= noteHeight + 4;
+    }
 
     commands.push("q", "0.85 0.81 0.65 rg", `${left} ${y - headerHeight} ${usableWidth} ${headerHeight} re f`, "Q");
-    headerLines.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, left + index * columnWidth + 5, y - 13 - lineIndex * 9, 7, true))));
+    headerLines.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, colXs[index] + 5, y - 13 - lineIndex * 9, 7, true))));
     y -= headerHeight;
     rows.forEach((row, rowIndex) => {
       if (rowIndex % 2 === 1) commands.push("q", "0.97 0.96 0.91 rg", `${left} ${y - row.height} ${usableWidth} ${row.height} re f`, "Q");
@@ -130,7 +147,7 @@ export function toPdf(table: ReportTable): Buffer {
     const pageId = objects.length + 1;
     const contentId = pageId + 1;
     pageIds.push(pageId);
-    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`);
+    objects.push(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents ${contentId} 0 R >>`);
     objects.push(`<< /Length ${Buffer.byteLength(content, "utf8")} >>\nstream\n${content}\nendstream`);
   });
   objects[1] = `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(" ")}] /Count ${pageIds.length} >>`;
