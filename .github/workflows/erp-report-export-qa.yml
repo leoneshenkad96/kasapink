@@ -6,6 +6,7 @@ on:
       - 'artifacts/api-server/src/lib/report-export.ts'
       - 'artifacts/api-server/src/routes/erp.ts'
       - 'scripts/test-report-export.mjs'
+      - 'scripts/test-report-parity.mjs'
       - '.github/workflows/erp-report-export-qa.yml'
   workflow_dispatch:
 jobs:
