@@ -49,6 +49,10 @@ test('recipe and ingredient unit rules use atomic HTTP transactions', async t =>
   const call = async (route, method='GET', body) => { const response = await fetch(`http://127.0.0.1:${server.address().port}/api${route}`, {method,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},...(body ? {body:JSON.stringify(body)} : {})}); return {status:response.status,body:await response.json()}; };
   const save = async items => { const response=await fetch(`http://127.0.0.1:${server.address().port}/api/erp/products/1/recipe`, {method:'PUT',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({items})}); return {status:response.status,body:await response.json()}; };
 
+  const appSource = await readFile(path.join(root,'artifacts/erp-rumahan-emak/src/App.tsx'),'utf8');
+  assert.match(appSource,/bahan ·/);
+  assert.doesNotMatch(appSource,/Menyimpan\?|bahan makro \?/);
+
   const formulaCsv = loaded.exports.toCsv({
     title:'Uji CSV', columns:['Teks','Angka'], rows:[
       ['=SUM(A1:A2)',-42], ['+cmd',-1], ['-teks',0], ['@mention',1], ['\tpayload',2], ['\rpayload',3],
