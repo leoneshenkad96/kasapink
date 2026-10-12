@@ -596,15 +596,36 @@ router.get(
         db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)),
         db.select().from(preparationsTable).orderBy(asc(preparationsTable.name)),
       ]);
+      const valuation = (qty: number, cost: number) => roundMoney(qty * cost);
+      const valueTotal = [
+        ...ingredients.map(row => valuation(number(row.stock), number(row.averageCost))),
+        ...preparations.map(row => valuation(number(row.stock), number(row.averageCost))),
+      ].reduce((sum, value) => sum + value, 0);
+      // Exceptional concentration is a review flag only; it never changes recorded stock or HPP.
+      const stockStatus = (qty: number, cost: number, value: number) => {
+        const warnings: string[] = [];
+        if (qty < 0) warnings.push("STOK NEGATIF");
+        if (qty !== 0 && cost <= 0) warnings.push("HPP BELUM VALID");
+        if (valueTotal > 0 && value > valueTotal * 0.5) warnings.push("NILAI DOMINAN >50%");
+        return warnings.length ? warnings.join("; ") : "OK";
+      };
       const stockRows = [
-        ...ingredients.map((row) => ["Bahan", row.name, row.category, row.stockType, row.unit, number(row.stock), number(row.minStock), number(row.averageCost), roundMoney(number(row.stock) * number(row.averageCost))] as Array<string | number>),
-        ...preparations.map((row) => ["Preparation", row.name, "Preparation", "Makanan", row.unit, number(row.stock), "—", number(row.averageCost), roundMoney(number(row.stock) * number(row.averageCost))] as Array<string | number>),
+        ...ingredients.map(row => {
+          const qty = number(row.stock), cost = number(row.averageCost), value = valuation(qty, cost);
+          return ["Bahan", row.name, row.category, row.stockType, row.unit, qty, number(row.minStock), cost, value, stockStatus(qty,cost,value)] as Array<string | number>;
+        }),
+        ...preparations.map(row => {
+          const qty = number(row.stock), cost = number(row.averageCost), value = valuation(qty,cost);
+          return ["Preparation", row.name, "Preparation", "Makanan", row.unit, qty, "—", cost, value, stockStatus(qty,cost,value)] as Array<string | number>;
+        }),
       ];
-      table = { title: "Laporan Posisi Persediaan", subtitle: `Posisi stok saat laporan dibuat (WIB): ${jakartaToday()} • Bahan dan Preparation`, orientation: "landscape",
-        columns: ["Jenis", "Nama", "Kategori", "Lini", "Unit", "Stok", "Minimum", "HPP/unit", "Nilai stok"],
-        decimalColumns: ["HPP/unit", "Nilai stok"], currencyColumns: ["HPP/unit", "Nilai stok"], columnWeights: [0.9, 1.8, 1.2, 0.95, 0.6, 0.7, 0.7, 1.15, 1.25],
-        summary: [{ label: "Item bahan", value: String(ingredients.length) }, { label: "Preparation", value: String(preparations.length) }, { label: "Nilai persediaan", value: formatRupiah(stockRows.reduce((sum, row) => sum + Number(row[8]), 0)) }],
-        note: "Nilai persediaan = stok saat ini × HPP rata-rata. Bukan nilai penjualan; termasuk stok nol/negatif jika tercatat.",
+      const reviewCount = stockRows.filter(row => row[9] !== "OK").length;
+      table = { title: "Laporan Posisi Persediaan", subtitle: `Snapshot ${jakartaToday()} WIB — Bahan dan Preparation (bukan riwayat stok)`, orientation: "landscape",
+        columns: ["Jenis", "Nama", "Kategori", "Lini", "Unit", "Stok", "Min", "HPP/unit", "Nilai stok", "Validasi"],
+        decimalColumns: ["HPP/unit", "Nilai stok"], currencyColumns: ["HPP/unit", "Nilai stok"],
+        columnWeights: [0.8,1.65,0.95,0.8,0.5,0.65,0.5,1.05,1.12,1.75],
+        summary: [{ label: "Item bahan", value: String(ingredients.length) }, { label: "Preparation", value: String(preparations.length) }, { label: "Nilai tercatat", value: formatRupiah(valueTotal) }, { label: "Perlu verifikasi", value: String(reviewCount) }],
+        note: "Nilai stok = kuantitas × HPP rata-rata. Jumlah ini BELUM TERVALIDASI jika ada stok negatif, HPP kosong/nol, atau nilai item dominan (>50% total). Tanda dominan hanya indikasi pemeriksaan, bukan bukti salah. Jangan gunakan sebagai nilai aset final sebelum diverifikasi.",
         rows: stockRows };
     } else if (type === "transactions") {
       const [purchases, sales, wasteRows, expenseRows, ingredientAdjustments, prepAdjustments, ingredientCatalog, prepCatalog] = await Promise.all([
