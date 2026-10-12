@@ -86,7 +86,7 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   pool = loaded.exports.getPool();
 
   await applySqlFile(pool, path.join(root, "lib/db/drizzle/0000_pink_deathstrike.sql"));
-  for (const name of ["0002_product_modes.sql", "0003_ingredient_stock_type.sql", "0004_product_business_type.sql", "0005_user_roles.sql", "0006_add_user_role.sql", "0007_recipe_units.sql", "0008_preparations.sql", "0010_product_preparations.sql", "0011_fnb_controls.sql", "0012_product_prep_units.sql", "0013_preparation_yield.sql", "0014_stock_count_variance.sql", "0015_production_schema_compat.sql", "0016_fix_date_index_operator_classes.sql", "0017_audit_log.sql", "0018_sales_costing_snapshot.sql", "0019_recipe_versions.sql", "0020_audit_before_after.sql"]) {
+  for (const name of ["0002_product_modes.sql", "0003_ingredient_stock_type.sql", "0004_product_business_type.sql", "0005_user_roles.sql", "0006_add_user_role.sql", "0007_recipe_units.sql", "0008_preparations.sql", "0010_product_preparations.sql", "0011_fnb_controls.sql", "0012_product_prep_units.sql", "0013_preparation_yield.sql", "0014_stock_count_variance.sql", "0015_production_schema_compat.sql", "0016_fix_date_index_operator_classes.sql", "0017_audit_log.sql", "0018_sales_costing_snapshot.sql", "0019_recipe_versions.sql", "0020_audit_before_after.sql", "0021_business_line_snapshots.sql"]) {
     await applySqlFile(pool, path.join(root, "lib/db/migrations", name));
   }
 
@@ -270,14 +270,15 @@ test("ERP HTTP flow persists negative-stock recovery and finance totals", { time
   const fnb = await request("/erp/fnb-report?startDate=2026-10-10&endDate=2026-10-10", token);
   assert.equal(fnb.status, 200);
   assert.equal(fnb.body.revenue, 1700);
-  assert.equal(fnb.body.actualCogs, 860);
+  assert.equal(fnb.body.recordedCogs, 860);
+  assert.equal(fnb.body.foodCostBasis, "sale_transaction_snapshot");
   const recipeEdit = await request(`/erp/products/${productId}/recipe`, token, "PUT", {
     items: [{ ingredientId, qtyRequired: 99, recipeUnit: "kg" }],
   });
   assert.equal(recipeEdit.status, 200);
   const fnbAfterRecipeEdit = await request("/erp/fnb-report?startDate=2026-10-10&endDate=2026-10-10", token);
   assert.equal(fnbAfterRecipeEdit.status, 200);
-  assert.equal(fnbAfterRecipeEdit.body.theoreticalCogs, fnb.body.theoreticalCogs);
+  assert.equal(fnbAfterRecipeEdit.body.recordedCogs, fnb.body.recordedCogs);
   const directProduct = await request("/erp/products", token, "POST", {
     name: "Delete sale test product", sellingPrice: 100, businessType: "Makanan", needsRecipe: false, stock: 5, averageCost: 40,
   });

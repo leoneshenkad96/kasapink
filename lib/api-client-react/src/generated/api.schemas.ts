@@ -49,6 +49,8 @@ export interface Ingredient {
   minStock: number;
   lastPrice: number;
   averageCost: number;
+  /** Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep. */
+  unitLocked?: boolean;
 }
 
 export type IngredientInputStockType = typeof IngredientInputStockType[keyof typeof IngredientInputStockType];
@@ -73,9 +75,15 @@ export interface IngredientInput {
      * @maxLength 30
      */
   unit: string;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock: number;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   minStock: number;
   /** @minimum 0 */
   openingUnitCost: number;
@@ -103,7 +111,10 @@ export interface IngredientUpdate {
      * @maxLength 30
      */
   unit?: string;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   minStock?: number;
 }
 
@@ -143,7 +154,10 @@ export interface ProductInput {
   sellingPrice: number;
   businessType: ProductInputBusinessType;
   needsRecipe?: boolean;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock?: number;
   /** @minimum 0 */
   averageCost?: number;
@@ -169,7 +183,10 @@ export interface ProductUpdate {
   sellingPrice?: number;
   businessType?: ProductUpdateBusinessType;
   needsRecipe?: boolean;
-  /** @minimum 0 */
+  /**
+     * @minimum 0
+     * @maximum 99999999999.999
+     */
   stock?: number;
   /** @minimum 0 */
   averageCost?: number;
@@ -191,7 +208,10 @@ export interface RecipeLineInput {
      * @maxLength 30
      */
   recipeUnit: string;
-  /** @exclusiveMinimum 0 */
+  /**
+     * @maximum 99999999999.999
+     * @exclusiveMinimum 0
+     */
   qtyRequired: number;
 }
 
@@ -201,13 +221,17 @@ export interface RecipeInput {
 
 export interface PurchaseLineInput {
   ingredientId: number;
-  /** @exclusiveMinimum 0 */
+  /**
+     * @maximum 99999999999.999
+     * @exclusiveMinimum 0
+     */
   quantity: number;
   /** @minimum 0 */
   totalCost: number;
 }
 
 export interface PurchaseInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: string;
   /**
      * @minLength 1
@@ -242,6 +266,7 @@ export interface SaleLineInput {
 }
 
 export interface SaleInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: string;
   /** Admin-only override for insufficient stock */
   allowNegativeStock?: boolean;
@@ -276,11 +301,13 @@ export type StockCountLineInput = (unknown & {
   /**
      * Physical stock quantity, up to three decimal places.
      * @minimum 0
+     * @maximum 99999999999.999
      */
   countedStock: number;
 });
 
 export interface StockCountInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: string;
   /**
      * @minItems 1
@@ -345,6 +372,10 @@ export interface RecipeUsageVariance {
   actualQty: number;
   theoreticalQty: number;
   varianceQty: number;
+  /** Actual movement value using the unit cost captured at each movement. */
+  actualCost: number;
+  /** Theoretical usage value using costs captured in the sale snapshot. */
+  theoreticalCost: number;
   varianceCost: number;
 }
 
@@ -372,13 +403,29 @@ export interface StockOpnameVariance {
   varianceValue: number | null;
 }
 
+export type FnbReportFoodCostBasis = typeof FnbReportFoodCostBasis[keyof typeof FnbReportFoodCostBasis];
+
+
+export const FnbReportFoodCostBasis = {
+  sale_transaction_snapshot: 'sale_transaction_snapshot',
+} as const;
+
+/**
+ * Variance uses costs captured when sales and stock movements occurred.
+ */
+export type FnbReportVarianceValuationBasis = typeof FnbReportVarianceValuationBasis[keyof typeof FnbReportVarianceValuationBasis];
+
+
+export const FnbReportVarianceValuationBasis = {
+  transaction_time: 'transaction_time',
+} as const;
+
 export type FnbReportMenusItem = {
   productId: number;
   productName: string;
   quantity: number;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
+  recordedCogs: number;
   grossProfit: number;
   foodCostPercentage: number;
 };
@@ -404,28 +451,51 @@ export type FnbReportWasteItem = {
   note: string | null;
 };
 
+export type FnbReportExpensesItemBusinessType = typeof FnbReportExpensesItemBusinessType[keyof typeof FnbReportExpensesItemBusinessType];
+
+
+export const FnbReportExpensesItemBusinessType = {
+  Makanan: 'Makanan',
+  Parfum: 'Parfum',
+  Bersama: 'Bersama',
+} as const;
+
 export type FnbReportExpensesItem = {
   id: number;
   date: string;
   category: string;
   description: string;
   amount: number;
+  businessType: FnbReportExpensesItemBusinessType;
+  allocatedAmount: number;
 };
 
 export interface FnbReport {
   startDate: string;
   endDate: string;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
-  actualFoodCostPercentage: number;
-  theoreticalFoodCostPercentage: number;
-  foodCostVariance: number;
+  /** COGS captured in immutable sale transaction snapshots; not a physical-inventory measurement. */
+  recordedCogs: number;
+  /** Recorded COGS divided by F&B revenue for the period. */
+  recordedFoodCostPercentage: number;
+  foodCostBasis: FnbReportFoodCostBasis;
   wasteCost: number;
   grossProfit: number;
   operatingExpenses: number;
+  directExpenses: number;
+  sharedExpenses: number;
+  allocatedSharedExpenses: number;
+  /** Percentage of period revenue attributable to F&B. */
+  sharedExpenseAllocationRate: number;
+  /** Shared expenses left unallocated when period revenue is zero. */
+  unallocatedSharedExpenses: number;
   netProfit: number;
   wasteCount: number;
+  /** Variance uses costs captured when sales and stock movements occurred. */
+  varianceValuationBasis: FnbReportVarianceValuationBasis;
+  /** Percentage of F&B sale lines with complete immutable recipe snapshots. */
+  snapshotCoverage: number;
+  incompleteSnapshotLines: number;
   recipeUsageVariance: RecipeUsageVariance[];
   /**
      * Legacy alias for recipeUsageVariance.
@@ -456,7 +526,16 @@ export interface FinanceReport {
   days: DailyFinance[];
 }
 
+export type ErpStateDataStatus = typeof ErpStateDataStatus[keyof typeof ErpStateDataStatus];
+
+
+export const ErpStateDataStatus = {
+  ready: 'ready',
+} as const;
+
 export interface ErpState {
+  dataStatus: ErpStateDataStatus;
+  generatedAt: string;
   ingredients: Ingredient[];
   products: Product[];
   recipes: RecipeItem[];
@@ -466,8 +545,27 @@ export interface ErpState {
   lowStockCount: number;
 }
 
+export type ErpStateUnavailableStatus = typeof ErpStateUnavailableStatus[keyof typeof ErpStateUnavailableStatus];
+
+
+export const ErpStateUnavailableStatus = {
+  degraded: 'degraded',
+} as const;
+
+export interface ErpStateUnavailable {
+  status: ErpStateUnavailableStatus;
+  error: string;
+  failedComponents: string[];
+}
+
 export type GetFinanceReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: string;
 };
 
@@ -527,7 +625,13 @@ export type ListProducts200 = {
 };
 
 export type ListSalesParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; backdating is allowed.
+ */
 startDate?: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected.
+ */
 endDate?: string;
 /**
  * @minimum 1
@@ -546,12 +650,24 @@ export type ListSales200 = {
 };
 
 export type GetFnbReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: string;
 };
 
 export type LegacyGetFinanceReportParams = {
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 startDate: string;
+/**
+ * Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed.
+ */
 endDate: string;
 };
 

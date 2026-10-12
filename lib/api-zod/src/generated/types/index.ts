@@ -8,11 +8,17 @@
 
 export * from './dailyFinance';
 export * from './erpState';
+export * from './erpStateDataStatus';
+export * from './erpStateUnavailable';
+export * from './erpStateUnavailableStatus';
 export * from './error';
 export * from './financeReport';
 export * from './fnbReport';
 export * from './fnbReportExpensesItem';
+export * from './fnbReportExpensesItemBusinessType';
+export * from './fnbReportFoodCostBasis';
 export * from './fnbReportMenusItem';
+export * from './fnbReportVarianceValuationBasis';
 export * from './fnbReportWasteItem';
 export * from './fnbReportWasteItemItemType';
 export * from './getFinanceReportParams';

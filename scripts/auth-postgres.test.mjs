@@ -95,7 +95,7 @@ test('auth with an isolated PostgreSQL cluster and the real Drizzle adapter', { 
   loaded._compile(compiled.outputFiles[0].text, filename);
   pool = loaded.exports.getPool();
   // Apply the repository's existing account migrations to the empty test DB.
-  for (const migration of ['0005_user_roles.sql', '0006_add_user_role.sql']) {
+  for (const migration of ['0005_user_roles.sql', '0006_add_user_role.sql', '0017_audit_log.sql', '0020_audit_before_after.sql']) {
     await pool.query(await readFile(path.join(root, 'lib/db/migrations', migration), 'utf8'));
   }
   const app = express();
@@ -120,6 +120,7 @@ test('auth with an isolated PostgreSQL cluster and the real Drizzle adapter', { 
     return { status: response.status, body: data ? JSON.parse(data) : null };
   };
   const password = randomBytes(16).toString('hex');
+  const auditSecrets = [password, process.env.ADMIN_BOOTSTRAP_TOKEN];
   const login = async (username, currentPassword = password) => {
     const result = await request('/login', null, 'POST', { username, password: currentPassword });
     assert.equal(result.status, 200, 'Login must succeed');
@@ -182,6 +183,7 @@ test('auth with an isolated PostgreSQL cluster and the real Drizzle adapter', { 
     const token = await login('test-operator', operatorPassword);
     const other = await login('test-operator', operatorPassword);
     const newPassword = randomBytes(16).toString('hex');
+    auditSecrets.push(newPassword);
     const changed = await request('/users/change-password', token, 'PUT', { oldPassword: operatorPassword, newPassword });
     assert.equal(changed.status, 200);
     assert.equal((await request('/me', token)).status, 401);
@@ -195,6 +197,7 @@ test('auth with an isolated PostgreSQL cluster and the real Drizzle adapter', { 
   await t.test('concurrent password changes have only one winner', async () => {
     const token = await login('test-operator', operatorPassword);
     const passwords = [randomBytes(16).toString('hex'), randomBytes(16).toString('hex')];
+    auditSecrets.push(...passwords);
     const results = await Promise.all(passwords.map(newPassword => request('/users/change-password', token, 'PUT', {
       oldPassword: operatorPassword, newPassword,
     })));
@@ -209,6 +212,7 @@ test('auth with an isolated PostgreSQL cluster and the real Drizzle adapter', { 
   await t.test('admin reset, role update and deletion revoke real persisted sessions', async () => {
     const oldToken = await login('test-operator', operatorPassword);
     const resetPassword = randomBytes(16).toString('hex');
+    auditSecrets.push(resetPassword);
     const reset = await request(`/users/${operatorId}`, adminToken, 'PUT', { role: 'user', newPassword: resetPassword });
     assert.equal(reset.status, 200);
     assert.equal((await request('/me', oldToken)).status, 401);
@@ -219,5 +223,31 @@ test('auth with an isolated PostgreSQL cluster and the real Drizzle adapter', { 
     assert.equal((await request(`/users/${operatorId}`, adminToken, 'DELETE')).status, 200);
     assert.equal((await request('/me', testingToken)).status, 401);
     assert.equal((await request('/me', adminToken)).status, 200);
+  });
+
+  await t.test('auth audit uses an allowlist and never persists credentials or hashes', async () => {
+    let rows = [];
+    for (let attempt = 0; attempt < 50; attempt++) {
+      rows = (await pool.query(`SELECT details, before_data, after_data, reason
+        FROM erp_audit_log ORDER BY id`)).rows;
+      if (rows.length >= 7) break;
+      await new Promise(resolve => setTimeout(resolve, 20));
+    }
+    assert.ok(rows.length >= 7, 'Expected auth mutations to be audited');
+
+    const allowed = new Set(['targetUserId', 'targetUsername', 'roleBefore', 'roleAfter', 'passwordChanged', 'result']);
+    for (const row of rows) {
+      assert.equal(row.before_data, null);
+      assert.equal(row.after_data, null);
+      assert.equal(row.reason, null);
+      const details = JSON.parse(row.details);
+      assert.ok(['success', 'rejected'].includes(details.result));
+      assert.ok(Object.keys(details).every(key => allowed.has(key)));
+      const serialized = JSON.stringify(row);
+      for (const secret of auditSecrets) assert.equal(serialized.includes(secret), false);
+      assert.equal(/password_hash|\$2[aby]\$/i.test(serialized), false);
+      assert.equal(/authorization|bearer|cookie|token/i.test(serialized), false);
+    }
+    assert.ok(rows.some(row => JSON.parse(row.details).passwordChanged === true));
   });
 });

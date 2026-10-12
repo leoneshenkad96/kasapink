@@ -8,6 +8,7 @@
 import type { SaleLineInput } from './saleLineInput';
 
 export interface SaleInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: Date;
   /** Admin-only override for insufficient stock */
   allowNegativeStock?: boolean;

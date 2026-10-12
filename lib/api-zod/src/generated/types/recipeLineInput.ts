@@ -13,6 +13,9 @@ export interface RecipeLineInput {
      * @maxLength 30
      */
   recipeUnit: string;
-  /** @exclusiveMinimum 0 */
+  /**
+     * @maximum 99999999999.999
+     * @exclusiveMinimum 0
+     */
   qtyRequired: number;
 }

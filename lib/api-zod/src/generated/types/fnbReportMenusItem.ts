@@ -11,8 +11,7 @@ export type FnbReportMenusItem = {
   productName: string;
   quantity: number;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
+  recordedCogs: number;
   grossProfit: number;
   foodCostPercentage: number;
 };

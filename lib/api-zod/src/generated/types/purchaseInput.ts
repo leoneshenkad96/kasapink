@@ -8,6 +8,7 @@
 import type { PurchaseLineInput } from './purchaseLineInput';
 
 export interface PurchaseInput {
+  /** Valid YYYY-MM-DD in WIB; future dates are rejected and backdating is allowed. */
   date: Date;
   /**
      * @minLength 1

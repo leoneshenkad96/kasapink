@@ -6,7 +6,9 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { FnbReportExpensesItem } from './fnbReportExpensesItem';
+import type { FnbReportFoodCostBasis } from './fnbReportFoodCostBasis';
 import type { FnbReportMenusItem } from './fnbReportMenusItem';
+import type { FnbReportVarianceValuationBasis } from './fnbReportVarianceValuationBasis';
 import type { FnbReportWasteItem } from './fnbReportWasteItem';
 import type { RecipeUsageVariance } from './recipeUsageVariance';
 import type { StockOpnameVariance } from './stockOpnameVariance';
@@ -15,16 +17,28 @@ export interface FnbReport {
   startDate: Date;
   endDate: Date;
   revenue: number;
-  actualCogs: number;
-  theoreticalCogs: number;
-  actualFoodCostPercentage: number;
-  theoreticalFoodCostPercentage: number;
-  foodCostVariance: number;
+  /** COGS captured in immutable sale transaction snapshots; not a physical-inventory measurement. */
+  recordedCogs: number;
+  /** Recorded COGS divided by F&B revenue for the period. */
+  recordedFoodCostPercentage: number;
+  foodCostBasis: FnbReportFoodCostBasis;
   wasteCost: number;
   grossProfit: number;
   operatingExpenses: number;
+  directExpenses: number;
+  sharedExpenses: number;
+  allocatedSharedExpenses: number;
+  /** Percentage of period revenue attributable to F&B. */
+  sharedExpenseAllocationRate: number;
+  /** Shared expenses left unallocated when period revenue is zero. */
+  unallocatedSharedExpenses: number;
   netProfit: number;
   wasteCount: number;
+  /** Variance uses costs captured when sales and stock movements occurred. */
+  varianceValuationBasis: FnbReportVarianceValuationBasis;
+  /** Percentage of F&B sale lines with complete immutable recipe snapshots. */
+  snapshotCoverage: number;
+  incompleteSnapshotLines: number;
   recipeUsageVariance: RecipeUsageVariance[];
   /**
      * Legacy alias for recipeUsageVariance.

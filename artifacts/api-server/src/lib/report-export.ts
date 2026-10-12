@@ -1,3 +1,5 @@
+import { wibDateKey } from "./business-date";
+
 export type ReportTable = {
   title: string;
   subtitle?: string;
@@ -19,7 +21,8 @@ export function toCsv(table: ReportTable): string {
   const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
   return [table.columns, ...table.rows].map((row, rowIndex) => row.map((value, columnIndex) => {
     const formatted = rowIndex > 0 && decimalIndexes.has(columnIndex) && typeof value === "number" ? value.toFixed(2) : String(value);
-    return `"${formatted.replace(/"/g, '""')}"`;
+    const safeValue = typeof value === "string" && /^[=+\-@\t\r]/.test(formatted) ? `'${formatted}` : formatted;
+    return `"${safeValue.replace(/"/g, '""')}"`;
   }).join(",")).join("\r\n");
 }
 
@@ -30,20 +33,65 @@ export function toExcelHtml(table: ReportTable): string {
 
 const pdfText = (text: string, x: number, y: number, size = 9, bold = false, color = "0.38 0.20 0.28") => `BT /${bold ? "F2" : "F1"} ${size} Tf ${color} rg ${x} ${y} Td (${escapePdf(text)}) Tj ET`;
 
+function wrapPdfLines(value: string, maxCharacters: number): string[] {
+  const words = value.trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [""];
+  const lines: string[] = [];
+  let current = "";
+  const flush = () => { if (current) { lines.push(current); current = ""; } };
+  for (const word of words) {
+    if (word.length > maxCharacters) {
+      flush();
+      for (let offset = 0; offset < word.length; offset += maxCharacters) {
+        const part = word.slice(offset, offset + maxCharacters);
+        if (part.length === maxCharacters) lines.push(part);
+        else current = part;
+      }
+      continue;
+    }
+    if (!current) current = word;
+    else if (`${current} ${word}`.length <= maxCharacters) current += ` ${word}`;
+    else { flush(); current = word; }
+  }
+  flush();
+  return lines;
+}
+
 export function toPdf(table: ReportTable): Buffer {
   const pageWidth = 595;
   const left = 36;
   const usableWidth = pageWidth - left * 2;
   const columnWidth = usableWidth / Math.max(table.columns.length, 1);
   const decimalIndexes = new Set((table.decimalColumns ?? []).map((column) => table.columns.indexOf(column)).filter((index) => index >= 0));
-  const rowsPerPage = table.summary?.length ? 22 : 28;
-  const chunks: Array<Array<Array<string | number>>> = [];
-  for (let index = 0; index < Math.max(table.rows.length, 1); index += rowsPerPage) chunks.push(table.rows.slice(index, index + rowsPerPage));
+  const maxCharacters = Math.max(4, Math.floor((columnWidth - 10) / (7 * 0.52)));
+  const headerLines = table.columns.map((column) => wrapPdfLines(column, maxCharacters));
+  const headerHeight = Math.max(22, 10 + Math.max(...headerLines.map((lines) => lines.length)) * 9);
+  const preparedRows = table.rows.map((row) => {
+    const cells = row.map((value, index) => {
+      const formatted = decimalIndexes.has(index) && typeof value === "number"
+        ? `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+        : String(value);
+      return wrapPdfLines(formatted, maxCharacters);
+    });
+    return { cells, height: Math.max(20, 10 + Math.max(...cells.map((lines) => lines.length)) * 9) };
+  });
+  const chunks: typeof preparedRows[] = [[]];
+  let pageIndex = 0;
+  let remainingHeight = (table.summary?.length ? 644 : 716) - headerHeight - 42;
+  for (const row of preparedRows) {
+    if (chunks[pageIndex].length && row.height > remainingHeight) {
+      pageIndex += 1;
+      chunks.push([]);
+      remainingHeight = 716 - headerHeight - 42;
+    }
+    chunks[pageIndex].push(row);
+    remainingHeight -= row.height;
+  }
   const pages = chunks.map((rows, pageIndex) => {
     const commands: string[] = ["q", "0.38 0.20 0.28 rg", `0 742 ${pageWidth} 100 re f`, "Q"];
     commands.push(pdfText(table.title, left, 798, 21, true, "1 1 1"));
     commands.push(pdfText(table.subtitle ?? "Laporan operasional Kasapink ERP", left, 776, 9, false, "0.98 0.91 0.94"));
-    commands.push(pdfText(`Dibuat ${new Date().toISOString().slice(0, 10)}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.98 0.91 0.94"));
+    commands.push(pdfText(`Dibuat ${wibDateKey()}  |  Halaman ${pageIndex + 1} dari ${chunks.length}`, left, 758, 8, false, "0.98 0.91 0.94"));
 
     let y = 716;
     if (pageIndex === 0 && table.summary?.length) {
@@ -58,19 +106,14 @@ export function toPdf(table: ReportTable): Buffer {
       y -= 72;
     }
 
-    commands.push("q", "0.95 0.75 0.82 rg", `${left} ${y - 22} ${usableWidth} 22 re f`, "Q");
-    table.columns.forEach((column, index) => commands.push(pdfText(column.slice(0, 18), left + index * columnWidth + 5, y - 15, 7, true)));
-    y -= 22;
+    commands.push("q", "0.95 0.75 0.82 rg", `${left} ${y - headerHeight} ${usableWidth} ${headerHeight} re f`, "Q");
+    headerLines.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, left + index * columnWidth + 5, y - 13 - lineIndex * 9, 7, true))));
+    y -= headerHeight;
     rows.forEach((row, rowIndex) => {
-      if (rowIndex % 2 === 1) commands.push("q", "0.98 0.96 0.97 rg", `${left} ${y - 20} ${usableWidth} 20 re f`, "Q");
-      row.forEach((value, index) => {
-        const formatted = decimalIndexes.has(index) && typeof value === "number"
-          ? `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-          : String(value);
-        commands.push(pdfText(formatted.slice(0, 22), left + index * columnWidth + 5, y - 14, 7));
-      });
-      commands.push("q", "0.95 0.75 0.82 RG", "0.3 w", `${left} ${y - 20} m ${left + usableWidth} ${y - 20} l S`, "Q");
-      y -= 20;
+      if (rowIndex % 2 === 1) commands.push("q", "0.98 0.96 0.97 rg", `${left} ${y - row.height} ${usableWidth} ${row.height} re f`, "Q");
+      row.cells.forEach((lines, index) => lines.forEach((line, lineIndex) => commands.push(pdfText(line, left + index * columnWidth + 5, y - 12 - lineIndex * 9, 7))));
+      commands.push("q", "0.95 0.75 0.82 RG", "0.3 w", `${left} ${y - row.height} m ${left + usableWidth} ${y - row.height} l S`, "Q");
+      y -= row.height;
     });
     commands.push(pdfText("Kasapink ERP  |  Laporan dibuat otomatis dari data sistem", left, 24, 7, false, "0.55 0.38 0.45"));
     return commands.join("\n");

@@ -207,6 +207,7 @@ export const operatingExpensesTable = pgTable(
     category: text("category").notNull(),
     description: text("description").notNull(),
     amount: money("amount"),
+    businessType: text("business_type").notNull().default("Bersama"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("erp_operating_expenses_date_idx").on(table.date)],
@@ -267,6 +268,7 @@ export const salesDetailsTable = pgTable("erp_sales_details", {
   revenue: money("revenue"),
   costOfGoodsSold: money("cost_of_goods_sold"),
   costingSnapshot: text("costing_snapshot"),
+  businessType: text("business_type").notNull().default("Makanan"),
 });
 
 export const stockMovementsTable = pgTable(

@@ -6,6 +6,7 @@
  * OpenAPI spec version: 0.1.0
  */
 import type { DailyFinance } from './dailyFinance';
+import type { ErpStateDataStatus } from './erpStateDataStatus';
 import type { Ingredient } from './ingredient';
 import type { Product } from './product';
 import type { Purchase } from './purchase';
@@ -13,6 +14,8 @@ import type { RecipeItem } from './recipeItem';
 import type { Sale } from './sale';
 
 export interface ErpState {
+  dataStatus: ErpStateDataStatus;
+  generatedAt: Date;
   ingredients: Ingredient[];
   products: Product[];
   recipes: RecipeItem[];

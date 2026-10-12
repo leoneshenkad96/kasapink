@@ -5,6 +5,7 @@
  * API for Kasapink ERP
  * OpenAPI spec version: 0.1.0
  */
+import type { FnbReportExpensesItemBusinessType } from './fnbReportExpensesItemBusinessType';
 
 export type FnbReportExpensesItem = {
   id: number;
@@ -12,4 +13,6 @@ export type FnbReportExpensesItem = {
   category: string;
   description: string;
   amount: number;
+  businessType: FnbReportExpensesItemBusinessType;
+  allocatedAmount: number;
 };

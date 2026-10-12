@@ -6,7 +6,6 @@ import {
   CreateProductBody,
   CreateProductResponse,
   GetErpStateResponse,
-  GetFinanceReportQueryParams,
   GetFinanceReportResponse,
   RecordPurchaseBody,
   RecordPurchaseResponse,
@@ -46,8 +45,10 @@ import {
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
 import { checkRole, requireOperationalRole, verifyToken, type AuthRequest } from "../lib/auth";
+import { isAllowedBusinessDate, wibDateKey } from "../lib/business-date";
 import { preparationComponentCost } from "../lib/costing";
 import { movingAverageAfterReceipt } from "../lib/moving-average";
+import { normalizeComputedQuantity, validStoredQuantity } from "../lib/quantity";
 import { toCsv, toExcelHtml, toPdf, type ReportTable } from "../lib/report-export";
 
 const router: IRouter = Router();
@@ -100,13 +101,21 @@ function safe(handler: (req: Request, res: Response) => Promise<void>): RequestH
   };
 }
 
-async function optionalDbQuery<T>(req: Request, label: string, operation: PromiseLike<T>, fallback: T): Promise<T> {
+async function stateDbQuery<T>(req: Request, component: string, operation: PromiseLike<T>): Promise<T | null> {
   try {
     return await operation;
   } catch (error: unknown) {
-    req.log.warn({ err: error, query: label }, "ERP state query degraded; using fallback");
-    return fallback;
+    req.log.error({ err: error, component }, "ERP state component query failed");
+    return null;
   }
+}
+
+function unavailableState(res: Response, failedComponents: string[]): void {
+  res.status(503).json({
+    status: "degraded",
+    error: "Sebagian data ERP gagal dimuat.",
+    failedComponents,
+  });
 }
 
 function invalid(res: Response, message: string): void {
@@ -142,12 +151,30 @@ function roundMoney(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function roundQuantity(value: number): number {
-  return Math.round((value + Number.EPSILON) * 1000) / 1000;
+function checkedInputQuantity(value: number, label: string, options: { allowNegative?: boolean; allowZero?: boolean } = {}): number {
+  if (!validStoredQuantity(value, options)) {
+    throw new HttpError(`${label} harus sesuai numeric(14,3): maksimal tiga desimal dan tidak melebihi 99.999.999.999,999.`, 400);
+  }
+  return value;
+}
+
+function checkedComputedQuantity(value: number, label: string): number {
+  const normalized = normalizeComputedQuantity(value);
+  if (normalized === null) {
+    throw new HttpError(`${label} tidak dapat disimpan pada numeric(14,3) atau menjadi nol setelah pembulatan.`, 400);
+  }
+  return normalized;
 }
 
 function dateKey(value: Date | string): string {
   return value instanceof Date ? value.toISOString().slice(0, 10) : value;
+}
+
+function checkedBusinessDate(value: unknown, label: string): string {
+  if (!isAllowedBusinessDate(value)) {
+    throw new HttpError(`${label} wajib berformat YYYY-MM-DD, valid secara kalender, dan tidak boleh melewati hari ini di WIB.`, 400);
+  }
+  return value;
 }
 
 function asIngredient(row: typeof ingredientsTable.$inferSelect) {
@@ -245,18 +272,12 @@ async function ensureSeedData(): Promise<void> {
 
 
 function jakartaToday(): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Jakarta",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(new Date());
-  const value = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((part) => part.type === type)?.value ?? "";
-  return `${value("year")}-${value("month")}-${value("day")}`;
+  return wibDateKey();
 }
 
 function dateRange(startDate: string, endDate: string): string[] {
+  checkedBusinessDate(startDate, "Tanggal awal");
+  checkedBusinessDate(endDate, "Tanggal akhir");
   if (startDate > endDate) {
     throw new HttpError("Tanggal awal harus sebelum atau sama dengan tanggal akhir.", 400);
   }
@@ -327,9 +348,11 @@ router.get(
   "/erp/state",
   safe(async (req, res) => {
     // await ensureSeedData();   // disabled – prevents auto‑reseed
-    const ingredientRows = await optionalDbQuery(req, "ingredients", db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name)), []);
-    const productRows = await optionalDbQuery(req, "products", db.select().from(productsTable).orderBy(asc(productsTable.name)), []);
-    const recipeRows = await optionalDbQuery(req, "recipes", db
+    const todayDate = jakartaToday();
+    const [ingredientRows, productRows, recipeRows, purchaseHeaders, saleHeaders, today] = await Promise.all([
+      stateDbQuery(req, "ingredients", db.select().from(ingredientsTable).orderBy(asc(ingredientsTable.name))),
+      stateDbQuery(req, "products", db.select().from(productsTable).orderBy(asc(productsTable.name))),
+      stateDbQuery(req, "recipes", db
         .select({
           productId: recipeItemsTable.productId,
           ingredientId: recipeItemsTable.ingredientId,
@@ -340,24 +363,39 @@ router.get(
         })
         .from(recipeItemsTable)
         .innerJoin(ingredientsTable, eq(recipeItemsTable.ingredientId, ingredientsTable.id))
-        .orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name)),
-      []);
-    const purchaseHeaders = await optionalDbQuery(req, "purchase headers", db
+        .orderBy(asc(recipeItemsTable.productId), asc(ingredientsTable.name))),
+      stateDbQuery(req, "purchase_headers", db
         .select()
         .from(purchasesTable)
         .orderBy(desc(purchasesTable.date), desc(purchasesTable.id))
-        .limit(6),
-      []);
-    const saleHeaders = await optionalDbQuery(req, "sale headers", db
+        .limit(6)),
+      stateDbQuery(req, "sale_headers", db
         .select()
         .from(salesTable)
         .orderBy(desc(salesTable.date), desc(salesTable.id))
-        .limit(6), []);
+        .limit(6)),
+      stateDbQuery(req, "today_finance", financeReport(todayDate, todayDate)),
+    ]);
 
-    const purchaseIds = purchaseHeaders.map((row) => row.id);
-    const saleIds = saleHeaders.map((row) => row.id);
-    const purchaseLines = purchaseIds.length
-        ? await optionalDbQuery(req, "purchase details", db
+    const primaryComponents = [
+      ["ingredients", ingredientRows],
+      ["products", productRows],
+      ["recipes", recipeRows],
+      ["purchase_headers", purchaseHeaders],
+      ["sale_headers", saleHeaders],
+      ["today_finance", today],
+    ] as const;
+    const failedPrimary = primaryComponents.filter(([, value]) => value === null).map(([component]) => component);
+    if (failedPrimary.length) {
+      unavailableState(res, failedPrimary);
+      return;
+    }
+
+    const purchaseIds = purchaseHeaders!.map((row) => row.id);
+    const saleIds = saleHeaders!.map((row) => row.id);
+    const [purchaseLines, saleLines] = await Promise.all([
+      purchaseIds.length
+        ? stateDbQuery(req, "purchase_details", db
         .select({
           purchaseId: purchaseDetailsTable.purchaseId,
           ingredientId: purchaseDetailsTable.ingredientId,
@@ -369,21 +407,30 @@ router.get(
         })
         .from(purchaseDetailsTable)
         .innerJoin(ingredientsTable, eq(purchaseDetailsTable.ingredientId, ingredientsTable.id))
-        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)), [])
-      : [];
-    const saleLines = saleIds.length
-      ? await optionalDbQuery(req, "sale details", db
+        .where(inArray(purchaseDetailsTable.purchaseId, purchaseIds)))
+        : Promise.resolve([]),
+      saleIds.length
+      ? stateDbQuery(req, "sale_details", db
         .select()
         .from(salesDetailsTable)
-        .where(inArray(salesDetailsTable.salesId, saleIds)), [])
-      : [];
+        .where(inArray(salesDetailsTable.salesId, saleIds)))
+      : Promise.resolve([]),
+    ]);
+    const failedDetails = [
+      ...(purchaseLines === null ? ["purchase_details"] : []),
+      ...(saleLines === null ? ["sale_details"] : []),
+    ];
+    if (failedDetails.length) {
+      unavailableState(res, failedDetails);
+      return;
+    }
 
-    const recentPurchases = purchaseHeaders.map((purchase) => ({
+    const recentPurchases = purchaseHeaders!.map((purchase) => ({
       id: purchase.id,
       date: purchase.date,
       supplierType: purchase.supplierType,
       totalCost: number(purchase.totalCost),
-      items: purchaseLines
+      items: purchaseLines!
         .filter((line) => line.purchaseId === purchase.id)
         .map((line) => ({
           ingredientId: line.ingredientId,
@@ -394,7 +441,7 @@ router.get(
           unitCost: number(line.unitCost),
         })),
     }));
-    const recentSales = saleHeaders.map((sale) => {
+    const recentSales = saleHeaders!.map((sale) => {
       const totalRevenue = number(sale.totalRevenue);
       const totalCostOfGoodsSold = number(sale.totalCostOfGoodsSold);
       return {
@@ -403,7 +450,7 @@ router.get(
         totalRevenue,
         totalCostOfGoodsSold,
         grossProfit: roundMoney(totalRevenue - totalCostOfGoodsSold),
-        items: saleLines
+        items: saleLines!
           .filter((line) => line.salesId === sale.id)
           .map((line) => ({
             productId: line.productId,
@@ -416,20 +463,12 @@ router.get(
       };
     });
 
-    const todayDate = jakartaToday();
-    const today = await optionalDbQuery(req, "today finance", financeReport(todayDate, todayDate), {
-      startDate: todayDate,
-      endDate: todayDate,
-      revenue: 0,
-      costOfGoodsSold: 0,
-      purchases: 0,
-      grossProfit: 0,
-      days: [{ date: todayDate, revenue: 0, costOfGoodsSold: 0, purchases: 0, grossProfit: 0 }],
-    });
     const data = {
-      ingredients: ingredientRows.map(asIngredient),
-      products: productRows.map(asProduct),
-      recipes: recipeRows.map((row) => ({
+      dataStatus: "ready" as const,
+      generatedAt: new Date().toISOString(),
+      ingredients: ingredientRows!.map(asIngredient),
+      products: productRows!.map(asProduct),
+      recipes: recipeRows!.map((row) => ({
         productId: row.productId,
         ingredientId: row.ingredientId,
         ingredientName: row.ingredientName,
@@ -439,8 +478,8 @@ router.get(
       })),
       recentPurchases,
       recentSales,
-      today: today.days[0],
-      lowStockCount: ingredientRows.filter((row) => number(row.stock) <= number(row.minStock)).length,
+      today: today!.days[0],
+      lowStockCount: ingredientRows!.filter((row) => number(row.stock) <= number(row.minStock)).length,
     };
     const validated = GetErpStateResponse.parse(data);
     res.json({
@@ -461,15 +500,9 @@ router.get(
 router.get(
   "/erp/finance",
   safe(async (req, res) => {
-    const parsed = GetFinanceReportQueryParams.safeParse({
-      startDate: new Date(String(req.query.startDate ?? "")),
-      endDate: new Date(String(req.query.endDate ?? "")),
-    });
-    if (!parsed.success) {
-      invalid(res, parsed.error.message);
-      return;
-    }
-    const data = await financeReport(dateKey(parsed.data.startDate), dateKey(parsed.data.endDate));
+    const startDate = checkedBusinessDate(req.query.startDate, "Tanggal awal");
+    const endDate = checkedBusinessDate(req.query.endDate, "Tanggal akhir");
+    const data = await financeReport(startDate, endDate);
     const validated = GetFinanceReportResponse.parse(data);
     res.json({
       ...validated,
@@ -538,6 +571,11 @@ router.get(
     const format = String(req.query.format ?? "csv");
     const startDate = String(req.query.startDate ?? "2000-01-01");
     const endDate = String(req.query.endDate ?? jakartaToday());
+    if (type !== "stock") {
+      checkedBusinessDate(startDate, "Tanggal awal ekspor");
+      checkedBusinessDate(endDate, "Tanggal akhir ekspor");
+      if (startDate > endDate) throw new HttpError("Tanggal awal ekspor harus sebelum atau sama dengan tanggal akhir.", 400);
+    }
     let table: ReportTable;
     const formatRupiah = (value: number) => `Rp ${value.toLocaleString("id-ID", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     if (type === "stock") {
@@ -599,7 +637,27 @@ router.get(
       db.select().from(ingredientsTable).where(where).orderBy(asc(ingredientsTable.name)).limit(limit).offset(offset),
       db.select({ total: count() }).from(ingredientsTable).where(where),
     ]);
-    res.json({ items: rows.map(asIngredient), pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) } });
+    const ids = rows.map((row) => row.id);
+    const usedIds = new Set<number>();
+    if (ids.length) {
+      const usages = await Promise.all([
+        db.select({ ingredientId: recipeItemsTable.ingredientId }).from(recipeItemsTable).where(inArray(recipeItemsTable.ingredientId, ids)),
+        db.select({ ingredientId: preparationRecipeItemsTable.ingredientId }).from(preparationRecipeItemsTable).where(inArray(preparationRecipeItemsTable.ingredientId, ids)),
+        db.select({ ingredientId: purchaseDetailsTable.ingredientId }).from(purchaseDetailsTable).where(inArray(purchaseDetailsTable.ingredientId, ids)),
+        db.select({ ingredientId: stockMovementsTable.ingredientId }).from(stockMovementsTable).where(inArray(stockMovementsTable.ingredientId, ids)),
+        db.select({ ingredientId: wasteTable.ingredientId }).from(wasteTable).where(inArray(wasteTable.ingredientId, ids)),
+      ]);
+      for (const usage of usages.flat()) {
+        if (usage.ingredientId !== null) usedIds.add(usage.ingredientId);
+      }
+    }
+    res.json({
+      items: rows.map((row) => ({
+        ...asIngredient(row),
+        unitLocked: Math.abs(number(row.stock)) > 1e-9 || usedIds.has(row.id),
+      })),
+      pagination: { limit, offset, total: Number(totalRows[0]?.total ?? 0) },
+    });
   }),
 );
 
@@ -612,6 +670,8 @@ router.post(
       return;
     }
     if (!requireFiniteNumbers([parsed.data.stock, parsed.data.minStock, parsed.data.openingUnitCost], res)) return;
+    checkedInputQuantity(parsed.data.stock, "Stok awal", { allowNegative: false });
+    checkedInputQuantity(parsed.data.minStock, "Stok minimum", { allowNegative: false });
     const { openingUnitCost, ...ingredient } = parsed.data;
     const openingCost = String(roundMoney(openingUnitCost));
     const [row] = await db
@@ -646,6 +706,7 @@ router.patch(
       return;
     }
     if (!requireFiniteNumbers([body.data.minStock ?? 0], res)) return;
+    if (body.data.minStock !== undefined) checkedInputQuantity(body.data.minStock, "Stok minimum", { allowNegative: false });
     const update: {
       name?: string;
       category?: string;
@@ -658,12 +719,62 @@ router.patch(
     if (body.data.stockType !== undefined) update.stockType = body.data.stockType;
     if (body.data.unit !== undefined) update.unit = body.data.unit;
     if (body.data.minStock !== undefined) update.minStock = String(body.data.minStock);
-    const [row] = await db
-      .update(ingredientsTable)
-      .set(update)
-      .where(eq(ingredientsTable.id, params.data.ingredientId))
-      .returning();
-    if (!row) throw new HttpError("Bahan tidak ditemukan.", 404);
+    const row = await db.transaction(async (tx) => {
+      const [current] = await tx
+        .select()
+        .from(ingredientsTable)
+        .where(eq(ingredientsTable.id, params.data.ingredientId))
+        .for("update");
+      if (!current) throw new HttpError("Bahan tidak ditemukan.", 404);
+
+      if (update.unit !== undefined && update.unit !== current.unit) {
+        const lockReasons: string[] = [];
+        if (Math.abs(number(current.stock)) > 1e-9) lockReasons.push("masih memiliki stok");
+
+        const [productRecipe] = await tx
+          .select({ id: recipeItemsTable.id })
+          .from(recipeItemsTable)
+          .where(eq(recipeItemsTable.ingredientId, current.id))
+          .limit(1);
+        const [preparationRecipe] = await tx
+          .select({ id: preparationRecipeItemsTable.id })
+          .from(preparationRecipeItemsTable)
+          .where(eq(preparationRecipeItemsTable.ingredientId, current.id))
+          .limit(1);
+        if (productRecipe || preparationRecipe) lockReasons.push("digunakan dalam resep");
+
+        const [purchase] = await tx
+          .select({ id: purchaseDetailsTable.id })
+          .from(purchaseDetailsTable)
+          .where(eq(purchaseDetailsTable.ingredientId, current.id))
+          .limit(1);
+        const [movement] = await tx
+          .select({ id: stockMovementsTable.id })
+          .from(stockMovementsTable)
+          .where(eq(stockMovementsTable.ingredientId, current.id))
+          .limit(1);
+        const [wasteEntry] = await tx
+          .select({ id: wasteTable.id })
+          .from(wasteTable)
+          .where(eq(wasteTable.ingredientId, current.id))
+          .limit(1);
+        if (purchase || movement || wasteEntry) lockReasons.push("memiliki riwayat transaksi");
+
+        if (lockReasons.length) {
+          throw new HttpError(
+            `Satuan ${current.name} tidak dapat diubah karena ${lockReasons.join(" dan ")}. Gunakan aksi konversi satuan khusus agar stok, HPP, minimum stok, dan resep tetap konsisten.`,
+            409,
+          );
+        }
+      }
+
+      const [updated] = await tx
+        .update(ingredientsTable)
+        .set(update)
+        .where(eq(ingredientsTable.id, params.data.ingredientId))
+        .returning();
+      return updated;
+    });
     res.json(UpdateIngredientResponse.parse(asIngredient(row)));
   }),
 );
@@ -701,6 +812,7 @@ router.post(
       return;
     }
     if (!requireFiniteNumbers([parsed.data.sellingPrice, parsed.data.stock, parsed.data.averageCost], res)) return;
+    if (!parsed.data.needsRecipe) checkedInputQuantity(parsed.data.stock, "Stok produk", { allowNegative: false });
     const row = await db.transaction(async (tx) => {
       if (parsed.data.autoRecipeIngredientId !== undefined) {
         const [ingredient] = await tx
@@ -709,7 +821,7 @@ router.post(
           .where(eq(ingredientsTable.id, parsed.data.autoRecipeIngredientId));
         if (!ingredient) throw new HttpError("Bahan untuk auto-resep tidak ditemukan.", 400);
         if (isOperationalIngredient(ingredient.category)) {
-          throw new HttpError("Pilih bahan makro; bahan berkategori Mikro/Operasional tidak masuk resep.", 400);
+          throw new HttpError("Pilih bahan utama; bahan berkategori Mikro/Operasional tidak masuk resep.", 400);
         }
       }
       const [product] = await tx
@@ -765,6 +877,7 @@ router.patch(
       body.data.stock ?? 0,
       body.data.averageCost ?? 0,
     ], res)) return;
+    if (body.data.stock !== undefined) checkedInputQuantity(body.data.stock, "Stok produk", { allowNegative: false });
     const update: {
       name?: string;
       sellingPrice?: string;
@@ -818,22 +931,17 @@ router.put(
         .where(eq(productsTable.id, params.data.productId))
         .for("update");
       if (!product) throw new HttpError("Produk tidak ditemukan.", 404);
-      if (ids.length) {
-        const rows = await tx
-          .select({ id: ingredientsTable.id, category: ingredientsTable.category })
-          .from(ingredientsTable)
-          .where(inArray(ingredientsTable.id, ids));
-        if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
-        if (rows.some((row) => isOperationalIngredient(row.category))) {
-          throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
-        }
-      }
       const rows = ids.length
-        ? await tx.select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids))
+        ? await tx
+          .select({ id: ingredientsTable.id, category: ingredientsTable.category, unit: ingredientsTable.unit, name: ingredientsTable.name })
+          .from(ingredientsTable)
+          .where(inArray(ingredientsTable.id, ids))
+          .orderBy(asc(ingredientsTable.id))
+          .for("update")
         : [];
       if (rows.length !== ids.length) throw new HttpError("Ada bahan resep yang tidak ditemukan.", 400);
       if (rows.some((row) => isOperationalIngredient(row.category))) {
-        throw new HttpError("Resep hanya menerima bahan makro; keluarkan bahan berkategori Mikro/Operasional.", 400);
+        throw new HttpError("Resep hanya menerima bahan utama; keluarkan bahan berkategori Mikro/Operasional.", 400);
       }
       const beforeRecipe = await tx.select().from(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
       const ingredientMap = new Map(rows.map((row) => [row.id, row]));
@@ -843,6 +951,7 @@ router.put(
         if (conversionFactor === null) {
           throw new HttpError(`Satuan resep ${item.recipeUnit} tidak kompatibel dengan satuan stok ${ingredient.unit} untuk bahan ${ingredient.name}.`, 400);
         }
+        checkedComputedQuantity(item.qtyRequired * conversionFactor, `Hasil konversi resep ${ingredient.name}`);
         return { productId: params.data.productId, ingredientId: item.ingredientId, qtyRequired: String(item.qtyRequired), recipeUnit: item.recipeUnit, conversionFactor: String(conversionFactor) };
       });
       await tx.delete(recipeItemsTable).where(eq(recipeItemsTable.productId, params.data.productId));
@@ -889,7 +998,7 @@ function stringValue(value: unknown): value is string {
 const PrepBody = {
   safeParse(input: unknown): ParseResult<{ name: string; unit: string; yieldQty: number }> {
     const b = recordBody(input);
-    if (!b || !stringValue(b.name) || b.name.length > 120 || !stringValue(b.unit) || b.unit.length > 30 || !positiveNumber(b.yieldQty)) return { success: false, error: { message: "Nama, satuan, dan hasil standar prep wajib diisi dengan benar." } };
+    if (!b || !stringValue(b.name) || b.name.length > 120 || !stringValue(b.unit) || b.unit.length > 30 || !positiveNumber(b.yieldQty) || !validStoredQuantity(b.yieldQty, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Nama, satuan, dan hasil standar prep wajib valid serta maksimal tiga angka desimal." } };
     return { success: true, data: { name: b.name, unit: b.unit, yieldQty: b.yieldQty } };
   }
 };
@@ -912,10 +1021,10 @@ const ProductPrepBody = {
   }
 };
 const BatchBody = {
-  safeParse(input: unknown): ParseResult<{ date: Date; targetQty: number; actualQty: number }> {
+  safeParse(input: unknown): ParseResult<{ date: string; targetQty: number; actualQty: number }> {
     const b = recordBody(input), d = b?.date;
-    const date = new Date(String(d ?? ""));
-    if (!b || Number.isNaN(date.getTime()) || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty)) return { success: false, error: { message: "Tanggal, target, dan hasil aktual produksi wajib valid." } };
+    const date = typeof d === "string" && isAllowedBusinessDate(d) ? d : null;
+    if (!b || !date || !positiveNumber(b.targetQty) || !positiveNumber(b.actualQty) || !validStoredQuantity(b.targetQty, { allowNegative: false, allowZero: false }) || !validStoredQuantity(b.actualQty, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Tanggal wajib YYYY-MM-DD yang valid dan tidak boleh di masa depan; target serta hasil aktual wajib valid dengan maksimal tiga angka desimal." } };
     return { success: true, data: { date, targetQty: b.targetQty, actualQty: b.actualQty } };
   }
 };
@@ -985,7 +1094,7 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
     const beforeRecipe = await tx.select().from(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
     const rows = ids.length ? await tx.select({
       id: ingredientsTable.id, name: ingredientsTable.name, unit: ingredientsTable.unit, category: ingredientsTable.category,
-    }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)) : [];
+    }).from(ingredientsTable).where(inArray(ingredientsTable.id, ids)).orderBy(asc(ingredientsTable.id)).for("update") : [];
     if (rows.length !== ids.length) throw new HttpError("Ada bahan prep yang tidak ditemukan.", 400);
     const map = new Map(rows.map((r) => [r.id, r]));
     const recipeRows = parsed.data.items.map((item) => {
@@ -993,6 +1102,7 @@ router.put("/erp/preparations/:preparationId/recipe", safe(async (req, res) => {
       if (isOperationalIngredient(ingredient.category)) throw new HttpError("Bahan Mikro/Operasional tidak dapat dipakai sebagai bahan prep.", 400);
       const factor = recipeConversionFactor(item.recipeUnit, ingredient.unit);
       if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok ${ingredient.unit} untuk ${ingredient.name}.`, 400);
+      checkedComputedQuantity(item.qtyRequired * factor, `Hasil konversi resep prep ${ingredient.name}`);
       return { preparationId, ingredientId: item.ingredientId, qtyRequired: String(item.qtyRequired), recipeUnit: item.recipeUnit, conversionFactor: String(factor) };
     });
     await tx.delete(preparationRecipeItemsTable).where(eq(preparationRecipeItemsTable.preparationId, preparationId));
@@ -1025,7 +1135,7 @@ router.put("/erp/products/:productId/preparations", safe(async (req, res) => {
       const prep = map.get(item.preparationId)!;
       const factor = recipeConversionFactor(item.recipeUnit, prep.unit);
       if (factor === null) throw new HttpError(`Satuan ${item.recipeUnit} tidak kompatibel dengan stok prep ${prep.unit} untuk ${prep.name}.`, 400);
-
+      checkedComputedQuantity(item.qtyRequired * factor, `Hasil konversi pemakaian prep ${prep.name}`);
     }
     await tx.delete(productPreparationItemsTable).where(eq(productPreparationItemsTable.productId, productId));
     if (parsed.data.items.length) await tx.insert(productPreparationItemsTable).values(parsed.data.items.map((x) => ({
@@ -1055,9 +1165,9 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     if (!Number.isFinite(scale) || scale <= 0) throw new HttpError("Hasil standar prep tidak valid.", 400);
     for (const line of recipe) {
       const ing = byId.get(line.ingredientId)!;
-      const used = number(line.qtyRequired) * number(line.conversionFactor) * scale;
+      const used = checkedComputedQuantity(number(line.qtyRequired) * number(line.conversionFactor) * scale, `Pemakaian bahan ${ing.name}`);
       totalCost += used * number(ing.averageCost);
-      const newStock = number(ing.stock) - used;
+      const newStock = checkedComputedQuantity(number(ing.stock) - used, `Stok akhir bahan ${ing.name}`);
       await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, ing.id));
       await tx.insert(stockMovementsTable).values({
         date: dateKey(parsed.data.date), ingredientId: ing.id, movementType: "prep_production",
@@ -1068,7 +1178,7 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
     totalCost = roundMoney(totalCost);
     const unitCost = roundMoney(totalCost / parsed.data.actualQty);
     const yieldPercentage = roundMoney((parsed.data.actualQty / parsed.data.targetQty) * 1000) / 10;
-    const newStock = number(prep.stock) + parsed.data.actualQty;
+    const newStock = checkedComputedQuantity(number(prep.stock) + parsed.data.actualQty, `Stok akhir prep ${prep.name}`);
     const newAverageCost = movingAverageAfterReceipt({
       stockBefore: number(prep.stock),
       averageCostBefore: number(prep.averageCost),
@@ -1098,7 +1208,7 @@ router.post("/erp/preparations/:preparationId/batches", safe(async (req, res) =>
 
 
 type WasteBodyData = {
-  date: Date;
+  date: string;
   itemType: "ingredient" | "preparation";
   itemId: number;
   quantity: number;
@@ -1106,30 +1216,65 @@ type WasteBodyData = {
   note?: string;
 };
 type ExpenseBodyData = {
-  date: Date;
+  date: string;
   category: string;
   description: string;
   amount: number;
+  businessType: "Makanan" | "Parfum" | "Bersama";
+};
+type CostingSnapshotIngredient = {
+  ingredientId: number;
+  ingredientName?: string;
+  stockUnit?: string;
+  quantityRequired: number;
+  recipeUnit: string;
+  conversionFactor: number;
+  averageCost: number;
+  category?: string;
+};
+type CostingSnapshotPreparation = {
+  preparationId: number;
+  preparationName?: string;
+  stockUnit?: string;
+  quantityRequired: number;
+  recipeUnit: string;
+  conversionFactor: number;
+  averageCost: number;
+  yieldQty?: number;
+  components?: CostingSnapshotIngredient[];
+};
+type CostingSnapshot = {
+  version?: number;
+  capturedAt?: string;
+  valuationBasis?: string;
+  ingredients?: CostingSnapshotIngredient[];
+  preparations?: CostingSnapshotPreparation[];
 };
 type ValidationResult<T> = { success: true; data: T } | { success: false; error: { message: string } };
 
-function parseDateValue(value: unknown): Date | null {
-  const date = value instanceof Date ? value : new Date(String(value ?? ""));
-  return Number.isNaN(date.getTime()) ? null : date;
+function parseCostingSnapshot(value: string | null): CostingSnapshot | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as CostingSnapshot;
+    if (!parsed || typeof parsed !== "object" || !Array.isArray(parsed.ingredients) || !Array.isArray(parsed.preparations)) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
 }
 
 function parseWasteBody(input: unknown): ValidationResult<WasteBodyData> {
   const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
-  const date = parseDateValue(body.date);
+  const date = typeof body.date === "string" && isAllowedBusinessDate(body.date) ? body.date : null;
   const itemType = body.itemType;
   const itemId = Number(body.itemId);
   const quantity = Number(body.quantity);
   const reason = typeof body.reason === "string" ? body.reason.trim() : "";
   const note = body.note === undefined ? undefined : String(body.note);
-  if (!date) return { success: false, error: { message: "Tanggal waste tidak valid." } };
+  if (!date) return { success: false, error: { message: "Tanggal waste wajib YYYY-MM-DD yang valid dan tidak boleh di masa depan." } };
   if (itemType !== "ingredient" && itemType !== "preparation") return { success: false, error: { message: "Jenis item waste tidak valid." } };
   if (!Number.isSafeInteger(itemId) || itemId <= 0) return { success: false, error: { message: "ID item waste tidak valid." } };
-  if (!Number.isFinite(quantity) || quantity <= 0) return { success: false, error: { message: "Jumlah waste harus lebih besar dari 0." } };
+  if (!validStoredQuantity(quantity, { allowNegative: false, allowZero: false })) return { success: false, error: { message: "Jumlah waste harus positif, maksimal tiga desimal, dan sesuai kapasitas penyimpanan." } };
   if (!reason || reason.length > 120) return { success: false, error: { message: "Alasan waste wajib diisi dan maksimal 120 karakter." } };
   if (note !== undefined && note.length > 500) return { success: false, error: { message: "Catatan waste maksimal 500 karakter." } };
   return { success: true, data: { date, itemType, itemId, quantity, reason, note } };
@@ -1137,15 +1282,17 @@ function parseWasteBody(input: unknown): ValidationResult<WasteBodyData> {
 
 function parseExpenseBody(input: unknown): ValidationResult<ExpenseBodyData> {
   const body = input && typeof input === "object" ? input as Record<string, unknown> : {};
-  const date = parseDateValue(body.date);
+  const date = typeof body.date === "string" && isAllowedBusinessDate(body.date) ? body.date : null;
   const category = typeof body.category === "string" ? body.category.trim() : "";
   const description = typeof body.description === "string" ? body.description.trim() : "";
   const amount = Number(body.amount);
-  if (!date) return { success: false, error: { message: "Tanggal biaya operasional tidak valid." } };
+  const businessType = body.businessType;
+  if (!date) return { success: false, error: { message: "Tanggal biaya operasional wajib YYYY-MM-DD yang valid dan tidak boleh di masa depan." } };
   if (!category || category.length > 80) return { success: false, error: { message: "Kategori biaya wajib diisi dan maksimal 80 karakter." } };
   if (!description || description.length > 200) return { success: false, error: { message: "Deskripsi biaya wajib diisi dan maksimal 200 karakter." } };
   if (!Number.isFinite(amount) || amount <= 0) return { success: false, error: { message: "Nominal biaya harus lebih besar dari 0." } };
-  return { success: true, data: { date, category, description, amount } };
+  if (businessType !== "Makanan" && businessType !== "Parfum" && businessType !== "Bersama") return { success: false, error: { message: "Lini bisnis biaya tidak valid." } };
+  return { success: true, data: { date, category, description, amount, businessType } };
 }
 
 router.post("/erp/waste", safe(async (req, res) => {
@@ -1157,7 +1304,7 @@ router.post("/erp/waste", safe(async (req, res) => {
       const [item] = await tx.select().from(ingredientsTable).where(eq(ingredientsTable.id, parsed.data.itemId)).for("update");
       if (!item) throw new HttpError("Bahan tidak ditemukan.", 404);
       unit = item.unit; unitCost = number(item.averageCost);
-      const newStock = number(item.stock) - parsed.data.quantity;
+      const newStock = checkedComputedQuantity(number(item.stock) - parsed.data.quantity, `Stok akhir bahan ${item.name}`);
       await tx.update(ingredientsTable).set({ stock: String(newStock) }).where(eq(ingredientsTable.id, item.id));
       await tx.insert(stockMovementsTable).values({
         date: dateKey(parsed.data.date), ingredientId: item.id, movementType: "waste",
@@ -1168,7 +1315,7 @@ router.post("/erp/waste", safe(async (req, res) => {
       const [item] = await tx.select().from(preparationsTable).where(eq(preparationsTable.id, parsed.data.itemId)).for("update");
       if (!item) throw new HttpError("Prep tidak ditemukan.", 404);
       unit = item.unit; unitCost = number(item.averageCost);
-      const newStock = number(item.stock) - parsed.data.quantity;
+      const newStock = checkedComputedQuantity(number(item.stock) - parsed.data.quantity, `Stok akhir prep ${item.name}`);
       await tx.update(preparationsTable).set({ stock: String(newStock) }).where(eq(preparationsTable.id, item.id));
       await tx.insert(preparationStockMovementsTable).values({
         date: dateKey(parsed.data.date), preparationId: item.id, movementType: "waste",
@@ -1193,65 +1340,81 @@ router.post("/erp/expenses", safe(async (req, res) => {
   const parsed = parseExpenseBody(req.body);
   if (!parsed.success) return invalid(res, parsed.error.message);
   const [row] = await db.insert(operatingExpensesTable).values({
-    date: dateKey(parsed.data.date), category: parsed.data.category.trim(), description: parsed.data.description.trim(), amount: String(roundMoney(parsed.data.amount)),
+    date: dateKey(parsed.data.date), category: parsed.data.category.trim(), description: parsed.data.description.trim(), amount: String(roundMoney(parsed.data.amount)), businessType: parsed.data.businessType,
   }).returning();
-  res.status(201).json({ id: row.id, date: row.date, category: row.category, description: row.description, amount: number(row.amount) });
+  res.status(201).json({ id: row.id, date: row.date, category: row.category, description: row.description, amount: number(row.amount), businessType: row.businessType });
 }));
 
 router.get("/erp/fnb-report", safe(async (req, res) => {
-  const startDate = String(req.query.startDate ?? "");
-  const endDate = String(req.query.endDate ?? "");
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
-    !/^\d{4}-\d{2}-\d{2}$/.test(endDate) ||
-    startDate > endDate) {
-    return invalid(res, "Rentang tanggal tidak valid.");
-  }
+  const startDate = checkedBusinessDate(req.query.startDate, "Tanggal awal laporan F&B");
+  const endDate = checkedBusinessDate(req.query.endDate, "Tanggal akhir laporan F&B");
+  if (startDate > endDate) throw new HttpError("Tanggal awal laporan F&B harus sebelum atau sama dengan tanggal akhir.", 400);
   const sales = await db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)));
   const saleIds = sales.map((x) => x.id);
-  const [details, ingredients, recipes, productPreps, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
+  const [allDetails, ingredients, preps, waste, expenses, ingredientMovements, prepMovements] = await Promise.all([
     saleIds.length ? db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, saleIds)) : Promise.resolve([]),
     db.select().from(ingredientsTable),
-    db.select().from(recipeItemsTable),
-    db.select().from(productPreparationItemsTable),
     db.select().from(preparationsTable),
     db.select().from(wasteTable).where(and(gte(wasteTable.date, startDate), lte(wasteTable.date, endDate))),
     db.select().from(operatingExpensesTable).where(and(gte(operatingExpensesTable.date, startDate), lte(operatingExpensesTable.date, endDate))),
     db.select().from(stockMovementsTable).where(and(gte(stockMovementsTable.date, startDate), lte(stockMovementsTable.date, endDate))),
     db.select().from(preparationStockMovementsTable).where(and(gte(preparationStockMovementsTable.date, startDate), lte(preparationStockMovementsTable.date, endDate))),
   ]);
+  const details = allDetails.filter((line) => line.businessType === "Makanan");
   const ingredientById = new Map(ingredients.map((x) => [x.id, x]));
   const prepById = new Map(preps.map((x) => [x.id, x]));
-  const saleQty = new Map<number, number>();
-  for (const line of details) saleQty.set(line.productId, (saleQty.get(line.productId) ?? 0) + line.quantity);
-  const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; actualCogs: number; theoreticalCogs: number }>();
+  const fnbWaste = waste.filter((row) => row.preparationId != null || (row.ingredientId != null && ingredientById.get(row.ingredientId)?.stockType === "Makanan"));
+  const menuMap = new Map<number, { productId: number; productName: string; quantity: number; revenue: number; recordedCogs: number }>();
   for (const line of details) {
-    const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, actualCogs: 0, theoreticalCogs: 0 };
-    row.quantity += line.quantity; row.revenue += number(line.revenue); row.actualCogs += number(line.costOfGoodsSold);
-    // Use the sale-time snapshot so editing a recipe later cannot rewrite history.
-    row.theoreticalCogs += number(line.costOfGoodsSold);
+    const row = menuMap.get(line.productId) ?? { productId: line.productId, productName: line.productName, quantity: 0, revenue: 0, recordedCogs: 0 };
+    // This is booked COGS captured when the sale was recorded. It is not an
+    // independent physical-inventory measurement and must not be presented as
+    // an "actual vs theoretical" variance.
+    row.quantity += line.quantity; row.revenue += number(line.revenue); row.recordedCogs += number(line.costOfGoodsSold);
     menuMap.set(line.productId, row);
   }
   const theoreticalIngredient = new Map<number, number>();
+  const theoreticalIngredientValue = new Map<number, number>();
+  const theoreticalPrep = new Map<number, number>();
+  const theoreticalPrepValue = new Map<number, number>();
+  let incompleteSnapshotLines = 0;
   for (const line of details) {
-    for (const recipe of recipes.filter((r) => r.productId === line.productId && r.ingredientId)) {
-      theoreticalIngredient.set(recipe.ingredientId!, (theoreticalIngredient.get(recipe.ingredientId!) ?? 0) + number(recipe.qtyRequired) * number(recipe.conversionFactor) * line.quantity);
+    const snapshot = parseCostingSnapshot(line.costingSnapshot);
+    if (!snapshot) {
+      incompleteSnapshotLines += 1;
+      continue;
     }
-  }
-  const prepRecipeRows = await db.select().from(preparationRecipeItemsTable);
-  for (const line of details) {
-    for (const link of productPreps.filter((r) => r.productId === line.productId)) {
-      const prep = prepById.get(link.preparationId);
-      if (!prep || number(prep.yieldQty) <= 0) continue;
-      for (const recipe of prepRecipeRows.filter((r) => r.preparationId === link.preparationId)) {
-        const theoretical = number(recipe.qtyRequired) * number(recipe.conversionFactor) / number(prep.yieldQty) * number(link.qtyRequired) * number(link.conversionFactor) * line.quantity;
-        theoreticalIngredient.set(recipe.ingredientId, (theoreticalIngredient.get(recipe.ingredientId) ?? 0) + theoretical);
+    let lineIncomplete = false;
+    for (const ingredient of snapshot.ingredients ?? []) {
+      if (isOperationalIngredient(ingredient.category ?? "")) continue;
+      const qty = number(ingredient.quantityRequired) * number(ingredient.conversionFactor) * line.quantity;
+      theoreticalIngredient.set(ingredient.ingredientId, (theoreticalIngredient.get(ingredient.ingredientId) ?? 0) + qty);
+      theoreticalIngredientValue.set(ingredient.ingredientId, (theoreticalIngredientValue.get(ingredient.ingredientId) ?? 0) + qty * number(ingredient.averageCost));
+    }
+    for (const prep of snapshot.preparations ?? []) {
+      const prepQty = number(prep.quantityRequired) * number(prep.conversionFactor) * line.quantity;
+      theoreticalPrep.set(prep.preparationId, (theoreticalPrep.get(prep.preparationId) ?? 0) + prepQty);
+      theoreticalPrepValue.set(prep.preparationId, (theoreticalPrepValue.get(prep.preparationId) ?? 0) + prepQty * number(prep.averageCost));
+      if (!Array.isArray(prep.components) || !Number.isFinite(number(prep.yieldQty)) || number(prep.yieldQty) <= 0) {
+        lineIncomplete = true;
+        continue;
+      }
+      for (const component of prep.components) {
+        if (isOperationalIngredient(component.category ?? "")) continue;
+        const qty = number(component.quantityRequired) * number(component.conversionFactor) / number(prep.yieldQty) * prepQty;
+        theoreticalIngredient.set(component.ingredientId, (theoreticalIngredient.get(component.ingredientId) ?? 0) + qty);
+        theoreticalIngredientValue.set(component.ingredientId, (theoreticalIngredientValue.get(component.ingredientId) ?? 0) + qty * number(component.averageCost));
       }
     }
+    if (lineIncomplete) incompleteSnapshotLines += 1;
   }
   const actualIngredient = new Map<number, number>();
+  const actualIngredientValue = new Map<number, number>();
   for (const m of ingredientMovements) {
-    if (["sale", "prep_production", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
-      actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + Math.abs(number(m.quantityDelta)));
+    if (ingredientById.get(m.ingredientId)?.stockType === "Makanan" && ["sale", "prep_production", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
+      const qty = Math.abs(number(m.quantityDelta));
+      actualIngredient.set(m.ingredientId, (actualIngredient.get(m.ingredientId) ?? 0) + qty);
+      actualIngredientValue.set(m.ingredientId, (actualIngredientValue.get(m.ingredientId) ?? 0) + qty * number(m.unitCost));
     }
   }
   const ingredientVariance = ingredients
@@ -1260,26 +1423,29 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
       const actual = actualIngredient.get(x.id) ?? 0;
       const theoretical = theoreticalIngredient.get(x.id) ?? 0;
       const variance = actual - theoretical;
-      return { itemType: "ingredient", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), varianceCost: roundMoney(variance * number(x.averageCost)) };
+      const actualCost = actualIngredientValue.get(x.id) ?? 0;
+      const theoreticalCost = theoreticalIngredientValue.get(x.id) ?? 0;
+      return { itemType: "ingredient", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), actualCost: roundMoney(actualCost), theoreticalCost: roundMoney(theoreticalCost), varianceCost: roundMoney(actualCost - theoreticalCost) };
     })
     .sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost))
     .slice(0, 50);
   const actualPrep = new Map<number, number>();
-  const theoreticalPrep = new Map<number, number>();
+  const actualPrepValue = new Map<number, number>();
   for (const m of prepMovements) {
-    if (["sale", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) actualPrep.set(m.preparationId, (actualPrep.get(m.preparationId) ?? 0) + Math.abs(number(m.quantityDelta)));
-  }
-  for (const line of details) for (const link of productPreps.filter((r) => r.productId === line.productId)) {
-    const q = number(link.qtyRequired) * number(link.conversionFactor) * line.quantity;
-    theoreticalPrep.set(link.preparationId, (theoreticalPrep.get(link.preparationId) ?? 0) + q);
+    if (["sale", "waste"].includes(m.movementType) && number(m.quantityDelta) < 0) {
+      const qty = Math.abs(number(m.quantityDelta));
+      actualPrep.set(m.preparationId, (actualPrep.get(m.preparationId) ?? 0) + qty);
+      actualPrepValue.set(m.preparationId, (actualPrepValue.get(m.preparationId) ?? 0) + qty * number(m.unitCost));
+    }
   }
   const prepVariance = preps.filter((x) => actualPrep.has(x.id) || theoreticalPrep.has(x.id)).map((x) => {
     const actual = actualPrep.get(x.id) ?? 0, theoretical = theoreticalPrep.get(x.id) ?? 0, variance = actual - theoretical;
-    return { itemType: "preparation", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), varianceCost: roundMoney(variance * number(x.averageCost)) };
+    const actualCost = actualPrepValue.get(x.id) ?? 0, theoreticalCost = theoreticalPrepValue.get(x.id) ?? 0;
+    return { itemType: "preparation", itemId: x.id, itemName: x.name, unit: x.unit, actualQty: roundMoney(actual), theoreticalQty: roundMoney(theoretical), varianceQty: roundMoney(variance), actualCost: roundMoney(actualCost), theoreticalCost: roundMoney(theoreticalCost), varianceCost: roundMoney(actualCost - theoreticalCost) };
   }).sort((a, b) => Math.abs(b.varianceCost) - Math.abs(a.varianceCost)).slice(0, 50);
   const recipeUsageVariance = [...ingredientVariance, ...prepVariance];
   const stockOpnameVariance = [
-    ...ingredientMovements.filter((movement) => movement.movementType === "adjustment").map((movement) => {
+    ...ingredientMovements.filter((movement) => movement.movementType === "adjustment" && ingredientById.get(movement.ingredientId)?.stockType === "Makanan").map((movement) => {
       const ingredient = ingredientById.get(movement.ingredientId);
       const varianceQty = number(movement.quantityDelta);
       const unitCost = movement.unitCost == null ? null : number(movement.unitCost);
@@ -1307,25 +1473,36 @@ router.get("/erp/fnb-report", safe(async (req, res) => {
     }),
   ].sort((a, b) => b.date.localeCompare(a.date) || b.movementId - a.movementId);
 
-  const revenue = roundMoney(sales.reduce((sum, x) => sum + number(x.totalRevenue), 0));
-  const actualCogs = roundMoney(sales.reduce((sum, x) => sum + number(x.totalCostOfGoodsSold), 0));
-  const theoreticalCogs = roundMoney([...menuMap.values()].reduce((sum, x) => sum + x.theoreticalCogs, 0));
-  const wasteCost = roundMoney(waste.reduce((sum, x) => sum + number(x.totalCost), 0));
-  const expenseTotal = roundMoney(expenses.reduce((sum, x) => sum + number(x.amount), 0));
-  const grossProfit = roundMoney(revenue - actualCogs);
+  const revenue = roundMoney(details.reduce((sum, x) => sum + number(x.revenue), 0));
+  let totalBusinessRevenueRaw = 0;
+  for (const line of allDetails) totalBusinessRevenueRaw += number(line.revenue);
+  const totalBusinessRevenue = roundMoney(totalBusinessRevenueRaw);
+  const recordedCogs = roundMoney(details.reduce((sum, x) => sum + number(x.costOfGoodsSold), 0));
+  const wasteCost = roundMoney(fnbWaste.reduce((sum, x) => sum + number(x.totalCost), 0));
+  const sharedExpenseAllocationRate = totalBusinessRevenue > 0 ? revenue / totalBusinessRevenue : 0;
+  const directExpenses = roundMoney(expenses.filter((x) => x.businessType === "Makanan").reduce((sum, x) => sum + number(x.amount), 0));
+  const sharedExpenses = roundMoney(expenses.filter((x) => x.businessType === "Bersama").reduce((sum, x) => sum + number(x.amount), 0));
+  const allocatedSharedExpenses = roundMoney(sharedExpenses * sharedExpenseAllocationRate);
+  const unallocatedSharedExpenses = totalBusinessRevenue > 0 ? 0 : sharedExpenses;
+  const expenseTotal = roundMoney(directExpenses + allocatedSharedExpenses);
+  const grossProfit = roundMoney(revenue - recordedCogs);
   res.json({
-    startDate, endDate, revenue, actualCogs, theoreticalCogs,
-    actualFoodCostPercentage: revenue > 0 ? roundMoney(actualCogs / revenue * 100) : 0,
-    theoreticalFoodCostPercentage: revenue > 0 ? roundMoney(theoreticalCogs / revenue * 100) : 0,
-    foodCostVariance: roundMoney(actualCogs - theoreticalCogs),
-    wasteCost, grossProfit, operatingExpenses: expenseTotal, netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
-    wasteCount: waste.length,
+    startDate, endDate, revenue, recordedCogs,
+    recordedFoodCostPercentage: revenue > 0 ? roundMoney(recordedCogs / revenue * 100) : 0,
+    foodCostBasis: "sale_transaction_snapshot",
+    wasteCost, grossProfit, operatingExpenses: expenseTotal, directExpenses, sharedExpenses, allocatedSharedExpenses,
+    sharedExpenseAllocationRate: roundMoney(sharedExpenseAllocationRate * 100), unallocatedSharedExpenses,
+    netProfit: roundMoney(grossProfit - expenseTotal - wasteCost),
+    wasteCount: fnbWaste.length,
+    varianceValuationBasis: "transaction_time",
+    snapshotCoverage: details.length > 0 ? roundMoney(Math.max(0, details.length - incompleteSnapshotLines) / details.length * 100) : 100,
+    incompleteSnapshotLines,
     recipeUsageVariance,
     inventoryVariance: recipeUsageVariance,
     stockOpnameVariance,
-    menus: [...menuMap.values()].map((x) => ({ ...x, revenue: roundMoney(x.revenue), actualCogs: roundMoney(x.actualCogs), theoreticalCogs: roundMoney(x.theoreticalCogs), grossProfit: roundMoney(x.revenue - x.actualCogs), foodCostPercentage: x.revenue > 0 ? roundMoney(x.actualCogs / x.revenue * 100) : 0 })),
-    waste: waste.map((x) => ({ id: x.id, date: x.date, itemType: x.ingredientId ? "ingredient" : "preparation", itemId: x.ingredientId ?? x.preparationId, quantity: number(x.quantity), unit: x.unit, totalCost: number(x.totalCost), reason: x.reason, note: x.note })),
-    expenses: expenses.map((x) => ({ id: x.id, date: x.date, category: x.category, description: x.description, amount: number(x.amount) })),
+    menus: [...menuMap.values()].map((x) => ({ ...x, revenue: roundMoney(x.revenue), recordedCogs: roundMoney(x.recordedCogs), grossProfit: roundMoney(x.revenue - x.recordedCogs), foodCostPercentage: x.revenue > 0 ? roundMoney(x.recordedCogs / x.revenue * 100) : 0 })),
+    waste: fnbWaste.map((x) => ({ id: x.id, date: x.date, itemType: x.ingredientId ? "ingredient" : "preparation", itemId: x.ingredientId ?? x.preparationId, quantity: number(x.quantity), unit: x.unit, totalCost: number(x.totalCost), reason: x.reason, note: x.note })),
+    expenses: expenses.filter((x) => x.businessType !== "Parfum").map((x) => ({ id: x.id, date: x.date, category: x.category, description: x.description, amount: number(x.amount), businessType: x.businessType, allocatedAmount: x.businessType === "Makanan" ? number(x.amount) : roundMoney(number(x.amount) * sharedExpenseAllocationRate) })),
   });
 }));
 
@@ -1371,6 +1548,7 @@ router.get(
 router.post(
   "/erp/purchases",
   safe(async (req, res) => {
+    checkedBusinessDate(recordBody(req.body)?.date, "Tanggal pembelian");
     const parsed = RecordPurchaseBody.safeParse(req.body);
     if (!parsed.success) {
       invalid(res, parsed.error.message);
@@ -1378,6 +1556,7 @@ router.post(
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
     if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.ingredientId, item.quantity, item.totalCost]), res)) return;
+    for (const line of parsed.data.items) checkedInputQuantity(line.quantity, "Jumlah pembelian", { allowNegative: false, allowZero: false });
     const lines = parsed.data.items;
     const aggregated = new Map<number, { quantity: number; totalCost: number }>();
     for (const line of lines) {
@@ -1388,7 +1567,7 @@ router.post(
     }
     const purchaseLines = [...aggregated.entries()]
       .sort(([a], [b]) => a - b)
-      .map(([ingredientId, values]) => ({ ingredientId, ...values }));
+      .map(([ingredientId, values]) => ({ ingredientId, ...values, quantity: checkedComputedQuantity(values.quantity, "Total jumlah pembelian bahan") }));
     const ingredientIds = purchaseLines.map((line) => line.ingredientId);
     const result = await db.transaction(async (tx) => {
       const locked = await tx
@@ -1420,7 +1599,7 @@ router.post(
         const oldStock = number(ingredient.stock);
         const oldAverageCost = number(ingredient.averageCost);
         const unitCost = line.totalCost / line.quantity;
-        const newStock = oldStock + line.quantity;
+        const newStock = checkedComputedQuantity(oldStock + line.quantity, `Stok akhir bahan ${ingredient.name}`);
         const newAverageCost = movingAverageAfterReceipt({
           stockBefore: oldStock,
           averageCostBefore: oldAverageCost,
@@ -1523,8 +1702,9 @@ router.delete(
           .for("update");
 
         if (product && !product.needsRecipe) {
+          const restoredStock = checkedComputedQuantity(number(product.stock) + line.quantity, `Stok pemulihan produk ${product.name}`);
           await tx.update(productsTable)
-            .set({ stock: String(number(product.stock) + line.quantity) })
+            .set({ stock: String(restoredStock) })
             .where(eq(productsTable.id, product.id));
         }
       }
@@ -1544,8 +1724,9 @@ router.delete(
           .for("update");
         if (!prep) continue;
         const restored = -number(movement.quantityDelta);
+        const restoredStock = checkedComputedQuantity(number(prep.stock) + restored, `Stok pemulihan prep ${prep.name}`);
         await tx.update(preparationsTable)
-          .set({ stock: String(number(prep.stock) + restored) })
+          .set({ stock: String(restoredStock) })
           .where(eq(preparationsTable.id, prep.id));
       }
       await tx.delete(preparationStockMovementsTable).where(and(
@@ -1570,8 +1751,9 @@ router.delete(
         if (!ingredient) continue;
 
         const restored = -number(movement.quantityDelta);
+        const restoredStock = checkedComputedQuantity(number(ingredient.stock) + restored, `Stok pemulihan bahan ${ingredient.name}`);
         await tx.update(ingredientsTable)
-          .set({ stock: String(number(ingredient.stock) + restored) })
+          .set({ stock: String(restoredStock) })
           .where(eq(ingredientsTable.id, ingredient.id));
       }
 
@@ -1630,8 +1812,9 @@ router.get(
   safe(async (req, res) => {
     const limit = Math.min(Math.max(Number(req.query.limit ?? 50), 1), 200);
     const offset = Math.max(Number(req.query.offset ?? 0), 0);
-    const startDate = String(req.query.startDate ?? "2000-01-01");
-    const endDate = String(req.query.endDate ?? jakartaToday());
+    const startDate = checkedBusinessDate(req.query.startDate ?? "2000-01-01", "Tanggal awal penjualan");
+    const endDate = checkedBusinessDate(req.query.endDate ?? jakartaToday(), "Tanggal akhir penjualan");
+    if (startDate > endDate) throw new HttpError("Tanggal awal penjualan harus sebelum atau sama dengan tanggal akhir.", 400);
     const [headers, totalRows] = await Promise.all([
       db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)))
         .orderBy(desc(salesTable.date), desc(salesTable.id)).limit(limit).offset(offset),
@@ -1665,6 +1848,7 @@ router.get(
 router.post(
   "/erp/sales",
   safe(async (req, res) => {
+    checkedBusinessDate(recordBody(req.body)?.date, "Tanggal penjualan");
     const parsed = RecordSaleBody.safeParse(req.body);
     if (!parsed.success) {
       invalid(res, parsed.error.message);
@@ -1674,7 +1858,11 @@ router.post(
     if (!requireFiniteNumbers(parsed.data.items.flatMap((item) => [item.productId, item.quantity]), res)) return;
     const quantities = new Map<number, number>();
     for (const line of parsed.data.items) {
-      quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
+      const aggregatedQuantity = (quantities.get(line.productId) ?? 0) + line.quantity;
+      if (!Number.isSafeInteger(aggregatedQuantity) || aggregatedQuantity > 2_147_483_647) {
+        throw new HttpError("Jumlah penjualan produk melebihi kapasitas integer database.", 400);
+      }
+      quantities.set(line.productId, aggregatedQuantity);
     }
     const productIds = [...quantities.keys()].sort((a, b) => a - b);
     const result = await db.transaction(async (tx) => {
@@ -1725,6 +1913,9 @@ router.post(
           );
         }
       }
+      for (const [ingredientId, required] of requiredByIngredient) {
+        requiredByIngredient.set(ingredientId, checkedComputedQuantity(required, `Total kebutuhan bahan #${ingredientId}`));
+      }
       for (const [productId, soldQuantity] of quantities) {
         const product = productRows.find((row) => row.id === productId)!;
         if (!product.needsRecipe) continue;
@@ -1734,6 +1925,9 @@ router.post(
             (requiredByPreparation.get(item.preparationId) ?? 0) + number(item.qtyRequired) * number(item.conversionFactor) * soldQuantity,
           );
         }
+      }
+      for (const [preparationId, required] of requiredByPreparation) {
+        requiredByPreparation.set(preparationId, checkedComputedQuantity(required, `Total kebutuhan prep #${preparationId}`));
       }
 
       const requestedPreparationIds = [...requiredByPreparation.keys()].sort((a, b) => a - b);
@@ -1751,7 +1945,14 @@ router.post(
         }
       }
 
-      const requestedIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
+      const preparationRecipeRows = requestedPreparationIds.length
+        ? await tx.select().from(preparationRecipeItemsTable).where(inArray(preparationRecipeItemsTable.preparationId, requestedPreparationIds))
+        : [];
+      const directIngredientIds = [...requiredByIngredient.keys()].sort((a, b) => a - b);
+      const requestedIngredientIds = [...new Set([
+        ...directIngredientIds,
+        ...preparationRecipeRows.map((row) => row.ingredientId),
+      ])].sort((a, b) => a - b);
       const lockedIngredients = requestedIngredientIds.length
         ? await tx
           .select()
@@ -1765,7 +1966,7 @@ router.post(
       }
 
       const ingredientById = new Map(lockedIngredients.map((row) => [row.id, row]));
-      const ingredientIds = requestedIngredientIds.filter((ingredientId) => {
+      const ingredientIds = directIngredientIds.filter((ingredientId) => {
         const ingredient = ingredientById.get(ingredientId)!;
         if (!isOperationalIngredient(ingredient.category)) return true;
         warnings.push(`Bahan ${ingredient.name} berkategori Mikro/Operasional; stoknya tidak dipotong dalam resep.`);
@@ -1802,17 +2003,29 @@ router.post(
         const unitPrice = number(product.sellingPrice);
         const recipe = recipesByProduct.get(productId) ?? [];
         const costingSnapshot = {
+          version: 2,
           capturedAt: new Date().toISOString(),
+          valuationBasis: "transaction_time",
           productAverageCost: number(product.averageCost),
           ingredients: recipe.filter((item) => item.ingredientId).map((item) => {
             const ingredient = ingredientById.get(item.ingredientId!)!;
-            return { ingredientId: item.ingredientId, quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
+            return { ingredientId: item.ingredientId, ingredientName: ingredient.name, stockUnit: ingredient.unit,
+              quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
               conversionFactor: number(item.conversionFactor), averageCost: number(ingredient.averageCost), category: ingredient.category };
           }),
           preparations: productPrepRows.filter((row) => row.productId === productId).map((item) => {
             const prep = preparationById.get(item.preparationId);
-            return { preparationId: item.preparationId, quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
-              conversionFactor: number(item.conversionFactor), averageCost: prep ? number(prep.averageCost) : 0 };
+            return { preparationId: item.preparationId, preparationName: prep?.name, stockUnit: prep?.unit,
+              quantityRequired: number(item.qtyRequired), recipeUnit: item.recipeUnit,
+              conversionFactor: number(item.conversionFactor), averageCost: prep ? number(prep.averageCost) : 0,
+              yieldQty: prep ? number(prep.yieldQty) : 0,
+              components: preparationRecipeRows.filter((row) => row.preparationId === item.preparationId).map((component) => {
+                const ingredient = ingredientById.get(component.ingredientId)!;
+                return { ingredientId: component.ingredientId, ingredientName: ingredient.name, stockUnit: ingredient.unit,
+                  quantityRequired: number(component.qtyRequired), recipeUnit: component.recipeUnit,
+                  conversionFactor: number(component.conversionFactor), averageCost: number(ingredient.averageCost), category: ingredient.category };
+              }),
+            };
           }),
         };
         const costOfGoodsSold = product.needsRecipe
@@ -1834,6 +2047,7 @@ router.post(
         return {
           productId,
           productName: product.name,
+          businessType: product.businessType,
           quantity,
           unitPrice,
           revenue: roundMoney(unitPrice * quantity),
@@ -1863,14 +2077,16 @@ router.post(
           revenue: String(line.revenue),
           costOfGoodsSold: String(line.costOfGoodsSold),
           costingSnapshot: line.costingSnapshot,
+          businessType: line.businessType,
         })),
       );
       for (const [productId, soldQuantity] of quantities) {
         const product = productById.get(productId)!;
         if (!product.needsRecipe) {
+          const newStock = checkedComputedQuantity(number(product.stock) - soldQuantity, `Stok akhir produk ${product.name}`);
           await tx
             .update(productsTable)
-            .set({ stock: String(number(product.stock) - soldQuantity) })
+            .set({ stock: String(newStock) })
             .where(eq(productsTable.id, productId));
         }
       }
@@ -1880,7 +2096,7 @@ router.post(
         const prep = preparationById.get(preparationId)!;
         const used = requiredByPreparation.get(preparationId) ?? 0;
         const oldStock = number(prep.stock);
-        const newStock = oldStock - used;
+        const newStock = checkedComputedQuantity(oldStock - used, `Stok akhir prep ${prep.name}`);
 
         await tx
           .update(preparationsTable)
@@ -1911,7 +2127,7 @@ router.post(
         const ingredient = ingredientById.get(ingredientId)!;
         const oldStock = number(ingredient.stock);
         const used = requiredByIngredient.get(ingredientId)!;
-        const newStock = oldStock - used;
+        const newStock = checkedComputedQuantity(oldStock - used, `Stok akhir bahan ${ingredient.name}`);
         await tx
           .update(ingredientsTable)
           .set({ stock: String(newStock) })
@@ -1947,6 +2163,7 @@ router.post(
 router.post(
   "/erp/stock-counts",
   safe(async (req, res) => {
+    checkedBusinessDate(recordBody(req.body)?.date, "Tanggal opname");
     const parsed = RecordStockCountBody.safeParse(req.body);
     if (!parsed.success) {
       invalid(res, parsed.error.message);
@@ -1954,16 +2171,11 @@ router.post(
     }
     if (!requireMaxItems(parsed.data.items, 100, res)) return;
     if (!requireFiniteNumbers(parsed.data.items.map((item) => item.countedStock), res)) return;
+    for (const item of parsed.data.items) checkedInputQuantity(item.countedStock, "Stok fisik", { allowNegative: false });
     if (parsed.data.items.some((item) =>
       (item.ingredientId === undefined) === (item.preparationId === undefined)
     )) {
       invalid(res, "Setiap item harus memilih tepat satu jenis: bahan atau preparation.");
-      return;
-    }
-    if (parsed.data.items.some((item) =>
-      Math.abs(item.countedStock * 1000 - Math.round(item.countedStock * 1000)) > 1e-7
-    )) {
-      invalid(res, "Stok fisik maksimal tiga angka desimal.");
       return;
     }
     const itemKeys = parsed.data.items.map((item) =>
@@ -2006,7 +2218,7 @@ router.post(
         if (item.ingredientId !== undefined) {
           const ingredient = ingredientById.get(item.ingredientId)!;
           const stockBefore = number(ingredient.stock);
-          const varianceQty = roundQuantity(item.countedStock - stockBefore);
+          const varianceQty = checkedComputedQuantity(item.countedStock - stockBefore, `Selisih opname bahan ${ingredient.name}`);
           const unitCost = number(ingredient.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(ingredientsTable)
@@ -2026,7 +2238,7 @@ router.post(
         } else {
           const preparation = preparationById.get(item.preparationId!)!;
           const stockBefore = number(preparation.stock);
-          const varianceQty = roundQuantity(item.countedStock - stockBefore);
+          const varianceQty = checkedComputedQuantity(item.countedStock - stockBefore, `Selisih opname prep ${preparation.name}`);
           const unitCost = number(preparation.averageCost);
           const varianceValue = roundMoney(varianceQty * unitCost);
           const [row] = await tx.update(preparationsTable)
