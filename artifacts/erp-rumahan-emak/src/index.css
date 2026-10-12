@@ -1610,3 +1610,20 @@ body,.app-shell,.main-area{background:var(--kas-ivory);color:var(--kas-text)}
 @media(min-width:1025px){.login-brand-panel .login-illustration{max-height:610px}}
 @media(min-width:768px) and (max-width:1024px){.login-brand-panel .login-illustration{max-height:480px}}
 @media(max-width:767px){.login-brand-panel{min-height:0!important}.login-brand-panel .login-illustration{max-height:none}}
+
+
+/* Final login artwork edge blending — avoids a rectangular image seam */
+.login-brand-panel .login-illustration{
+  -webkit-mask-image:
+    linear-gradient(to right,transparent 0%,#000 9%,#000 91%,transparent 100%),
+    linear-gradient(to bottom,transparent 0%,#000 10%,#000 90%,transparent 100%);
+  mask-image:
+    linear-gradient(to right,transparent 0%,#000 9%,#000 91%,transparent 100%),
+    linear-gradient(to bottom,transparent 0%,#000 10%,#000 90%,transparent 100%);
+  -webkit-mask-composite:source-in;
+  mask-composite:intersect;
+}
+@media(max-width:767px){
+  .login-card{padding-bottom:18px}
+  .login-brand-panel{background:var(--kas-surface)}
+}
