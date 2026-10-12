@@ -50,6 +50,7 @@ import { preparationComponentCost } from "../lib/costing";
 import { movingAverageAfterReceipt } from "../lib/moving-average";
 import { normalizeComputedQuantity, validStoredQuantity } from "../lib/quantity";
 import { toCsv, toExcelHtml, toPdf, type ReportTable } from "../lib/report-export";
+import { toXlsx } from "../lib/xlsx-export";
 
 const router: IRouter = Router();
 router.use(verifyToken, requireOperationalRole("admin", "user"));
@@ -581,7 +582,7 @@ router.get(
     const type = String(req.query.type ?? "finance");
     const format = String(req.query.format ?? "csv");
     if (!["finance", "stock", "transactions"].includes(type)) throw new HttpError("Jenis laporan tidak dikenali.", 400);
-    if (!["pdf", "xls", "csv"].includes(format)) throw new HttpError("Format laporan tidak dikenali.", 400);
+    if (!["pdf", "xlsx", "xls", "csv"].includes(format)) throw new HttpError("Format laporan tidak dikenali.", 400);
     const startDate = String(req.query.startDate ?? "2000-01-01");
     const endDate = String(req.query.endDate ?? jakartaToday());
     if (type !== "stock") {
@@ -682,6 +683,12 @@ router.get(
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.pdf"`);
       res.end(toPdf(table));
+      return;
+    }
+    if (format === "xlsx") {
+      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      res.setHeader("Content-Disposition", `attachment; filename="kasapink-${stamp}.xlsx"`);
+      res.end(toXlsx(table));
       return;
     }
     if (format === "xls") {
