@@ -566,10 +566,13 @@ components:
         minStock: { type: number }
         lastPrice: { type: number }
         averageCost: { type: number }
+        active:
+          type: boolean
+          description: Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori.
         unitLocked:
           type: boolean
           description: Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep.
-      required: [id, name, category, stockType, unit, stock, minStock, lastPrice, averageCost]
+      required: [id, name, category, stockType, unit, stock, minStock, lastPrice, averageCost, active]
     IngredientInput:
       type: object
       properties:

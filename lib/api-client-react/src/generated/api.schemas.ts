@@ -49,6 +49,8 @@ export interface Ingredient {
   minStock: number;
   lastPrice: number;
   averageCost: number;
+  /** Bahan aktif tersedia untuk transaksi dan resep baru; bahan nonaktif disimpan sebagai arsip histori. */
+  active: boolean;
   /** Satuan tidak dapat diubah karena bahan memiliki stok, transaksi, atau relasi resep. */
   unitLocked?: boolean;
 }
