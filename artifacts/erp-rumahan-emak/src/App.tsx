@@ -104,7 +104,7 @@ function LoginPage({ onLogin, onSetup, setupAvailable, usernameInput, setUsernam
       <div className="login-layout">
         <section className="login-card" aria-labelledby="login-title">
           <div className="login-brand-lockup">
-            <span className="login-brand-mark"><img className="brand-logo-image" src="/kasapink-logo.png?v=20261012b" alt="Logo Kasapink" /></span>
+            <span className="login-brand-mark"><img className="brand-logo-image" src="/kasapink-logo-web.png" alt="Logo Kasapink" /></span>
             <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
           </div>
           <div className="login-card-heading">
@@ -185,7 +185,7 @@ function Shell({ children, connected, onLogout, user }: { children: React.ReactN
   return <div className="app-shell">
     <aside className={`sidebar ${mobileNav ? 'sidebar-open' : ''}`}>
       <Link href="/" className="brand-lockup" onClick={() => setMobileNav(false)}>
-        <span className="brand-mark"><img className="brand-logo-image" src="/kasapink-logo.png?v=20261012b" alt="Logo Kasapink" /></span>
+        <span className="brand-mark"><img className="brand-logo-image" src="/kasapink-logo-web.png" alt="Logo Kasapink" /></span>
         <span><strong>Kasapink</strong><small>CATATAN USAHA</small></span>
       </Link>
       <div className="side-caption">MENU UTAMA</div>
