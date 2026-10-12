@@ -1278,6 +1278,8 @@ body { background:#f2bfd2; }
 .status-ok, .prep-status.ok, .fnb-score-badge.good, .fnb-variance-pill.is-ok, .fnb-variance-row .is-ok, .success-message, .empty-icon, .activity-icon, .product-economics, .prep-row-number, .prep-product-step, .prep-yield-preview, .prep-yield-preview.is-above { background:#fdcee0; color:#613248; }
 .status-low, .prep-status.low, .warning-panel, .prep-production-note, .readonly-notice, .form-error, .error-panel { background:#fdcee0; border-color:#f2bfd2; color:#613248; }
 .status-low *, .prep-status.low *, .warning-panel *, .prep-production-note *, .readonly-notice *, .form-error *, .error-panel * { color:#613248; }
+.brand-mark, .login-brand-mark { padding:0; overflow:visible; background:transparent; box-shadow:none; }
+.brand-logo-image { display:block; width:100%; height:100%; object-fit:contain; }
 .prep-flow b, .tip-symbol { background:#f2bfd2; color:#613248; }
 .connection i { background:#f2bfd2; }
 .legend-dot.sales, .sales-chart-svg polyline:first-of-type { background:#f2bfd2; }
