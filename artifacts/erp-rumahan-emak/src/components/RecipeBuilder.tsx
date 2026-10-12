@@ -20,6 +20,15 @@ export default function RecipeBuilder({ ingredients, value, onChange, disabled =
   const selected = ingredients.find((item) => item.id === selectedId);
   const options = ingredients.filter((item) => item.active !== false && item.name.toLocaleLowerCase('id').includes(search.toLocaleLowerCase('id'))).sort((a, b) => a.name.localeCompare(b.name, 'id'));
   const reset = () => { setSearch(''); setSelectedId(null); setUnit(''); setQty(''); setEditingId(null); setOpen(false); setError(''); };
+  const selectIngredient = (item: Stock) => {
+    setSelectedId(item.id);
+    setSearch(item.name);
+    setUnit(item.unit);
+    setOpen(false);
+    setError('');
+    onPendingChange?.(true);
+    document.getElementById(`${id}-qty`)?.focus();
+  };
   const pending = Boolean(selectedId || search || qty || editingId);
   useEffect(() => {
     const form = root.current?.closest('form');
@@ -49,7 +58,12 @@ export default function RecipeBuilder({ ingredients, value, onChange, disabled =
         {open && <div id={`${id}-options`} role="listbox" aria-label="Stok bahan" className="stock-options">
           {options.length ? options.map((item) => <button key={item.id} type="button" role="option" aria-selected={selectedId === item.id} onKeyDown={(event) => {
             if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); const next = event.key === 'ArrowDown' ? event.currentTarget.nextElementSibling : event.currentTarget.previousElementSibling; (next as HTMLElement | null)?.focus(); }
-          }} onClick={() => { setSelectedId(item.id); setSearch(item.name); setUnit(item.unit); setOpen(false); setError(''); onPendingChange?.(true); document.getElementById(`${id}-qty`)?.focus(); }}>
+          }} onPointerDown={(event) => {
+            // Mobile Safari blurs the combobox before dispatching click. Select
+            // on pointerdown so the option is not unmounted before it is applied.
+            event.preventDefault();
+            selectIngredient(item);
+          }} onClick={(event) => { if (event.detail === 0) selectIngredient(item); }}>
             <span>{item.name}</span><small>{value.some((line) => line.ingredientId === item.id) ? 'Sudah di resep · edit di bawah' : item.unit}</small>
           </button>) : <p>Tidak ada bahan yang cocok.</p>}
         </div>}
