@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createRequire } from "node:module";
 const require=createRequire(import.meta.url);
@@ -86,7 +87,10 @@ function extractXlsxRows(sheet){
 execFileSync("pnpm",["exec","esbuild","artifacts/api-server/src/lib/xlsx-export.ts","--bundle","--platform=node","--format=cjs","--outfile=/tmp/kasapink-xlsx-parity.cjs"],{stdio:"inherit"});
 const { toXlsx } = require("/tmp/kasapink-xlsx-parity.cjs");
 for(const test of cases){
-  const files=unzipStoredFiles(toXlsx(test));
+  const workbook=toXlsx(test);
+  mkdirSync("/tmp/kasapink-report-qa",{recursive:true});
+  writeFileSync("/tmp/kasapink-report-qa/"+test.name+".xlsx",workbook);
+  const files=unzipStoredFiles(workbook);
   assert.ok(files.has("[Content_Types].xml"),"XLSX content types missing");
   assert.ok(files.has("xl/workbook.xml"),"XLSX workbook missing");
   const sheet=files.get("xl/worksheets/sheet1.xml");
