@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import { mkdir } from 'node:fs/promises';
 const url=process.env.QA_URL;
-if(!url?.startsWith('https://'))throw Error('QA_URL must be an https URL');
+if(!url || !/^https?:\/\//.test(url))throw Error('QA_URL must be a URL');
 await mkdir('qa-screenshots',{recursive:true});
 const browser=await chromium.launch({headless:true});
 let failures=0;
