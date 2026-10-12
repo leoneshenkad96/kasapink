@@ -1579,3 +1579,27 @@ body,.app-shell,.main-area{background:var(--kas-ivory);color:var(--kas-text)}
  .sidebar .brand-lockup .brand-logo-image{width:38px;height:38px;max-width:38px;max-height:38px}
  .metric-grid .metric-card .metric-stamp{top:18px;right:18px}
 }
+
+
+/* Login 2D art: edge-to-edge illustration surface, no residual frame */
+.login-brand-panel{background:var(--kas-surface);border:0;box-shadow:none;overflow:hidden}
+.login-illustration{
+ display:block;width:100%;max-width:100%;height:auto;min-height:0;
+ aspect-ratio:4/3;object-fit:contain;object-position:center;
+ margin:0;padding:0;border:0;border-radius:0;box-shadow:none;
+ background:transparent;
+}
+@media(min-width:1025px){
+ .login-brand-panel{padding:0;align-items:center;justify-content:center}
+ .login-illustration{max-height:620px}
+}
+@media(min-width:761px) and (max-width:1024px){
+ .login-layout{grid-template-columns:minmax(320px,.95fr) minmax(0,1.05fr)}
+ .login-card{padding:clamp(28px,4vw,48px)}
+ .login-brand-panel{padding:0}
+ .login-illustration{max-height:510px}
+}
+@media(max-width:760px){
+ .login-brand-panel{min-height:0;padding:0;margin:0;display:block}
+ .login-illustration{width:100%;max-height:none;height:auto;padding:0;margin:0}
+}
