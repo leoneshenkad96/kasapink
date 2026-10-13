@@ -245,6 +245,7 @@ paths:
       parameters:
         - { in: query, name: startDate, schema: { type: string, format: date, default: '2000-01-01', description: Valid YYYY-MM-DD in WIB; backdating is allowed. } }
         - { in: query, name: endDate, schema: { type: string, format: date, description: Valid YYYY-MM-DD in WIB; future dates are rejected. } }
+        - { in: query, name: productId, schema: { type: integer, minimum: 1, description: Return only transactions containing this product. } }
         - { in: query, name: limit, schema: { type: integer, minimum: 1, maximum: 200, default: 50 } }
         - { in: query, name: offset, schema: { type: integer, minimum: 0, default: 0 } }
       responses:

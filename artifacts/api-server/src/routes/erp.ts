@@ -1916,11 +1916,20 @@ router.get(
     const offset = Math.max(Number(req.query.offset ?? 0), 0);
     const startDate = checkedBusinessDate(req.query.startDate ?? "2000-01-01", "Tanggal awal penjualan");
     const endDate = checkedBusinessDate(req.query.endDate ?? jakartaToday(), "Tanggal akhir penjualan");
+    const productId = req.query.productId === undefined ? null : Number(req.query.productId);
+    if (productId !== null && (!Number.isInteger(productId) || productId < 1)) throw new HttpError("Produk filter penjualan tidak valid.", 400);
     if (startDate > endDate) throw new HttpError("Tanggal awal penjualan harus sebelum atau sama dengan tanggal akhir.", 400);
+    const saleWhere = productId === null
+      ? and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))
+      : and(
+          gte(salesTable.date, startDate),
+          lte(salesTable.date, endDate),
+          inArray(salesTable.id, db.select({ id: salesDetailsTable.salesId }).from(salesDetailsTable).where(eq(salesDetailsTable.productId, productId))),
+        );
     const [headers, totalRows] = await Promise.all([
-      db.select().from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate)))
+      db.select().from(salesTable).where(saleWhere)
         .orderBy(desc(salesTable.date), desc(salesTable.id)).limit(limit).offset(offset),
-      db.select({ total: count() }).from(salesTable).where(and(gte(salesTable.date, startDate), lte(salesTable.date, endDate))),
+      db.select({ total: count() }).from(salesTable).where(saleWhere),
     ]);
     const ids = headers.map((row) => row.id);
     const lines = ids.length ? await db.select().from(salesDetailsTable).where(inArray(salesDetailsTable.salesId, ids)) : [];
