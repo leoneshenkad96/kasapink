@@ -452,6 +452,7 @@ export const listSalesQueryOffsetMin = 0;
 export const ListSalesQueryParams = zod.object({
   "startDate": zod.date().default(listSalesQueryStartDateDefault),
   "endDate": zod.date().optional(),
+  "productId": zod.coerce.number().int().min(1).optional(),
   "limit": zod.coerce.number().int().min(1).max(listSalesQueryLimitMax).default(listSalesQueryLimitDefault),
   "offset": zod.coerce.number().int().min(listSalesQueryOffsetMin).default(listSalesQueryOffsetDefault)
 })

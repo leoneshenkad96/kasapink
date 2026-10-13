@@ -636,6 +636,11 @@ startDate?: string;
  */
 endDate?: string;
 /**
+ * Return only transactions containing this product.
+ * @minimum 1
+ */
+productId?: number;
+/**
  * @minimum 1
  * @maximum 200
  */

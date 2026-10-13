@@ -660,9 +660,12 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
   const salesPageSize = 5;
   const safeProducts = state.products || [];
   const [salesPage, setSalesPage] = useState(1);
+  const [salesStartDate, setSalesStartDate] = useState('2000-01-01');
+  const [salesEndDate, setSalesEndDate] = useState(today());
+  const [salesProductId, setSalesProductId] = useState('all');
   const [kategoriPenjualan, setKategoriPenjualan] = useState<'Makanan' | 'Parfum'>('Makanan');
   const availableProducts = safeProducts.filter((product) => product.businessType === kategoriPenjualan);
-  const salesQuery = useListSales({ startDate: '2000-01-01', endDate: today(), limit: salesPageSize, offset: (salesPage - 1) * salesPageSize });
+  const salesQuery = useListSales({ startDate: salesStartDate, endDate: salesEndDate, productId: salesProductId === 'all' ? undefined : Number(salesProductId), limit: salesPageSize, offset: (salesPage - 1) * salesPageSize });
   const recentSales = salesQuery.data?.items ?? (state.recentSales || []);
   const salesTotal = salesQuery.data?.pagination.total ?? recentSales.length;
   const [date, setDate] = useState(today()), [lines, setLines] = useState<{ productId: number; quantity: number | '' }[]>([{ productId: safeProducts.find((product) => product.businessType === 'Makanan')?.id || 0, quantity: '' }]), [error, setError] = useState(''), [done, setDone] = useState(''), [warnings, setWarnings] = useState<string[]>([]);
@@ -671,6 +674,7 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
   const pagedSales = recentSales;
   const salesTotalPages = Math.max(1, Math.ceil(salesTotal / salesPageSize));
   useEffect(() => { if (salesPage > salesTotalPages) setSalesPage(salesTotalPages); }, [salesPage, salesTotalPages]);
+  useEffect(() => { setSalesPage(1); }, [salesStartDate, salesEndDate, salesProductId]);
   const submit = (e: React.FormEvent) => {
     e.preventDefault(); setError(''); setDone(''); setWarnings([]);
     mutation.mutate({ data: { date, items: lines.filter((l) => l.productId && Number(l.quantity) > 0).map((l) => ({ productId: l.productId, quantity: Number(l.quantity) })) } }, {
@@ -690,7 +694,13 @@ function SalePage({ state, readOnly = false }: { state: ErpState; readOnly?: boo
       <div className="form-actions purchase-submit"><div><small>Perkiraan penjualan</small><strong>{money(total)}</strong></div><Button type="submit" disabled={readOnly || mutation.isPending || !availableProducts.length}>{mutation.isPending ? 'Menyimpan…' : 'Simpan penjualan'}</Button></div>
     </form></Card><aside className="side-tip"><div className="tip-symbol peach"><ReceiptText size={20} /></div><span className="eyebrow">SEBELUM MENYIMPAN</span><h3>Stok kurang tidak menghentikan transaksi</h3><p>Resep kosong atau stok minus akan ditampilkan sebagai warning setelah penjualan berhasil dicatat. Periksa dan sesuaikan stok secara berkala.</p><Link href="/produk" className="inline-link">Cek produk & resep <ArrowRight size={15} /></Link></aside></div>
     <Card className="table-card sales-history"><div className="card-heading"><div><span className="eyebrow">RIWAYAT TRANSAKSI</span><h2>Penjualan terakhir</h2></div><span className="result-count">{salesTotal} transaksi</span></div>
-      {salesQuery.isError ? <ErrorPanel message={errText(salesQuery.error)} retry={() => void salesQuery.refetch()} /> : recentSales.length ? <><div className="table-scroll"><table><thead><tr><th>TANGGAL</th><th>PRODUK</th><th>JUMLAH</th><th>PENJUALAN</th><th>LABA KOTOR</th><th>STATUS</th></tr></thead><tbody>{pagedSales.map((sale) => <tr key={sale.id}><td><b>{dateLabel(sale.date)}</b><small className="muted">#{sale.id}</small></td><td>{sale.items.map((item) => item.productName).join(', ') || '—'}</td><td>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</td><td><b>{money(sale.totalRevenue)}</b></td><td className="positive"><b>{money(sale.grossProfit)}</b></td><td><span className="status-pill status-ok">Tercatat</span></td></tr>)}</tbody></table></div><PaginationControls page={salesPage} totalItems={salesTotal} pageSize={salesPageSize} onPageChange={setSalesPage} label="transaksi" /></> : <Empty title="Belum ada penjualan" text="Transaksi yang disimpan akan muncul di tabel ini." />}
+      <div className="history-filter-bar">
+        <Field label="Dari tanggal"><FieldInput aria-label="Filter penjualan dari tanggal" type="date" value={salesStartDate} max={salesEndDate} onChange={(event) => setSalesStartDate(event.target.value)} /></Field>
+        <Field label="Sampai tanggal"><FieldInput aria-label="Filter penjualan sampai tanggal" type="date" value={salesEndDate} min={salesStartDate} max={today()} onChange={(event) => setSalesEndDate(event.target.value)} /></Field>
+        <Field label="Produk"><FieldSelect aria-label="Filter riwayat berdasarkan produk" value={salesProductId} onChange={(event) => setSalesProductId(event.target.value)}><option value="all">Semua produk</option>{safeProducts.slice().sort((a, b) => a.name.localeCompare(b.name, 'id-ID')).map((product) => <option key={product.id} value={product.id}>{product.name}</option>)}</FieldSelect></Field>
+        {(salesStartDate !== '2000-01-01' || salesEndDate !== today() || salesProductId !== 'all') && <button type="button" className="button button-quiet" onClick={() => { setSalesStartDate('2000-01-01'); setSalesEndDate(today()); setSalesProductId('all'); }}>Reset filter</button>}
+      </div>
+      {salesQuery.isError ? <ErrorPanel message={errText(salesQuery.error)} retry={() => void salesQuery.refetch()} /> : recentSales.length ? <><div className="table-scroll sales-history-desktop"><table><thead><tr><th>TANGGAL</th><th>PRODUK</th><th>JUMLAH</th><th>PENJUALAN</th><th>LABA KOTOR</th><th>STATUS</th></tr></thead><tbody>{pagedSales.map((sale) => <tr key={sale.id}><td><b>{dateLabel(sale.date)}</b><small className="muted">#{sale.id}</small></td><td>{sale.items.map((item) => item.productName).join(', ') || '—'}</td><td>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</td><td><b>{money(sale.totalRevenue)}</b></td><td className="positive"><b>{money(sale.grossProfit)}</b></td><td><span className="status-pill status-ok">Tercatat</span></td></tr>)}</tbody></table></div><div className="sales-history-mobile">{pagedSales.map((sale) => <article className="sale-history-card" key={sale.id}><div className="sale-history-head"><div><b>{dateLabel(sale.date)}</b><small>Transaksi #{sale.id}</small></div><span className="status-pill status-ok">Tercatat</span></div><strong>{sale.items.map((item) => item.productName).join(', ') || '—'}</strong><div className="sale-history-metrics"><span><small>Jumlah</small>{sale.items.reduce((sum, item) => sum + item.quantity, 0)} item</span><span><small>Penjualan</small>{money(sale.totalRevenue)}</span><span className="positive"><small>Laba kotor</small>{money(sale.grossProfit)}</span></div></article>)}</div><PaginationControls page={salesPage} totalItems={salesTotal} pageSize={salesPageSize} onPageChange={setSalesPage} label="transaksi" /></> : <Empty title="Belum ada penjualan" text="Transaksi yang disimpan akan muncul di tabel ini." />}
     </Card>
   </>;
 }
@@ -825,6 +835,8 @@ type PrepBatch = { id: number; batchNumber: string; date: string; targetQty: num
 type Prep = { id: number; name: string; unit: string; yieldQty: number; stock: number; averageCost: number; active: boolean; recipe: PrepRecipeLine[]; products: PrepProductLine[]; batches: PrepBatch[] };
 
 function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
+  const prepPageSize = 6;
+  const batchPageSize = 5;
   const stateQuery = useGetErpState();
   const [preps, setPreps] = useState<Prep[]>([]);
   const [loading, setLoading] = useState(true);
@@ -847,6 +859,12 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const [batchDate, setBatchDate] = useState(today());
   const [productId, setProductId] = useState('');
   const [productPrepDraft, setProductPrepDraft] = useState<Array<{ preparationId: number; qtyRequired: number; recipeUnit: string }>>([]);
+  const [prepSearch, setPrepSearch] = useState('');
+  const [prepStatus, setPrepStatus] = useState<'all' | 'ok' | 'low' | 'out'>('all');
+  const [prepPage, setPrepPage] = useState(1);
+  const [batchStartDate, setBatchStartDate] = useState('');
+  const [batchEndDate, setBatchEndDate] = useState(today());
+  const [batchPage, setBatchPage] = useState(1);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -873,6 +891,17 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
   const productionYield = Number(targetQty) > 0 && Number(actualQty) > 0
     ? (Number(actualQty) / Number(targetQty)) * 100
     : null;
+  const stockTone = (item: Prep) => item.stock <= 0 ? 'out' : item.stock <= item.yieldQty * 0.25 ? 'low' : 'ok';
+  const filteredPreps = preps.filter((item) => item.name.toLocaleLowerCase('id-ID').includes(prepSearch.trim().toLocaleLowerCase('id-ID')) && (prepStatus === 'all' || stockTone(item) === prepStatus));
+  const prepTotalPages = Math.max(1, Math.ceil(filteredPreps.length / prepPageSize));
+  const currentPrepPage = Math.min(prepPage, prepTotalPages);
+  const visiblePreps = filteredPreps.slice((currentPrepPage - 1) * prepPageSize, currentPrepPage * prepPageSize);
+  const filteredBatches = prep?.batches.filter((batch) => (!batchStartDate || batch.date >= batchStartDate) && (!batchEndDate || batch.date <= batchEndDate)) ?? [];
+  const batchTotalPages = Math.max(1, Math.ceil(filteredBatches.length / batchPageSize));
+  const currentBatchPage = Math.min(batchPage, batchTotalPages);
+  const visibleBatches = filteredBatches.slice((currentBatchPage - 1) * batchPageSize, currentBatchPage * batchPageSize);
+  useEffect(() => { setPrepPage((value) => Math.min(value, prepTotalPages)); }, [prepTotalPages]);
+  useEffect(() => { setBatchPage((value) => Math.min(value, batchTotalPages)); }, [batchTotalPages]);
 
   useEffect(() => {
     if (!prep) return;
@@ -883,6 +912,9 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
     })));
     setTargetQty('');
     setActualQty('');
+    setBatchStartDate('');
+    setBatchEndDate(today());
+    setBatchPage(1);
     setPrepDetailDirty(false);
   }, [selectedPrep]);
 
@@ -1031,8 +1063,6 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 
   if (loading) return <LoadingPanel />;
 
-  const stockTone = (p: Prep) => p.stock <= 0 ? 'out' : p.stock <= p.yieldQty * 0.25 ? 'low' : 'ok';
-
   return <div className="page-stack prep-page">
     <PageHeading
       kicker="PRODUKSI & PERSIAPAN"
@@ -1067,11 +1097,17 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
           <span className="eyebrow">STOK SAAT INI</span>
           <h2>Persiapan yang tersedia</h2>
         </div>
-        <span className="period-chip">{preps.length} jenis prep</span>
+        <span className="period-chip">{filteredPreps.length} dari {preps.length} jenis prep</span>
       </div>
 
-      {preps.length ? <div className="prep-stock-grid">
-        {preps.map((p) => {
+      <div className="prep-filter-bar">
+        <label className="search-wrap"><span className="search-mark">⌕</span><input aria-label="Cari prep" value={prepSearch} onChange={(event) => { setPrepSearch(event.target.value); setPrepPage(1); }} placeholder="Cari nama prep..." /></label>
+        <FieldSelect aria-label="Filter status stok prep" value={prepStatus} onChange={(event) => { setPrepStatus(event.target.value as typeof prepStatus); setPrepPage(1); }}><option value="all">Semua status</option><option value="ok">Stok aman</option><option value="low">Perlu produksi</option><option value="out">Stok habis</option></FieldSelect>
+        {(prepSearch || prepStatus !== 'all') && <button type="button" className="button button-quiet" onClick={() => { setPrepSearch(''); setPrepStatus('all'); setPrepPage(1); }}>Reset filter</button>}
+      </div>
+
+      {visiblePreps.length ? <><div className="prep-stock-grid">
+        {visiblePreps.map((p) => {
           const tone = stockTone(p);
           return <article
             key={p.id}
@@ -1086,7 +1122,7 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
             <button className="prep-stock-action" type="button" onClick={() => openPrepDetail(p.id)} aria-label={`Kelola ${p.name}`}>Kelola prep <ArrowRight size={14} /></button>
           </article>;
         })}
-      </div> : <Card><Empty title="Belum ada stok prep" text="Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi." /></Card>}
+      </div><PaginationControls page={currentPrepPage} totalItems={filteredPreps.length} pageSize={prepPageSize} onPageChange={setPrepPage} label="prep" /></> : <Card><Empty title={preps.length ? "Prep tidak ditemukan" : "Belum ada stok prep"} text={preps.length ? "Coba nama atau status stok yang lain." : "Buat prep pertama untuk mulai membuat stok olahan seperti nasi matang, ayam suwir, atau jamur marinasi."} /></Card>}
     </section>
 
     {!readOnly && showCreateForm && <Modal title="Add Prep" onClose={closePrepModal} dirty={prepFormDirty} busy={savingPrep}><form className="form-stack" onInput={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onChange={() => { setPrepFormDirty(true); setUnsavedChanges(true); }} onSubmit={savePrep}>
@@ -1150,7 +1186,8 @@ function PrepPage({ readOnly = false }: { readOnly?: boolean }) {
 
           {prepDetailTab === 'history' && <div id="prep-panel-history" aria-labelledby="prep-tab-history" className="prep-detail-tab-panel" role="tabpanel">
             <div className="prep-panel-head"><div><span className="eyebrow">RIWAYAT</span><h3>Batch produksi terakhir</h3></div><span className="period-chip">{prep.batches.length} batch</span></div>
-            {prep.batches.length ? <div className="prep-history compact">{prep.batches.slice(0, 10).map((b) => <div className="prep-history-row" key={b.id}><div><b>{dateLabel(b.date)}</b><small>{b.batchNumber}</small></div><span>{b.actualQty} {prep.unit}</span><span>{b.yieldPercentage}% yield</span><strong>{money(b.unitCost)}/{prep.unit}</strong></div>)}</div> : <Empty title="Belum ada produksi" text="Batch dari tab Tambah stok akan muncul di sini." />}
+            <div className="batch-filter-bar"><Field label="Dari tanggal"><FieldInput aria-label="Filter batch dari tanggal" type="date" value={batchStartDate} max={batchEndDate} onChange={(event) => { setBatchStartDate(event.target.value); setBatchPage(1); }} /></Field><Field label="Sampai tanggal"><FieldInput aria-label="Filter batch sampai tanggal" type="date" value={batchEndDate} min={batchStartDate || undefined} max={today()} onChange={(event) => { setBatchEndDate(event.target.value); setBatchPage(1); }} /></Field>{(batchStartDate || batchEndDate !== today()) && <button type="button" className="button button-quiet" onClick={() => { setBatchStartDate(''); setBatchEndDate(today()); setBatchPage(1); }}>Reset filter</button>}</div>
+            {visibleBatches.length ? <><div className="prep-history compact">{visibleBatches.map((b) => <div className="prep-history-row" key={b.id}><div><b>{dateLabel(b.date)}</b><small>{b.batchNumber}</small></div><span>{b.actualQty} {prep.unit}</span><span>{b.yieldPercentage}% yield</span><strong>{money(b.unitCost)}/{prep.unit}</strong></div>)}</div><PaginationControls page={currentBatchPage} totalItems={filteredBatches.length} pageSize={batchPageSize} onPageChange={setBatchPage} label="batch" /></> : <Empty title={prep.batches.length ? "Batch tidak ditemukan" : "Belum ada produksi"} text={prep.batches.length ? "Coba rentang tanggal yang lain." : "Batch dari tab Tambah stok akan muncul di sini."} />}
           </div>}
         </div>
     </Modal>}
