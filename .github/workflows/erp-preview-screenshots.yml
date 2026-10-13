@@ -1,0 +1,50 @@
+name: ERP Preview Screenshots
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/erp-rumahan-emak/src/**'
+      - 'artifacts/erp-rumahan-emak/public/**'
+      - '.github/workflows/erp-preview-screenshots.yml'
+  workflow_dispatch:
+jobs:
+  capture:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+      - name: Install monorepo dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Start frontend server
+        run: |
+          pnpm --filter @workspace/erp-rumahan-emak run dev -- --host 127.0.0.1 > /tmp/kasapink-vite.log 2>&1 &
+          echo $! > /tmp/kasapink-vite.pid
+          for attempt in $(seq 1 45); do
+            if curl -fsS http://127.0.0.1:5173/ > /dev/null; then exit 0; fi
+            sleep 2
+          done
+          cat /tmp/kasapink-vite.log
+          exit 1
+      - name: Install Playwright Chromium
+        run: |
+          mkdir -p /tmp/kasapink-qa
+          npm install --prefix /tmp/kasapink-qa --no-save playwright@1.56.1
+          /tmp/kasapink-qa/node_modules/.bin/playwright install --with-deps chromium
+          cp scripts/capture-erp-preview.mjs /tmp/kasapink-qa/capture.mjs
+      - name: Capture real Vercel Preview on three viewports
+        env:
+          QA_URL: http://127.0.0.1:5173
+        run: cd /tmp/kasapink-qa && node capture.mjs
+      - name: Publish screenshot evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasapink-erp-preview-three-viewports
+          path: /tmp/kasapink-qa/qa-screenshots/
+          if-no-files-found: warn

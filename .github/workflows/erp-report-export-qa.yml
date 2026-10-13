@@ -1,0 +1,39 @@
+name: ERP PDF Export Quality
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/api-server/src/lib/report-export.ts'
+      - 'artifacts/api-server/src/lib/xlsx-export.ts'
+      - 'artifacts/api-server/src/routes/erp.ts'
+      - 'scripts/test-report-export.mjs'
+      - 'scripts/test-report-parity.mjs'
+      - '.github/workflows/erp-report-export-qa.yml'
+  workflow_dispatch:
+jobs:
+  pdf-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile
+      - name: Build library types
+        run: pnpm run typecheck:libs
+      - name: Typecheck API
+        run: pnpm --filter @workspace/api-server run typecheck
+      - name: Verify CSV Excel and PDF consistency
+        run: node scripts/test-report-parity.mjs
+      - name: Render PDF samples (three report types, multiple pages)
+        run: node scripts/test-report-export.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: kasapink-pdf-export-qa
+          path: /tmp/kasapink-report-qa/
+          if-no-files-found: warn

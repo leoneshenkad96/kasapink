@@ -1,0 +1,30 @@
+name: ERP Frontend Quality
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/erp-rumahan-emak/**'
+      - 'scripts/check-palette.mjs'
+      - '.github/workflows/erp-frontend-quality.yml'
+  workflow_dispatch:
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: '10'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pnpm install --frozen-lockfile
+      - name: Validate earth-tone palette
+        run: pnpm run check:palette
+      - name: Build internal type libraries
+        run: pnpm run typecheck:libs
+      - name: Typecheck frontend
+        run: pnpm --filter @workspace/erp-rumahan-emak run typecheck
+      - name: Build frontend
+        run: pnpm --filter @workspace/erp-rumahan-emak run build

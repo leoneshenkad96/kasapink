@@ -1,0 +1,19 @@
+name: ERP redesign release gate
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'artifacts/erp-rumahan-emak/**'
+      - 'scripts/check-login-release.mjs'
+      - '.github/workflows/erp-redesign-qa.yml'
+  workflow_dispatch:
+jobs:
+  approved-login-asset:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify approved login artwork, dimensions, and CSS
+        run: node scripts/check-login-release.mjs
