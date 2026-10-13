@@ -29,15 +29,15 @@ test('directory filters, sorting and page size operate on the full list', async 
   await expect(rows).toHaveCount(1);
   await expect(page.locator('.users-pagination')).toContainText('Halaman 1 / 1');
   await page.getByRole('button', { name: 'Reset filter' }).click();
-  await page.getByLabel('Role', { exact: true }).selectOption('testing');
+  await page.getByLabel('Filter role').selectOption('testing');
   await expect(rows).toHaveCount(4);
   await page.getByLabel('Cari username').fill('missing');
   await expect(page.getByText('User tidak ditemukan', { exact: true })).toBeVisible();
   await expect(page.locator('.users-pagination')).toContainText('0–0 dari 0');
   await page.locator('.users-toolbar').getByRole('button', { name: 'Reset filter' }).click();
-  await page.getByLabel('Urutkan').selectOption('newest');
+  await page.getByLabel('Urutkan user').selectOption('newest');
   await expect(rows.first()).toContainText('user14');
-  await page.getByLabel('Per halaman').selectOption('25');
+  await page.getByLabel('User per halaman').selectOption('25');
   await expect(rows).toHaveCount(14);
 });
 
