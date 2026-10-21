@@ -1,0 +1,72 @@
+name: ERP Local Sync and Encrypted Recovery
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/**'
+      - 'package.json'
+      - '.gitignore'
+      - '.github/workflows/recovery-tools.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  production-readonly:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: node scripts/production-readiness-check.mjs
+  recovery-unit:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: node --test scripts/backup-tools.test.mjs scripts/sync-local.test.mjs
+      - name: Parse Windows scripts
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          foreach ($file in @('sync-local.ps1', 'install-daily-backup.ps1', 'run-daily-backup.ps1')) {
+            $tokens = $null; $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile((Join-Path 'scripts' $file), [ref]$tokens, [ref]$errors) | Out-Null
+            if ($errors.Count) { throw ($errors | Out-String) }
+          }
+  recovery-postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: ci-recovery-fixture-only
+          POSTGRES_DB: kasapink_backup_fixture
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - name: Use matching PostgreSQL 17 client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          . /etc/os-release
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update -qq
+          sudo apt-get install -y postgresql-client-17
+          echo 'PG_BIN=/usr/lib/postgresql/17/bin' >> "$GITHUB_ENV"
+      - run: node --test scripts/backup-postgres.test.mjs
+        env:
+          BACKUP_PG_TEST_URL: postgresql://postgres:ci-recovery-fixture-only@127.0.0.1:5432/kasapink_backup_fixture

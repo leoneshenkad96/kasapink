@@ -1,17 +1,14 @@
-import { execFile } from "node:child_process";
-import { access } from "node:fs/promises";
-import { promisify } from "node:util";
+import path from 'node:path';
+import { newestBackup, postgresEnv, runPg, validateArchive, validateManifest, withArchive } from './lib/backup-tools.mjs';
 
-const run = promisify(execFile);
-const backupFile = process.env.ERP_BACKUP_FILE;
-const databaseUrl = process.env.DATABASE_URL;
-const pgRestore = process.env.PG_RESTORE_BIN || "pg_restore";
-
-if (!backupFile || !databaseUrl) throw new Error("Set ERP_BACKUP_FILE and DATABASE_URL before restoring.");
-if (process.env.ALLOW_ERP_RESTORE !== "true") throw new Error("Restore is disabled. Set ALLOW_ERP_RESTORE=true for a deliberate local restore.");
-if (process.env.CONFIRM_ERP_RESTORE !== "RESTORE KASAPINK ERP") throw new Error("Set CONFIRM_ERP_RESTORE='RESTORE KASAPINK ERP' to confirm the overwrite.");
-const parsed = new URL(databaseUrl);
-if (!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)) throw new Error("Restore is restricted to a local database host.");
-await access(backupFile);
-await run(pgRestore, ["--clean", "--if-exists", "--no-owner", "--no-privileges", "--dbname", databaseUrl, backupFile], { windowsHide: true, timeout: 120000 });
-console.log(`ERP restore completed from ${backupFile}`);
+if (process.env.ALLOW_ERP_RESTORE !== 'true' || process.env.CONFIRM_ERP_RESTORE !== 'RESTORE KASAPINK ERP') throw new Error('Restore disabled. Set ALLOW_ERP_RESTORE=true and CONFIRM_ERP_RESTORE="RESTORE KASAPINK ERP" deliberately.');
+// Never reuse DATABASE_URL, which often points to Production.
+const env = postgresEnv(process.env.ERP_RESTORE_DATABASE_URL, { localOnly: true });
+if (['postgres', 'template0', 'template1'].includes(env.PGDATABASE)) throw new Error('Restore into a dedicated local ERP database, never a maintenance database.');
+const file = await newestBackup(path.resolve(process.env.ERP_BACKUP_DIR || './backups'));
+if (file.endsWith('.enc')) await validateManifest(file);
+await withArchive(file, async archive => {
+  await validateArchive(archive);
+  await runPg('restore', ['--dbname', env.PGDATABASE, '--single-transaction', '--exit-on-error', '--clean', '--if-exists', '--no-owner', '--no-privileges', '--no-password', archive], env);
+});
+console.log('PASS: local restore committed atomically. Production was not a restore target.');
