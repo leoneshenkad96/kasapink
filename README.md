@@ -32,7 +32,7 @@ Laba kotor dihitung dari pendapatan dikurangi biaya bahan produk yang terjual. A
 
 ### 1. Siapkan kebutuhan
 
-- Node.js 24 dan pnpm.
+- Node.js **24.22.1 atau lebih baru dalam lini 24.x** dan pnpm. Untuk menginstal rilis terbaru Node.js 24 melalui `nvm`, jalankan `nvm install 24` lalu `nvm use 24` (Windows: gunakan nvm-windows dengan perintah yang sesuai).
 - PostgreSQL untuk lingkungan pengembangan.
 - Git untuk mengambil repositori.
 
@@ -40,6 +40,7 @@ Laba kotor dihitung dari pendapatan dikurangi biaya bahan produk yang terjual. A
 git clone https://github.com/leoneshenkad96/kasapink.git
 cd kasapink
 pnpm install --frozen-lockfile
+pnpm run check:node-security
 ```
 
 ### 2. Siapkan database dan konfigurasi backend
@@ -103,6 +104,7 @@ Jalankan dari root repositori:
 
 | Perintah | Fungsi |
 | --- | --- |
+| `pnpm check:node-security` | Memastikan runtime Node.js 24 telah memiliki patch keamanan 21 Oktober 2026 (minimal 24.22.1) |
 | `pnpm typecheck` | Memeriksa tipe TypeScript workspace |
 | `pnpm build` | Membangun frontend dan bundle API untuk Vercel |
 | `pnpm test:auth` | Menguji autentikasi dengan database double |
@@ -135,7 +137,7 @@ tests/               Pengujian aplikasi
 
 ## Deployment dan data
 
-Konfigurasi Vercel tersedia di `vercel.json`. Frontend dibangun ke `artifacts/erp-rumahan-emak/dist/public`, sedangkan permintaan `/api/*` diarahkan ke `api/index.js`. Atur kredensial database dan secret melalui konfigurasi lingkungan hosting.
+Konfigurasi Vercel tersedia di `vercel.json`; Vercel saat ini menggunakan Node.js `24.x`, dan pembaruan minor/patch diatur oleh platform. Setelah redeploy, cek versi aktual dari log build/runtime sebelum menganggap patch sudah aktif. Mengubah file GitHub tidak memperbarui runtime deployment lama secara langsung. Frontend dibangun ke `artifacts/erp-rumahan-emak/dist/public`, sedangkan permintaan `/api/*` diarahkan ke `api/index.js`. Atur kredensial database dan secret melalui konfigurasi lingkungan hosting.
 
 Menyalin repositori hanya mengambil file dan riwayat yang disimpan di Git. Isi database, secret, dan data layanan eksternal harus disiapkan atau dipulihkan secara terpisah. Tinjau skrip backup dan restore sebelum digunakan pada database tujuan.
 
