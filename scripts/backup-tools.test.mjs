@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, stat, writeFile, access } from 'node:fs/promises
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { backupKey, decryptArchive, encryptArchive, postgresEnv, runPg } from './lib/backup-tools.mjs';
+import { backupKey, decryptArchive, digest, encryptArchive, postgresEnv, runPg, signManifest, validateManifest } from './lib/backup-tools.mjs';
 
 test('PostgreSQL connection secrets never enter arguments and routing overrides are rejected', () => {
   const env = postgresEnv('postgresql://backup:secret%21@db.example:5433/erp?sslmode=require');
@@ -19,7 +19,26 @@ test('PostgreSQL connection secrets never enter arguments and routing overrides 
   }
   for (const host of ['127.0.0.1', 'localhost', '[::1]']) assert.equal(postgresEnv(`postgresql://u:p@${host}/test`, { localOnly: true }).PGSSLMODE, 'disable');
   assert.throws(() => postgresEnv('https://example.com'), /PostgreSQL/);
+  assert.throws(() => postgresEnv('postgresql://u:p@localhost/host%3Dprod'), /database name/);
   assert.throws(() => backupKey('short'), /32-byte/);
+});
+
+test('manifest authentication prevents forged backup timestamps', async t => {
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'kasapink manifest test '));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const previous = process.env.ERP_BACKUP_KEY;
+  const key = randomBytes(32); process.env.ERP_BACKUP_KEY = key.toString('hex');
+  try {
+    const file = path.join(dir, 'backup.dump.enc'); await writeFile(file, randomBytes(128));
+    const manifest = signManifest({ format: 'kasapink-aes-256-gcm-v1', createdAt: new Date().toISOString(), size: 128, sha256: await digest(file) }, key);
+    await writeFile(`${file}.json`, JSON.stringify(manifest));
+    await validateManifest(file);
+    manifest.createdAt = '2099-01-01T00:00:00.000Z';
+    await writeFile(`${file}.json`, JSON.stringify(manifest));
+    await assert.rejects(validateManifest(file), /authentication failed/);
+  } finally {
+    if (previous === undefined) delete process.env.ERP_BACKUP_KEY; else process.env.ERP_BACKUP_KEY = previous;
+  }
 });
 
 test('AES-GCM authenticates round trips, randomized nonces and every failure cleans temporary plaintext', async t => {

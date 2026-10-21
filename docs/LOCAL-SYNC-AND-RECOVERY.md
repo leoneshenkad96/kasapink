@@ -79,7 +79,7 @@ Get-ChildItem .\.local\backup\archives\*.restore-check.json
 
 Restore ke database lokal tertentu merupakan operasi berbeda dan sengaja memerlukan:
 
-- `ERP_RESTORE_DATABASE_URL`: database ERP lokal khusus, bukan `postgres` atau `template*`.
+- `ERP_RESTORE_DATABASE_URL`: database ERP lokal khusus, bukan `postgres`, `template0`, atau `template1`.
 - `ERP_BACKUP_FILE` beserta manifest dan `ERP_BACKUP_KEY`.
 - `ALLOW_ERP_RESTORE=true` dan `CONFIRM_ERP_RESTORE=RESTORE KASAPINK ERP`.
 

@@ -36,7 +36,7 @@ test('sync fast-forwards latest source, preserves dirty/untracked work and leave
   writeFileSync(path.join(local, '.local', 'database.bin'), 'IMPORTANT-LOCAL-DATA');
   const result = run(); assert.equal(result.status, 0, result.stderr);
   assert.equal(git(local, 'rev-parse', 'HEAD'), git(producer, 'rev-parse', 'HEAD'));
-  assert.equal(readFileSync(path.join(local, 'security.txt'), 'utf8'), 'new security patch\n');
+  assert.equal(readFileSync(path.join(local, 'security.txt'), 'utf8').replaceAll('\r\n', '\n'), 'new security patch\n');
   assert.equal(readFileSync(path.join(local, '.env'), 'utf8'), 'PRIVATE-ENV');
   assert.equal(readFileSync(path.join(local, '.local', 'database.bin'), 'utf8'), 'IMPORTANT-LOCAL-DATA');
   const { savedWork } = JSON.parse(readFileSync(path.join(local, '.local', 'last-sync.json')));

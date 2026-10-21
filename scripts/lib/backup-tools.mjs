@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
+import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { createReadStream, createWriteStream } from 'node:fs';
 import { appendFile, mkdtemp, open, readFile, readdir, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
@@ -40,6 +40,7 @@ export function postgresEnv(uri, { localOnly = false } = {}) {
     PGSSLMODE: local ? 'disable' : 'verify-full',
   });
   if (!env.PGDATABASE || !env.PGUSER) throw new Error('The PostgreSQL URI must name a database and user.');
+  if (!/^[A-Za-z0-9_.-]{1,63}$/.test(env.PGDATABASE)) throw new Error('Use a simple database name; connection-string-like database names are forbidden.');
   if (!local) env.PGSSLROOTCERT = process.env.PGSSLROOTCERT || 'system';
   if (url.searchParams.has('channel_binding')) env.PGCHANNELBINDING = url.searchParams.get('channel_binding');
   return env;
@@ -135,7 +136,21 @@ export async function validateArchive(archive) {
 
 export async function validateManifest(file) {
   const manifest = JSON.parse(await readFile(`${file}.json`, 'utf8'));
+  const key = backupKey();
+  try {
+    const expected = signManifest(manifest, key).mac;
+    if (!/^[a-f0-9]{64}$/.test(manifest.mac ?? '') || !timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(manifest.mac, 'hex'))) throw new Error('Backup manifest authentication failed.');
+  } finally { key.fill(0); }
   const info = await stat(file);
   if (manifest.sha256 !== await digest(file) || manifest.size !== info.size) throw new Error('Backup checksum/size does not match its manifest.');
   return manifest;
+}
+
+export function signManifest(manifest, key) {
+  const { format, createdAt, size, sha256 } = manifest;
+  const core = { format, createdAt, size, sha256 };
+  const macKey = createHmac('sha256', key).update('kasapink-backup-manifest-v1').digest();
+  const mac = createHmac('sha256', macKey).update(JSON.stringify(core)).digest('hex');
+  macKey.fill(0);
+  return { ...core, mac };
 }

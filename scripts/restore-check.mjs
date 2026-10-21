@@ -14,7 +14,7 @@ try {
   await withArchive(file, async archive => {
     await validateArchive(archive);
     await sql(`CREATE DATABASE "${name}"`); created = true;
-    await runPg('restore', ['--single-transaction', '--exit-on-error', '--no-owner', '--no-privileges', '--no-password', archive], targetEnv);
+    await runPg('restore', ['--dbname', name, '--single-transaction', '--exit-on-error', '--no-owner', '--no-privileges', '--no-password', archive], targetEnv);
     counts = {};
     for (const table of requiredTables) {
       const { stdout } = await sql(`SELECT count(*) FROM public."${table}"`, targetEnv);

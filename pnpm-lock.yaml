@@ -74,7 +74,7 @@ overrides:
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
   esbuild: 0.28.2
   js-yaml: 4.3.2
-  ip-address: 10.3.1
+  ip-address: 10.7.1
 
 importers:
 
@@ -2666,8 +2666,8 @@ packages:
     resolution: {integrity: sha512-5Hh7Y1wQbvY5ooGgPbDaL5iYLAPzMTUrjMulskHLH6wnv/A+1q5rgEaiuqEjB+oxGXIVZs1FF+R/KPN3ZSQYYg==}
     engines: {node: '>=12'}
 
-  ip-address@10.3.1:
-    resolution: {integrity: sha512-1e9d3kb97NHJTIJDZW9rKqW2h6+dFa50Dy0fpPSMQp2ADje5gvKsXmdiK6dwY5t76TaTt5+P5N1Y/LoToIxP6g==}
+  ip-address@10.7.1:
+    resolution: {integrity: sha512-4OUAqU9Z1i3vCnS05hzGiFnEMDpQ+62pAD/MVQOp83fYyNC8GleCqaS0QikQBmcWCrKFiUs/B8ztRRiYOAXuCA==}
     engines: {node: '>= 12'}
 
   ipaddr.js@1.9.1:
@@ -5258,7 +5258,7 @@ snapshots:
   express-rate-limit@8.5.2(express@5.2.1):
     dependencies:
       express: 5.2.1
-      ip-address: 10.3.1
+      ip-address: 10.7.1
 
   express-session@1.19.0:
     dependencies:
@@ -5443,7 +5443,7 @@ snapshots:
 
   internmap@2.0.3: {}
 
-  ip-address@10.3.1: {}
+  ip-address@10.7.1: {}
 
   ipaddr.js@1.9.1: {}
 

@@ -2,7 +2,7 @@ import { copyFile, mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 
 import { constants } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import path from 'node:path';
-import { backupKey, digest, encryptArchive, postgresEnv, runPg, validateArchive } from './lib/backup-tools.mjs';
+import { backupKey, digest, encryptArchive, postgresEnv, runPg, signManifest, validateArchive } from './lib/backup-tools.mjs';
 
 const key = backupKey();
 const env = postgresEnv(process.env.DATABASE_URL);
@@ -19,10 +19,10 @@ const output = path.join(local, name), copied = path.join(second, name);
 const temp = await mkdtemp(path.join(local, '.pending-'));
 try {
   const dump = path.join(temp, 'backup.dump'), encrypted = path.join(temp, name);
-  await runPg('dump', ['--format=custom', '--no-owner', '--no-privileges', '--file', dump], env);
+  await runPg('dump', ['--format=custom', '--no-owner', '--no-privileges', '--no-password', '--file', dump], env);
   await validateArchive(dump);
   await encryptArchive(dump, encrypted, key);
-  const manifest = { format: 'kasapink-aes-256-gcm-v1', createdAt: new Date().toISOString(), size: (await stat(encrypted)).size, sha256: await digest(encrypted) };
+  const manifest = signManifest({ format: 'kasapink-aes-256-gcm-v1', createdAt: new Date().toISOString(), size: (await stat(encrypted)).size, sha256: await digest(encrypted) }, key);
   await rename(encrypted, output);
   await writeFile(`${output}.json`, JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
   await copyFile(output, `${copied}.partial`, constants.COPYFILE_EXCL);

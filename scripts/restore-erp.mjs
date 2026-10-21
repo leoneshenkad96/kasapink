@@ -9,6 +9,6 @@ const file = await newestBackup(path.resolve(process.env.ERP_BACKUP_DIR || './ba
 if (file.endsWith('.enc')) await validateManifest(file);
 await withArchive(file, async archive => {
   await validateArchive(archive);
-  await runPg('restore', ['--single-transaction', '--exit-on-error', '--clean', '--if-exists', '--no-owner', '--no-privileges', '--no-password', archive], env);
+  await runPg('restore', ['--dbname', env.PGDATABASE, '--single-transaction', '--exit-on-error', '--clean', '--if-exists', '--no-owner', '--no-privileges', '--no-password', archive], env);
 });
 console.log('PASS: local restore committed atomically. Production was not a restore target.');
