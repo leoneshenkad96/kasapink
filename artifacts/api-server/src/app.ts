@@ -96,7 +96,7 @@ app.use("/api", (req, res, next) => {
   const isSameOrigin = (raw: string): boolean => {
     try {
       const url = new URL(raw);
-      const local = host?.startsWith("localhost:") || host?.startsWith("127.0.0.1:");
+      const local = Boolean(host?.startsWith("localhost:") || host?.startsWith("127.0.0.1:"));
       return url.host === host && (url.protocol === "https:" || (local && url.protocol === "http:"));
     } catch { return false; }
   };
