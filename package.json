@@ -21,7 +21,8 @@
     "local:start": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/start-local.ps1",
     "local:stop": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/stop-local.ps1",
     "test:recipe:atomic": "node --test scripts/recipe-atomic.test.mjs",
-    "test:fnb:isolation": "node --test scripts/fnb-business-isolation.test.mjs"
+    "test:fnb:isolation": "node --test scripts/fnb-business-isolation.test.mjs",
+    "check:node-security": "node ./scripts/check-node-security.mjs"
   },
   "private": true,
   "dependencies": {
@@ -46,5 +47,8 @@
     "esbuild": "0.28.2",
     "prettier": "^3.9.6",
     "typescript": "~5.9.3"
+  },
+  "engines": {
+    "node": "24.x"
   }
 }
