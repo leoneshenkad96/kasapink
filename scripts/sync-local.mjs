@@ -1,13 +1,17 @@
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, realpathSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = path.resolve(process.argv[2] || path.join(path.dirname(fileURLToPath(import.meta.url)), '..'));
+const root = realpathSync.native(path.resolve(process.argv[2] || path.join(path.dirname(fileURLToPath(import.meta.url)), '..')));
 const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8', windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 const status = (...args) => spawnSync('git', args, { cwd: root, windowsHide: true, stdio: 'ignore' }).status;
 const repositoryRoot = git('rev-parse', '--show-toplevel');
-if (path.resolve(repositoryRoot).toLowerCase() !== root.toLowerCase()) throw new Error('Select the root of the ERP Kasapink repository.');
+const canonical = value => {
+  const resolved = realpathSync.native(path.resolve(value));
+  return process.platform === 'win32' ? resolved.toLowerCase() : resolved;
+};
+if (canonical(repositoryRoot) !== canonical(root)) throw new Error('Select the root of the ERP Kasapink repository.');
 const origin = git('config', '--get', 'remote.origin.url');
 if (!/^(https:\/\/github\.com\/|git@github\.com:)leoneshenkad96\/kasapink(?:\.git)?\/?$/i.test(origin)) throw new Error('Origin must point to leoneshenkad96/kasapink on GitHub.');
 if (git('branch', '--show-current') !== 'main') throw new Error('Local branch is not main. Preserve/review that branch before syncing; no files were changed.');
