@@ -45,6 +45,8 @@ overrides:
   esbuild: "0.28.2"
   # orval pins js-yaml to an exact version older than the CVE fix (>=4.3.2)
   js-yaml: '4.3.2'
+  # Address4 leading-zero SSRF validation CVE-2026-69192
+  ip-address: '10.3.1'
 
 allowBuilds:
   esbuild: true

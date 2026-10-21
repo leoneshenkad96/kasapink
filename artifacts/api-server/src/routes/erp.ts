@@ -45,6 +45,7 @@ import {
 } from "@workspace/db";
 import { Router, type IRouter, type Request, type RequestHandler, type Response } from "express";
 import { checkRole, requireOperationalRole, verifyToken, type AuthRequest } from "../lib/auth";
+import { auditRequestSummary, auditSnapshot, auditReason } from "../lib/safe-audit";
 import { isAllowedBusinessDate, wibDateKey } from "../lib/business-date";
 import { preparationComponentCost } from "../lib/costing";
 import { movingAverageAfterReceipt } from "../lib/moving-average";
@@ -63,7 +64,7 @@ router.use((req, res, next) => {
   res.on("finish", () => {
     const actor = (req as AuthRequest).authUser;
     if (!actor || res.statusCode >= 500) return;
-    const details = req.body && typeof req.body === "object" ? JSON.stringify(req.body) : undefined;
+    const details = auditRequestSummary(req.body);
     void db.insert(auditLogTable).values({
       actorId: actor.id,
       actorUsername: actor.username,
@@ -71,9 +72,9 @@ router.use((req, res, next) => {
       path: req.path,
       statusCode: res.statusCode,
       details,
-      beforeData: res.locals.auditBefore ? JSON.stringify(res.locals.auditBefore) : undefined,
-      afterData: res.locals.auditAfter ? JSON.stringify(res.locals.auditAfter) : undefined,
-      reason: typeof req.headers["x-audit-reason"] === "string" ? req.headers["x-audit-reason"] : undefined,
+      beforeData: auditSnapshot(res.locals.auditBefore),
+      afterData: auditSnapshot(res.locals.auditAfter),
+      reason: auditReason(req.headers["x-audit-reason"]),
     }).catch((error: unknown) => req.log?.warn({ err: error }, "ERP audit log write failed"));
   });
   next();
