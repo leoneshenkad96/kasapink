@@ -1,0 +1,25 @@
+name: ERP Backup Script Security
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/backup-erp.mjs'
+      - 'scripts/check-backup.mjs'
+      - 'docs/SECURITY-HARDENING-BATCH-1.md'
+      - '.github/workflows/backup-security.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  backup-syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24.22.1'
+      - run: node --check scripts/backup-erp.mjs
+      - run: node --check scripts/check-backup.mjs
+      - name: Verify backup does not pass password in argv
+        run: |
+          node --input-type=module -e "import {readFileSync} from 'node:fs';const s=readFileSync('scripts/backup-erp.mjs','utf8');if(!s.includes('PGPASSWORD: dbPassword') || s.includes('outputPath, databaseUrl'))process.exit(1);"
