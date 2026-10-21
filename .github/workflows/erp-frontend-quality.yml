@@ -18,7 +18,7 @@ jobs:
           version: '10'
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
       - run: pnpm install --frozen-lockfile
       - name: Validate earth-tone palette
         run: pnpm run check:palette
