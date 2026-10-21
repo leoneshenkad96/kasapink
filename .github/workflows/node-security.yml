@@ -24,7 +24,7 @@ jobs:
           version: '10'
       - uses: actions/setup-node@v4
         with:
-          node-version: '24'
+          node-version: '24.22.1'
           cache: 'pnpm'
       - name: Verify Node.js security baseline
         run: pnpm run check:node-security
