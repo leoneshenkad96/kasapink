@@ -1,5 +1,5 @@
 // Security baseline: Node.js security release 2026-10-21, minimum v24.22.1.
-// Vercel and CI use 24.x to receive future patch releases automatically.
+// Vercel uses managed 24.x; CI pins patched 24.22.1 explicitly.
 const version = process.versions.node;
 const parts = version.split(".").map(Number);
 const [major, minor, patch] = parts;
