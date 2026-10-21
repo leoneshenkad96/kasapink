@@ -58,3 +58,9 @@ Thumbs.db
 !.env.example
 test-results/
 playwright-report/
+
+# Recovery material must never enter the source repository.
+/backups/
+*.dump
+*.dump.enc
+*.clixml

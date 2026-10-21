@@ -1,60 +1,40 @@
-import { execFile } from "node:child_process";
-import { chmod, mkdir, readdir, rename, rm, stat } from "node:fs/promises";
-import path from "node:path";
-import { promisify } from "node:util";
+import { copyFile, mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { constants } from 'node:fs';
+import { randomBytes } from 'node:crypto';
+import path from 'node:path';
+import { backupKey, digest, encryptArchive, postgresEnv, runPg, validateArchive } from './lib/backup-tools.mjs';
 
-const execFileAsync = promisify(execFile);
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) throw new Error("DATABASE_URL wajib diatur.");
-
-const parsed = new URL(databaseUrl);
-if (!["postgres:", "postgresql:"].includes(parsed.protocol)) {
-  throw new Error("DATABASE_URL harus berupa PostgreSQL URI.");
-}
-const dbPassword = decodeURIComponent(parsed.password);
-parsed.password = "";
-if (!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname)) {
-  // Verify the remote server certificate and its hostname, not merely encryption.
-  parsed.searchParams.set("sslmode", "verify-full");
-}
-
-const outputDir = path.resolve(process.env.ERP_BACKUP_DIR ?? "./backups");
-const retentionDays = Number(process.env.ERP_BACKUP_RETENTION_DAYS ?? 30);
-const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-const outputPath = path.join(outputDir, `kasapink-erp-${stamp}.dump`);
-const partialPath = `${outputPath}.partial`;
+const key = backupKey();
+const env = postgresEnv(process.env.DATABASE_URL);
+const outputDir = path.resolve(process.env.ERP_BACKUP_DIR || './backups');
+const copyDir = process.env.ERP_BACKUP_OFFSITE_DIR && path.resolve(process.env.ERP_BACKUP_OFFSITE_DIR);
+if (!copyDir) throw new Error('ERP_BACKUP_OFFSITE_DIR is required: choose a separately stored, trusted backup destination.');
 await mkdir(outputDir, { recursive: true, mode: 0o700 });
-
-const pgDump = process.env.PG_DUMP_BIN ?? (process.platform === "win32" ? "pg_dump.exe" : "pg_dump");
-const pgRestore = process.env.PG_RESTORE_BIN ?? (process.platform === "win32" ? "pg_restore.exe" : "pg_restore");
-const pgEnv = { ...process.env, PGPASSWORD: dbPassword };
-
+await mkdir(copyDir, { recursive: true, mode: 0o700 });
+const [local, second] = await Promise.all([realpath(outputDir), realpath(copyDir)]);
+if (local === second || local.startsWith(second + path.sep) || second.startsWith(local + path.sep)) throw new Error('Backup destinations must be separate directories, including after resolving links.');
+const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+const name = `kasapink-erp-${stamp}-${randomBytes(4).toString('hex')}.dump.enc`;
+const output = path.join(local, name), copied = path.join(second, name);
+const temp = await mkdtemp(path.join(local, '.pending-'));
 try {
-  // Password must never appear in command arguments or logs.
-  await execFileAsync(pgDump, [
-    "--format=custom", "--no-owner", "--no-privileges",
-    "--file", partialPath, "--dbname", parsed.toString(),
-  ], { windowsHide: true, maxBuffer: 1024 * 1024, env: pgEnv });
-
-  // Validate that the archive is readable before considering it a backup.
-  await execFileAsync(pgRestore, ["--list", partialPath], {
-    windowsHide: true, maxBuffer: 20 * 1024 * 1024,
-  });
-  if (process.platform !== "win32") await chmod(partialPath, 0o600);
-  await rename(partialPath, outputPath);
-} catch (error) {
-  await rm(partialPath, { force: true });
-  throw error;
+  const dump = path.join(temp, 'backup.dump'), encrypted = path.join(temp, name);
+  await runPg('dump', ['--format=custom', '--no-owner', '--no-privileges', '--file', dump], env);
+  await validateArchive(dump);
+  await encryptArchive(dump, encrypted, key);
+  const manifest = { format: 'kasapink-aes-256-gcm-v1', createdAt: new Date().toISOString(), size: (await stat(encrypted)).size, sha256: await digest(encrypted) };
+  await rename(encrypted, output);
+  await writeFile(`${output}.json`, JSON.stringify(manifest, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
+  await copyFile(output, `${copied}.partial`, constants.COPYFILE_EXCL);
+  if (await digest(`${copied}.partial`) !== manifest.sha256) throw new Error('Second backup copy failed checksum verification.');
+  await rename(`${copied}.partial`, copied);
+  await copyFile(`${output}.json`, `${copied}.json`, constants.COPYFILE_EXCL);
+  // Retention is deliberately separate: do not remove older recovery points
+  // before a full restore test of the new backup has passed.
+  console.log(`PASS: encrypted backup and checksum-verified second copy created: ${name}`);
+  console.log('The operator must ensure the second destination is on independent storage and keep a separate recovery key.');
+} finally {
+  key.fill(0);
+  await rm(temp, { recursive: true, force: true });
+  await rm(`${copied}.partial`, { force: true });
 }
-
-if (Number.isFinite(retentionDays) && retentionDays > 0) {
-  const cutoff = Date.now() - retentionDays * 86400000;
-  for (const file of await readdir(outputDir)) {
-    if (!/^kasapink-erp-.*\.dump$/.test(file)) continue;
-    const target = path.join(outputDir, file);
-    if ((await stat(target)).mtimeMs < cutoff && target !== outputPath) {
-      await rm(target, { force: true });
-    }
-  }
-}
-console.log(`Verified ERP backup created: ${outputPath}`);

@@ -30,6 +30,8 @@ Laba kotor dihitung dari pendapatan dikurangi biaya bahan produk yang terjual. A
 
 ## Menjalankan secara lokal
 
+Untuk memperbarui laptop dari GitHub sambil menyimpan pekerjaan lokal, lihat [sinkronisasi lokal dan backup terenkripsi](docs/LOCAL-SYNC-AND-RECOVERY.md). Perintah setelah updater tersedia: `pnpm local:sync`. Panduan tersebut juga menjelaskan instalasi backup Windows, salinan kedua, dan uji restore ke database sementara.
+
 ### 1. Siapkan kebutuhan
 
 - Node.js **24.22.1 atau lebih baru dalam lini 24.x** dan pnpm. Untuk menginstal rilis terbaru Node.js 24 melalui `nvm`, jalankan `nvm install 24.22.1` lalu `nvm use 24.22.1` (Windows: gunakan nvm-windows dengan perintah yang sesuai).
