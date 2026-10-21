@@ -1,0 +1,27 @@
+name: ERP Production Read-Only Smoke
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'scripts/production-readiness-check.mjs'
+      - '.github/workflows/erp-production-smoke.yml'
+  workflow_dispatch:
+  schedule:
+    - cron: "20 19 * * *" # 02:20 WIB, next calendar day
+permissions:
+  contents: read
+jobs:
+  read-only-production-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24.22.1"
+      - name: Check production without modifying ERP data
+        run: node scripts/production-readiness-check.mjs
+        env:
+          ERP_PRODUCTION_URL: https://erp.kasapink.com
