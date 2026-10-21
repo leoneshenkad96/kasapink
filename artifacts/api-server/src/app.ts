@@ -106,7 +106,7 @@ app.use("/api", (req, res, next) => {
     return res.status(403).json({ error: "Permintaan lintas origin ditolak." });
   }
   const hasCookieSession = typeof req.cookies?.kasapink_session === "string";
-  const bearer = /^Bearer\\s+\\S+$/i.test(req.get("authorization") ?? "");
+  const bearer = /^Bearer\s+\S+$/i.test(req.get("authorization") ?? "");
   if (hasCookieSession && !bearer && !origin && !referer &&
       req.get("sec-fetch-site") !== "same-origin") {
     return res.status(403).json({ error: "Asal permintaan tidak dapat diverifikasi." });
