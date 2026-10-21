@@ -50,7 +50,7 @@ try {
 if (Number.isFinite(retentionDays) && retentionDays > 0) {
   const cutoff = Date.now() - retentionDays * 86400000;
   for (const file of await readdir(outputDir)) {
-    if (!/^kasapink-erp-.*\\.dump$/.test(file)) continue;
+    if (!/^kasapink-erp-.*\.dump$/.test(file)) continue;
     const target = path.join(outputDir, file);
     if ((await stat(target)).mtimeMs < cutoff && target !== outputPath) {
       await rm(target, { force: true });
