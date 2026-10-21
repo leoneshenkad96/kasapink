@@ -32,7 +32,7 @@ Laba kotor dihitung dari pendapatan dikurangi biaya bahan produk yang terjual. A
 
 ### 1. Siapkan kebutuhan
 
-- Node.js **24.22.1 atau lebih baru dalam lini 24.x** dan pnpm. Untuk menginstal rilis terbaru Node.js 24 melalui `nvm`, jalankan `nvm install 24` lalu `nvm use 24` (Windows: gunakan nvm-windows dengan perintah yang sesuai).
+- Node.js **24.22.1 atau lebih baru dalam lini 24.x** dan pnpm. Untuk menginstal rilis terbaru Node.js 24 melalui `nvm`, jalankan `nvm install 24.22.1` lalu `nvm use 24.22.1` (Windows: gunakan nvm-windows dengan perintah yang sesuai).
 - PostgreSQL untuk lingkungan pengembangan.
 - Git untuk mengambil repositori.
 
